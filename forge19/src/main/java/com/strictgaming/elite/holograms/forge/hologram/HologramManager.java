@@ -35,7 +35,7 @@ public class HologramManager implements Runnable {
     public static void preInit() {
         new Thread(new HologramManager()).start();
 
-        new QuitListener();
+        new PlayerEventListener();
         saver = (HologramSaver) new JsonHologramSaver(ForgeHolograms.getInstance().getConfig().getStorageLocation());
     }
 
@@ -197,7 +197,14 @@ public class HologramManager implements Runnable {
         }
     }
 
-    private static class QuitListener {
+    private static class PlayerEventListener {
+        private long nextRun = 0L;
+        
+        public PlayerEventListener() {
+            // Register this instance to the Forge event bus
+            net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(this);
+        }
+        
         @SubscribeEvent
         public void onPlayerQuit(PlayerEvent.PlayerLoggedOutEvent event) {
             if (event == null || event.getEntity() == null) {
@@ -214,6 +221,22 @@ public class HologramManager implements Runnable {
                     value.getNearbyPlayers().remove(playerUUID);
                 }
             }
+        }
+        
+        @SubscribeEvent
+        public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
+            if (event == null || event.getEntity() == null || !(event.getEntity() instanceof ServerPlayer)) {
+                return;
+            }
+            
+            // When a player logs in, refresh all holograms to make them check visibility
+            for (ForgeHologram hologram : HologramManager.HOLOGRAMS.values()) {
+                if (hologram != null) {
+                    hologram.refreshVisibility();
+                }
+            }
+            
+            LOGGER.info("Refreshed hologram visibility for player: {}", event.getEntity().getName().getString());
         }
     }
 } 

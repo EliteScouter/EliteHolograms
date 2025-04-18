@@ -60,7 +60,7 @@ public class HologramsInfoCommand implements Command<CommandSourceStack> {
         Vec3 position = forgeHologram.getPosition();
         
         // Display hologram information with updated styling - without right borders
-        source.sendSystemMessage(UtilChatColour.parse("&3&l┌─ &b&lHologram Information: &f" + id + " &3&l─┐"));
+        source.sendSystemMessage(UtilChatColour.parse("&3&l┌─ &b&lHologram Information: &f" + id + " &3&l──────────┐"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &bWorld: &f" + UtilWorld.getName(forgeHologram.getWorld())));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &bPosition: &f" + 
                 COORDINATE_FORMAT.format(position.x) + ", " + 
@@ -70,7 +70,7 @@ public class HologramsInfoCommand implements Command<CommandSourceStack> {
         source.sendSystemMessage(UtilChatColour.parse("&3│ &bLines: &f" + forgeHologram.getLines().size()));
         
         // Display all lines with updated styling
-        source.sendSystemMessage(UtilChatColour.parse("&3&l├─ &b&lLines &3&l─────────────────────────┤"));
+        source.sendSystemMessage(UtilChatColour.parse("&3&l├─ &b&lLines &3&l───────────────────────┤"));
         List<HologramLine> lines = forgeHologram.getLines();
         for (int i = 0; i < lines.size(); i++) {
             HologramLine line = lines.get(i);

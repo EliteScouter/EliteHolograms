@@ -161,7 +161,7 @@ public class HologramsCommand {
     public int onCommand(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
         
-        source.sendSystemMessage(UtilChatColour.parse("&3&l┌─&b&lElite Holograms &3&l──────"));
+        source.sendSystemMessage(UtilChatColour.parse("&3&l┌─&b&lElite Holograms &3&l──────┐"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh create <id> <text>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh list"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh delete <id>"));
@@ -175,7 +175,7 @@ public class HologramsCommand {
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh copy <target> <id>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh insertline <id> <line> <text>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh info <id>"));
-        source.sendSystemMessage(UtilChatColour.parse("&3&l└─────────────────"));
+        source.sendSystemMessage(UtilChatColour.parse("&3&l└─────────────────┘"));
         return 1;
     }
     
