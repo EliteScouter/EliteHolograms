@@ -32,7 +32,7 @@ A lightweight and powerful Minecraft Forge mod for creating and managing hologra
 
 ## Installation
 
-1. Download the latest version from [CurseForge](https://authors.curseforge.com/#/projects/1245528/)
+1. Download the latest version from [CurseForge](https://www.curseforge.com/minecraft/mc-mods/elite-holograms)
 2. Place the JAR file in your server's `mods` folder
 3. Restart the server
 4. Use `/eh create` to start creating holograms!
