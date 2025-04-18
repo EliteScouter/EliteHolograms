@@ -85,8 +85,6 @@ nb-configuration.xml
 ##############################
 ## Project Specific
 ##############################
-forge/
-forge16/
 repack/
 _OLD/
 release/
