@@ -1,0 +1,191 @@
+package com.strictgaming.elite.holograms.forge20;
+
+import com.strictgaming.elite.holograms.api.hologram.Hologram;
+import com.strictgaming.elite.holograms.api.hologram.HologramBuilder;
+import com.strictgaming.elite.holograms.api.manager.HologramFactory;
+import com.strictgaming.elite.holograms.api.manager.PlatformHologramManager;
+import com.strictgaming.elite.holograms.forge20.command.CommandFactory;
+import com.strictgaming.elite.holograms.forge20.command.HologramsCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsCreateCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsListCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsDeleteCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsReloadCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsAddLineCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsSetLineCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsRemoveLineCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsMoveHereCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsTeleportCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsInsertLineCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsCopyCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsInfoCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsNearCommand;
+import com.strictgaming.elite.holograms.forge20.config.HologramsConfig;
+import com.strictgaming.elite.holograms.forge20.hologram.HologramManager;
+import com.strictgaming.elite.holograms.forge20.hologram.manager.ForgeHologramFactory;
+import com.strictgaming.elite.holograms.forge20.hologram.manager.ForgeHologramManager;
+import net.minecraft.network.chat.Component;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.server.ServerStartingEvent;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+
+import java.io.IOException;
+
+@Mod(Forge20Holograms.MOD_ID)
+public class Forge20Holograms implements PlatformHologramManager {
+
+    public static final String MOD_ID = "eliteholograms";
+    public static final String VERSION = "1.0.1";
+    private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
+
+    private static Forge20Holograms instance;
+
+    private CommandFactory commandFactory = new CommandFactory();
+    private HologramsConfig config;
+    private boolean placeholders;
+    private ForgeHologramFactory hologramFactory;
+    private ForgeHologramManager hologramManager;
+
+    public Forge20Holograms() {
+        instance = this;
+        LOGGER.info("Initializing Elite Holograms mod for Minecraft 1.20.1");
+        MinecraftForge.EVENT_BUS.register(this);
+        this.hologramFactory = new ForgeHologramFactory();
+        this.hologramManager = new ForgeHologramManager();
+    }
+
+    @SubscribeEvent
+    public void onServerStarting(ServerStartingEvent event) {
+        LOGGER.info("Server starting - initializing hologram manager");
+        
+        try {
+            this.config = new HologramsConfig();
+            this.config.load();
+            LOGGER.info("Config loaded successfully");
+        } catch (IOException e) {
+            LOGGER.error("Error loading config", e);
+        }
+        
+        HologramManager.preInit();
+    }
+
+    private void checkForPlaceholders() {
+        try {
+            Class.forName("com.envyful.papi.forge.ForgePlaceholderAPI");
+            this.placeholders = true;
+            LOGGER.info("Placeholder API found - placeholders enabled");
+        } catch (ClassNotFoundException e) {
+            this.placeholders = false;
+            LOGGER.info("Placeholder API not found - placeholders disabled");
+        }
+    }
+
+    @SubscribeEvent
+    public void onServerStarted(ServerStartedEvent event) {
+        LOGGER.info("Server started - loading holograms");
+        try {
+            HologramManager.load();
+            LOGGER.info("Holograms loaded successfully");
+        } catch (Exception e) {
+            LOGGER.error("Error loading holograms", e);
+        }
+        this.checkForPlaceholders();
+    }
+
+    @SubscribeEvent
+    public void onCommandRegister(RegisterCommandsEvent event) {
+        LOGGER.info("Registering commands...");
+        
+        // Create command instances
+        HologramsCommand command = new HologramsCommand();
+        HologramsCreateCommand createCommand = new HologramsCreateCommand();
+        HologramsListCommand listCommand = new HologramsListCommand();
+        HologramsDeleteCommand deleteCommand = new HologramsDeleteCommand();
+        HologramsReloadCommand reloadCommand = new HologramsReloadCommand();
+        HologramsAddLineCommand addLineCommand = new HologramsAddLineCommand();
+        HologramsSetLineCommand setLineCommand = new HologramsSetLineCommand();
+        HologramsRemoveLineCommand removeLineCommand = new HologramsRemoveLineCommand();
+        HologramsMoveHereCommand moveHereCommand = new HologramsMoveHereCommand();
+        HologramsTeleportCommand teleportCommand = new HologramsTeleportCommand();
+        HologramsInsertLineCommand insertLineCommand = new HologramsInsertLineCommand();
+        HologramsCopyCommand copyCommand = new HologramsCopyCommand();
+        HologramsInfoCommand infoCommand = new HologramsInfoCommand();
+        HologramsNearCommand nearCommand = new HologramsNearCommand();
+        
+        // Register commands with main command handler
+        command.registerSubCommand("create", createCommand);
+        command.registerSubCommand("list", listCommand);
+        command.registerSubCommand("delete", deleteCommand);
+        command.registerSubCommand("reload", reloadCommand);
+        command.registerSubCommand("addline", addLineCommand);
+        command.registerSubCommand("setline", setLineCommand);
+        command.registerSubCommand("removeline", removeLineCommand);
+        command.registerSubCommand("movehere", moveHereCommand);
+        command.registerSubCommand("teleport", teleportCommand);
+        command.registerSubCommand("insertline", insertLineCommand);
+        command.registerSubCommand("copy", copyCommand);
+        command.registerSubCommand("info", infoCommand);
+        command.registerSubCommand("near", nearCommand);
+        
+        // Register main command with command dispatcher
+        command.register(event.getDispatcher());
+        
+        LOGGER.info("Commands registered successfully!");
+    }
+
+    public static Forge20Holograms getInstance() {
+        return instance;
+    }
+
+    public HologramsConfig getConfig() {
+        return this.config;
+    }
+
+    @Override
+    public boolean arePlaceholdersEnabled() {
+        return this.placeholders;
+    }
+    
+    @Override
+    public HologramFactory getFactory() {
+        return this.hologramFactory;
+    }
+    
+    @Override
+    public void reload() throws IOException {
+        this.hologramManager.reload();
+    }
+    
+    @Override
+    public void clear() {
+        this.hologramManager.clear();
+    }
+
+    @Override
+    public HologramBuilder builder() {
+        return this.hologramFactory.builder();
+    }
+
+    @Override
+    public HologramBuilder builder(String id) {
+        return this.hologramFactory.builder().id(id);
+    }
+
+    @Override
+    public HologramBuilder builder(String... lines) {
+        return this.hologramFactory.builder().lines(lines);
+    }
+
+    @Override
+    public HologramBuilder builder(String world, int x, int y, int z) {
+        return this.hologramFactory.builder()
+            .world(world)
+            .position(x, y, z);
+    }
+} 

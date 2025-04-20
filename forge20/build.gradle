@@ -14,7 +14,7 @@ apply plugin: 'java'
 apply plugin: 'maven-publish'
 
 group = 'com.strictgaming.elite.holograms'
-version = '1.0.1'
+version = '1.20.1-1.0.0'
 archivesBaseName = 'EliteHolograms'
 
 // Java version compatibility
@@ -35,7 +35,8 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 minecraft {
-    mappings channel: 'official', version: '1.19.2'
+    // Update to Minecraft 1.20.1
+    mappings channel: 'official', version: '1.20.1'
 
     runs {
         client {
@@ -77,7 +78,8 @@ configurations {
 }
 
 dependencies {
-    minecraft 'net.minecraftforge:forge:1.19.2-43.2.0'
+    // Update to Forge for 1.20.1
+    minecraft 'net.minecraftforge:forge:1.20.1-47.2.0'
 
     // Core dependencies that will be included in the JAR
     compileOnly group: 'org.spongepowered', name: 'configurate-yaml', version: '4.0.0'
@@ -139,7 +141,7 @@ reobf {
 tasks.findByName('versionedRelease') ?: tasks.register('versionedRelease', Copy) {
     from("build/libs/${archivesBaseName}-${version}.jar")
     into('../../release/')
-    rename("${archivesBaseName}-${version}.jar", "${archivesBaseName}-${version}-Forge.jar")
+    rename("${archivesBaseName}-${version}.jar", "${archivesBaseName}-${version}-Forge1.20.1.jar")
 }
 
 build.finalizedBy('versionedRelease')
