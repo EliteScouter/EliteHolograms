@@ -11,7 +11,7 @@ A lightweight and powerful Minecraft Forge mod for creating and managing hologra
 - PlaceholderAPI support for dynamic content (when available)
 - Easy-to-use commands with intuitive syntax
 - Performance optimized for servers
-- Support for Minecraft 1.19.2 and 1.20.1
+- Support for Minecraft 1.19.2, 1.20.1, and NeoForge 1.21.1
 
 ## Commands
 
