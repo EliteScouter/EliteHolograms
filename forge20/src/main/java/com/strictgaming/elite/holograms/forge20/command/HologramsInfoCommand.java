@@ -11,6 +11,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import com.strictgaming.elite.holograms.forge20.util.UtilChatColour;
 
 /**
  * Command to display information about a specific hologram
@@ -71,7 +72,7 @@ public class HologramsInfoCommand implements Command<CommandSourceStack> {
                     
                     for (int i = 0; i < forgeHologram.getLines().size(); i++) {
                         String lineText = forgeHologram.getLines().get(i).getText();
-                        player.sendSystemMessage(Component.literal("§3│ §f" + i + ": §7" + lineText));
+                        player.sendSystemMessage(UtilChatColour.parse("§3│ §f" + i + ": §7" + lineText));
                     }
                 }
             }

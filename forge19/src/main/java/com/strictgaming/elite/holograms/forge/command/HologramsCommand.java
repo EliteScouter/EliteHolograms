@@ -7,6 +7,9 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -17,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Main command for Elite Holograms
@@ -25,6 +29,14 @@ public class HologramsCommand {
 
     private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
     private final Map<String, Object> subCommands = new HashMap<>();
+    
+    // Suggestion provider for hologram IDs
+    private static final SuggestionProvider<CommandSourceStack> HOLOGRAM_ID_SUGGESTIONS = (context, builder) -> {
+        for (Hologram hologram : HologramManager.getAllHolograms()) {
+            builder.suggest(hologram.getId());
+        }
+        return builder.buildFuture();
+    };
     
     /**
      * Register the command with the dispatcher
@@ -54,6 +66,7 @@ public class HologramsCommand {
                 
         LiteralArgumentBuilder<CommandSourceStack> deleteCommand = Commands.literal("delete")
                 .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .executes(ctx -> {
                     String[] args = new String[] {
                         StringArgumentType.getString(ctx, "id")
@@ -63,6 +76,7 @@ public class HologramsCommand {
                 
         LiteralArgumentBuilder<CommandSourceStack> addLineCommand = Commands.literal("addline")
                 .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .then(Commands.argument("text", StringArgumentType.greedyString())
                 .executes(ctx -> {
                     String[] args = new String[] {
@@ -74,6 +88,7 @@ public class HologramsCommand {
                 
         LiteralArgumentBuilder<CommandSourceStack> setLineCommand = Commands.literal("setline")
                 .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .then(Commands.argument("line", StringArgumentType.word())
                 .then(Commands.argument("text", StringArgumentType.greedyString())
                 .executes(ctx -> {
@@ -87,6 +102,7 @@ public class HologramsCommand {
                 
         LiteralArgumentBuilder<CommandSourceStack> removeLineCommand = Commands.literal("removeline")
                 .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .then(Commands.argument("line", StringArgumentType.word())
                 .executes(ctx -> {
                     String[] args = new String[] {
@@ -117,6 +133,7 @@ public class HologramsCommand {
         // Add teleport command as a direct handler function
         LiteralArgumentBuilder<CommandSourceStack> teleportCommand = Commands.literal("teleport")
                 .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .executes(ctx -> {
                     try {
                         String id = StringArgumentType.getString(ctx, "id");
@@ -130,6 +147,7 @@ public class HologramsCommand {
         // Info command
         LiteralArgumentBuilder<CommandSourceStack> infoCommand = Commands.literal("info")
                 .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .executes(ctx -> {
                     String[] args = new String[] {
                         StringArgumentType.getString(ctx, "id")

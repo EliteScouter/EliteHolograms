@@ -101,6 +101,9 @@ public class ForgeHologram implements Hologram {
                 line.spawnForPlayer(player);
             }
         }
+        
+        // Ensure that the hologram is saved immediately after adding a line
+        HologramManager.save();
     }
 
     @Override

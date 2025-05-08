@@ -129,6 +129,15 @@ public class HologramManager implements Runnable {
         return getAllHolograms();
     }
 
+    /**
+     * Get the hologram saver used by this manager
+     * 
+     * @return The hologram saver instance
+     */
+    public static HologramSaver getSaver() {
+        return saver;
+    }
+
     @Override
     public void run() {
         while (true) {

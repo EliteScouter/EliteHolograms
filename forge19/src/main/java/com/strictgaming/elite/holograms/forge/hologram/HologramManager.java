@@ -120,6 +120,15 @@ public class HologramManager implements Runnable {
         return Collections.unmodifiableList(Lists.newArrayList(HOLOGRAMS.values()));
     }
 
+    /**
+     * Get the hologram saver used by this manager
+     * 
+     * @return The hologram saver instance
+     */
+    public static HologramSaver getSaver() {
+        return saver;
+    }
+
     @Override
     public void run() {
         while (true) {
