@@ -1,5 +1,6 @@
 package com.strictgaming.elite.holograms.forge;
 
+import com.google.common.collect.Lists;
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
 import com.strictgaming.elite.holograms.api.manager.HologramFactory;
 import com.strictgaming.elite.holograms.forge.command.CommandFactory;
@@ -27,6 +28,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -36,7 +38,7 @@ import java.io.IOException;
 public class ForgeHolograms {
 
     public static final String MOD_ID = "eliteholograms";
-    public static final String VERSION = "1.0.1";
+    public static final String VERSION = "1.19.2-1.0.3";
     private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
 
     private static ForgeHolograms instance;
@@ -88,6 +90,29 @@ public class ForgeHolograms {
             LOGGER.error("Error loading holograms", e);
         }
         this.checkForPlaceholders();
+    }
+
+    @SubscribeEvent
+    public void onServerStopping(ServerStoppingEvent event) {
+        LOGGER.info("Server stopping - saving holograms synchronously");
+        
+        // First despawn all holograms to ensure they're properly cleaned up
+        for (Hologram hologram : HologramManager.getAllHolograms()) {
+            try {
+                LOGGER.debug("Despawning hologram {} during server shutdown", hologram.getId());
+                hologram.despawn();
+            } catch (Exception e) {
+                LOGGER.error("Error despawning hologram {} during shutdown: {}", hologram.getId(), e.getMessage());
+            }
+        }
+        
+        // Then save the hologram data synchronously to prevent hanging
+        try {
+            HologramManager.getSaver().save(Lists.newArrayList(HologramManager.getAllHolograms()));
+            LOGGER.info("Holograms saved successfully during shutdown");
+        } catch (Exception e) {
+            LOGGER.error("Error saving holograms during shutdown", e);
+        }
     }
 
     @SubscribeEvent
