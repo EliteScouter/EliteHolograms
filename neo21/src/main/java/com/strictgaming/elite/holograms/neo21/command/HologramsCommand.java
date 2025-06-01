@@ -4,6 +4,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.strictgaming.elite.holograms.neo21.Neo21Holograms;
+import com.strictgaming.elite.holograms.neo21.util.UtilPermissions;
 
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -37,31 +38,74 @@ public class HologramsCommand {
     public void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         // Register with 'eliteholograms' command
         LiteralArgumentBuilder<CommandSourceStack> fullCommandBuilder = Commands.literal("eliteholograms")
-                .requires(source -> source.hasPermission(2));
+                .requires(source -> UtilPermissions.hasPermission(source, UtilPermissions.LIST));
         
         // Add help subcommand
         fullCommandBuilder.executes(this::showHelp);
         
         // Register with 'eh' command (short alias)
         LiteralArgumentBuilder<CommandSourceStack> shortCommandBuilder = Commands.literal("eh")
-                .requires(source -> source.hasPermission(2));
+                .requires(source -> UtilPermissions.hasPermission(source, UtilPermissions.LIST));
         
         // Add help subcommand to short version too
         shortCommandBuilder.executes(this::showHelp);
         
         // Register all subcommands to both command variants
         for (Map.Entry<String, SubCommand> entry : subCommands.entrySet()) {
-            fullCommandBuilder.then(Commands.literal(entry.getKey())
-                    .executes(entry.getValue()::execute)
-                    .then(entry.getValue().getArguments()));
+            String commandName = entry.getKey();
+            SubCommand subCommand = entry.getValue();
             
-            shortCommandBuilder.then(Commands.literal(entry.getKey())
-                    .executes(entry.getValue()::execute)
-                    .then(entry.getValue().getArguments()));
+            // Determine the appropriate permission for each subcommand
+            String permission = getPermissionForCommand(commandName);
+            
+            fullCommandBuilder.then(Commands.literal(commandName)
+                    .requires(source -> UtilPermissions.hasPermission(source, permission))
+                    .executes(subCommand::execute)
+                    .then(subCommand.getArguments()));
+            
+            shortCommandBuilder.then(Commands.literal(commandName)
+                    .requires(source -> UtilPermissions.hasPermission(source, permission))
+                    .executes(subCommand::execute)
+                    .then(subCommand.getArguments()));
         }
         
         dispatcher.register(fullCommandBuilder);
         dispatcher.register(shortCommandBuilder);
+    }
+    
+    /**
+     * Get the appropriate permission for a command
+     * 
+     * @param commandName The command name
+     * @return The permission node
+     */
+    private String getPermissionForCommand(String commandName) {
+        switch (commandName.toLowerCase()) {
+            case "create":
+                return UtilPermissions.CREATE;
+            case "delete":
+                return UtilPermissions.DELETE;
+            case "addline":
+            case "setline":
+            case "removeline":
+            case "movehere":
+            case "insertline":
+                return UtilPermissions.EDIT;
+            case "list":
+                return UtilPermissions.LIST;
+            case "near":
+                return UtilPermissions.NEAR;
+            case "teleport":
+                return UtilPermissions.TELEPORT;
+            case "info":
+                return UtilPermissions.INFO;
+            case "copy":
+                return UtilPermissions.CREATE; // Copy requires create permission
+            case "reload":
+                return UtilPermissions.ADMIN;
+            default:
+                return UtilPermissions.LIST; // Default to list permission
+        }
     }
     
     /**

@@ -14,7 +14,7 @@ apply plugin: 'java'
 apply plugin: 'maven-publish'
 
 group = 'com.strictgaming.elite.holograms'
-version = '1.19.2-1.0.3'
+version = '1.19.2-1.0.4'
 archivesBaseName = 'EliteHolograms'
 
 // Java version compatibility

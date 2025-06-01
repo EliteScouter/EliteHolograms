@@ -32,19 +32,22 @@ public class HologramManager implements Runnable {
 
     private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
 
-    public static void preInit() {
-        new Thread(new HologramManager()).start();
-
-        new PlayerEventListener();
-        saver = (HologramSaver) new JsonHologramSaver(ForgeHolograms.getInstance().getConfig().getStorageLocation());
-    }
-
     private static final Map<String, ForgeHologram> HOLOGRAMS = Maps.newConcurrentMap();
 
     private static HologramSaver saver;
+    private static boolean shutdown = false;
+    private static Thread managerThread;
 
     private HologramManager() {
         // Private constructor for singleton
+    }
+
+    public static void preInit() {
+        managerThread = new Thread(new HologramManager());
+        managerThread.start();
+
+        new PlayerEventListener();
+        saver = (HologramSaver) new JsonHologramSaver(ForgeHolograms.getInstance().getConfig().getStorageLocation());
     }
 
     public static void clear() {
@@ -129,9 +132,19 @@ public class HologramManager implements Runnable {
         return saver;
     }
 
+    /**
+     * Signals the manager to shutdown and stops the background thread
+     */
+    public static void shutdown() {
+        shutdown = true;
+        if (managerThread != null) {
+            managerThread.interrupt();
+        }
+    }
+
     @Override
     public void run() {
-        while (true) {
+        while (!shutdown) {
             try {
                 Thread.sleep(500); // Run every half second
                 checkHolograms();

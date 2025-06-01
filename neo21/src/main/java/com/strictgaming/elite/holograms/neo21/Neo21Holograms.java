@@ -39,6 +39,10 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.entity.living.LivingEvent;
+import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import java.io.IOException;
 
@@ -46,7 +50,7 @@ import java.io.IOException;
 public class Neo21Holograms implements PlatformHologramManager {
 
     public static final String MOD_ID = "eliteholograms";
-    public static final String VERSION = "1.21.1-1.0.0";
+    public static final String VERSION = "1.21.1-1.0.2";
     private static final Logger LOGGER = LogUtils.getLogger();
 
     private static Neo21Holograms instance;
@@ -165,23 +169,29 @@ public class Neo21Holograms implements PlatformHologramManager {
         try {
             Class.forName("com.envyful.papi.forge.ForgePlaceholderAPI");
             this.placeholders = true;
-            LOGGER.info("Placeholder API found - placeholders enabled");
+            LOGGER.info("External Placeholder API found - placeholders enabled with external support");
         } catch (ClassNotFoundException e) {
-            this.placeholders = false;
-            LOGGER.info("Placeholder API not found - placeholders disabled");
+            this.placeholders = true; // Always enable our built-in placeholders
+            LOGGER.info("Using built-in placeholder system - placeholders enabled");
         }
     }
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
         LOGGER.info("Server started - loading holograms");
+        
+        // Initialize placeholder server start time for uptime tracking
+        com.strictgaming.elite.holograms.neo21.util.UtilPlaceholder.setServerStartTime();
+        
+        // Check for placeholders BEFORE loading holograms so they're enabled when spawning
+        this.checkForPlaceholders();
+        
         try {
             HologramManager.load();
             LOGGER.info("Holograms loaded successfully");
         } catch (Exception e) {
             LOGGER.error("Error loading holograms", e);
         }
-        this.checkForPlaceholders();
     }
 
     @SubscribeEvent
@@ -189,7 +199,7 @@ public class Neo21Holograms implements PlatformHologramManager {
         LOGGER.info("Server stopping - preparing to save holograms");
         
         // First despawn all holograms to ensure they're properly cleaned up
-        for (Hologram hologram : HologramManager.getHolograms().values()) {
+        HologramManager.getHolograms().values().forEach(hologram -> {
             try {
                 if (hologram.isSpawned()) {
                     LOGGER.debug("Despawning hologram {} during server shutdown", hologram.getId());
@@ -198,7 +208,7 @@ public class Neo21Holograms implements PlatformHologramManager {
             } catch (Exception e) {
                 LOGGER.error("Error despawning hologram {} during shutdown: {}", hologram.getId(), e.getMessage());
             }
-        }
+        });
         
         // Then save the hologram data
         try {
@@ -206,6 +216,31 @@ public class Neo21Holograms implements PlatformHologramManager {
             LOGGER.info("Holograms saved successfully");
         } catch (IOException e) {
             LOGGER.error("Error saving holograms", e);
+        }
+    }
+
+    // Player Event Handlers
+    @SubscribeEvent
+    public void onPlayerJoin(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            HologramManager.handlePlayerJoin(player);
+        }
+    }
+    
+    @SubscribeEvent
+    public void onPlayerLeave(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            HologramManager.handlePlayerLeave(player);
+        }
+    }
+    
+    @SubscribeEvent
+    public void onServerTick(ServerTickEvent.Post event) {
+        // Check player movement every 20 ticks (1 second) to avoid performance issues
+        if (event.getServer().getTickCount() % 20 == 0) {
+            for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
+                HologramManager.handlePlayerMove(player);
+            }
         }
     }
 

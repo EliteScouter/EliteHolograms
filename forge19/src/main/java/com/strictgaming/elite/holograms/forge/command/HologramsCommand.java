@@ -3,6 +3,7 @@ package com.strictgaming.elite.holograms.forge.command;
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
 import com.strictgaming.elite.holograms.forge.hologram.HologramManager;
 import com.strictgaming.elite.holograms.forge.util.UtilChatColour;
+import com.strictgaming.elite.holograms.forge.util.UtilPermissions;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -51,9 +52,11 @@ public class HologramsCommand {
         }
         
         LiteralArgumentBuilder<CommandSourceStack> command = Commands.literal("eliteholograms")
+                .requires(source -> UtilPermissions.hasPermission(source, UtilPermissions.LIST))
                 .executes(this::onCommand);
                 
         LiteralArgumentBuilder<CommandSourceStack> createCommand = Commands.literal("create")
+                .requires(UtilPermissions::canCreate)
                 .then(Commands.argument("id", StringArgumentType.word())
                 .then(Commands.argument("text", StringArgumentType.greedyString())
                 .executes(ctx -> {
@@ -65,6 +68,7 @@ public class HologramsCommand {
                 })));
                 
         LiteralArgumentBuilder<CommandSourceStack> deleteCommand = Commands.literal("delete")
+                .requires(UtilPermissions::canDelete)
                 .then(Commands.argument("id", StringArgumentType.word())
                 .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .executes(ctx -> {
@@ -75,6 +79,7 @@ public class HologramsCommand {
                 }));
                 
         LiteralArgumentBuilder<CommandSourceStack> addLineCommand = Commands.literal("addline")
+                .requires(UtilPermissions::canEdit)
                 .then(Commands.argument("id", StringArgumentType.word())
                 .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .then(Commands.argument("text", StringArgumentType.greedyString())
@@ -87,6 +92,7 @@ public class HologramsCommand {
                 })));
                 
         LiteralArgumentBuilder<CommandSourceStack> setLineCommand = Commands.literal("setline")
+                .requires(UtilPermissions::canEdit)
                 .then(Commands.argument("id", StringArgumentType.word())
                 .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .then(Commands.argument("line", StringArgumentType.word())
@@ -101,6 +107,7 @@ public class HologramsCommand {
                 }))));
                 
         LiteralArgumentBuilder<CommandSourceStack> removeLineCommand = Commands.literal("removeline")
+                .requires(UtilPermissions::canEdit)
                 .then(Commands.argument("id", StringArgumentType.word())
                 .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .then(Commands.argument("line", StringArgumentType.word())
@@ -114,10 +121,12 @@ public class HologramsCommand {
                 
         // Add list command - make it work directly as a subcommand too
         LiteralArgumentBuilder<CommandSourceStack> listCommand = Commands.literal("list")
+                .requires(UtilPermissions::canList)
                 .executes(this::listHolograms);
         
         // Add near command as a direct handler function
         LiteralArgumentBuilder<CommandSourceStack> nearCommand = Commands.literal("near")
+                .requires(UtilPermissions::canNear)
                 .executes(this::executeNearCommand)
                 .then(Commands.argument("page", StringArgumentType.word())
                 .executes(ctx -> {
@@ -132,6 +141,7 @@ public class HologramsCommand {
                 
         // Add teleport command as a direct handler function
         LiteralArgumentBuilder<CommandSourceStack> teleportCommand = Commands.literal("teleport")
+                .requires(UtilPermissions::canTeleport)
                 .then(Commands.argument("id", StringArgumentType.word())
                 .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .executes(ctx -> {
@@ -146,6 +156,7 @@ public class HologramsCommand {
                 
         // Info command
         LiteralArgumentBuilder<CommandSourceStack> infoCommand = Commands.literal("info")
+                .requires(UtilPermissions::canInfo)
                 .then(Commands.argument("id", StringArgumentType.word())
                 .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .executes(ctx -> {
@@ -154,6 +165,56 @@ public class HologramsCommand {
                     };
                     return executeSubCommand(ctx, "info", args);
                 }));
+                
+        // Copy command
+        LiteralArgumentBuilder<CommandSourceStack> copyCommand = Commands.literal("copy")
+                .requires(UtilPermissions::canCreate)
+                .then(Commands.argument("source_id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                .then(Commands.argument("new_id", StringArgumentType.word())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "source_id"),
+                        StringArgumentType.getString(ctx, "new_id")
+                    };
+                    return executeSubCommand(ctx, "copy", args);
+                })));
+                
+        // MoveHere command
+        LiteralArgumentBuilder<CommandSourceStack> moveHereCommand = Commands.literal("movehere")
+                .requires(UtilPermissions::canEdit)
+                .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id")
+                    };
+                    return executeSubCommand(ctx, "movehere", args);
+                }));
+                
+        // InsertLine command
+        LiteralArgumentBuilder<CommandSourceStack> insertLineCommand = Commands.literal("insertline")
+                .requires(UtilPermissions::canEdit)
+                .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                .then(Commands.argument("line", StringArgumentType.word())
+                .then(Commands.argument("text", StringArgumentType.greedyString())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "line"),
+                        StringArgumentType.getString(ctx, "text")
+                    };
+                    return executeSubCommand(ctx, "insertline", args);
+                }))));
+                
+        // Reload command
+        LiteralArgumentBuilder<CommandSourceStack> reloadCommand = Commands.literal("reload")
+                .requires(UtilPermissions::canAdmin)
+                .executes(ctx -> {
+                    String[] args = new String[] {};
+                    return executeSubCommand(ctx, "reload", args);
+                });
                 
         command.then(createCommand);
         command.then(deleteCommand);
@@ -164,6 +225,10 @@ public class HologramsCommand {
         command.then(nearCommand);
         command.then(teleportCommand);
         command.then(infoCommand);
+        command.then(copyCommand);
+        command.then(moveHereCommand);
+        command.then(insertLineCommand);
+        command.then(reloadCommand);
         
         dispatcher.register(command);
         
@@ -282,14 +347,17 @@ public class HologramsCommand {
                                             String alias) {
         // Create the base alias command
         LiteralArgumentBuilder<CommandSourceStack> aliasCommand = Commands.literal(alias)
+                .requires(source -> UtilPermissions.hasPermission(source, UtilPermissions.LIST))
                 .executes(this::onCommand);
                 
         // Add list command directly to the alias
         aliasCommand.then(Commands.literal("list")
+                .requires(UtilPermissions::canList)
                 .executes(this::listHolograms));
                 
         // Add create command to the alias
         aliasCommand.then(Commands.literal("create")
+                .requires(UtilPermissions::canCreate)
                 .then(Commands.argument("id", StringArgumentType.word())
                 .then(Commands.argument("text", StringArgumentType.greedyString())
                 .executes(ctx -> {
@@ -302,7 +370,9 @@ public class HologramsCommand {
                 
         // Add delete command
         aliasCommand.then(Commands.literal("delete")
+                .requires(UtilPermissions::canDelete)
                 .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .executes(ctx -> {
                     String[] args = new String[] {
                         StringArgumentType.getString(ctx, "id")
@@ -312,7 +382,9 @@ public class HologramsCommand {
                 
         // Add line command
         aliasCommand.then(Commands.literal("addline")
+                .requires(UtilPermissions::canEdit)
                 .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .then(Commands.argument("text", StringArgumentType.greedyString())
                 .executes(ctx -> {
                     String[] args = new String[] {
@@ -324,7 +396,9 @@ public class HologramsCommand {
                 
         // Set line command
         aliasCommand.then(Commands.literal("setline")
+                .requires(UtilPermissions::canEdit)
                 .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .then(Commands.argument("line", StringArgumentType.word())
                 .then(Commands.argument("text", StringArgumentType.greedyString())
                 .executes(ctx -> {
@@ -338,7 +412,9 @@ public class HologramsCommand {
                 
         // Remove line command
         aliasCommand.then(Commands.literal("removeline")
+                .requires(UtilPermissions::canEdit)
                 .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .then(Commands.argument("line", StringArgumentType.word())
                 .executes(ctx -> {
                     String[] args = new String[] {
@@ -350,7 +426,9 @@ public class HologramsCommand {
                 
         // Move here command
         aliasCommand.then(Commands.literal("movehere")
+                .requires(UtilPermissions::canEdit)
                 .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .executes(ctx -> {
                     String[] args = new String[] {
                         StringArgumentType.getString(ctx, "id")
@@ -360,6 +438,7 @@ public class HologramsCommand {
                 
         // Near command - use the direct handler functions
         aliasCommand.then(Commands.literal("near")
+                .requires(UtilPermissions::canNear)
                 .executes(this::executeNearCommand)
                 .then(Commands.argument("page", StringArgumentType.word())
                 .executes(ctx -> {
@@ -374,7 +453,9 @@ public class HologramsCommand {
                 
         // Teleport command - use the direct handler
         aliasCommand.then(Commands.literal("teleport")
+                .requires(UtilPermissions::canTeleport)
                 .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .executes(ctx -> {
                     try {
                         String id = StringArgumentType.getString(ctx, "id");
@@ -387,7 +468,9 @@ public class HologramsCommand {
                 
         // Copy command
         aliasCommand.then(Commands.literal("copy")
+                .requires(UtilPermissions::canCreate)
                 .then(Commands.argument("source", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .then(Commands.argument("newid", StringArgumentType.word())
                 .executes(ctx -> {
                     String[] args = new String[] {
@@ -399,7 +482,9 @@ public class HologramsCommand {
                 
         // Insert line command
         aliasCommand.then(Commands.literal("insertline")
+                .requires(UtilPermissions::canEdit)
                 .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .then(Commands.argument("line", StringArgumentType.word())
                 .then(Commands.argument("text", StringArgumentType.greedyString())
                 .executes(ctx -> {
@@ -413,11 +498,14 @@ public class HologramsCommand {
                 
         // Reload command
         aliasCommand.then(Commands.literal("reload")
+                .requires(UtilPermissions::canAdmin)
                 .executes(ctx -> executeSubCommand(ctx, "reload", new String[0])));
                 
         // Info command
         aliasCommand.then(Commands.literal("info")
+                .requires(UtilPermissions::canInfo)
                 .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
                 .executes(ctx -> {
                     String[] args = new String[] {
                         StringArgumentType.getString(ctx, "id")

@@ -23,6 +23,7 @@ import com.strictgaming.elite.holograms.forge20.config.HologramsConfig;
 import com.strictgaming.elite.holograms.forge20.hologram.HologramManager;
 import com.strictgaming.elite.holograms.forge20.hologram.manager.ForgeHologramFactory;
 import com.strictgaming.elite.holograms.forge20.hologram.manager.ForgeHologramManager;
+import com.strictgaming.elite.holograms.forge20.util.UtilPlaceholder;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
@@ -81,16 +82,20 @@ public class Forge20Holograms implements PlatformHologramManager {
         try {
             Class.forName("com.envyful.papi.forge.ForgePlaceholderAPI");
             this.placeholders = true;
-            LOGGER.info("Placeholder API found - placeholders enabled");
+            LOGGER.info("External Placeholder API found - placeholders enabled with external support");
         } catch (ClassNotFoundException e) {
-            this.placeholders = false;
-            LOGGER.info("Placeholder API not found - placeholders disabled");
+            this.placeholders = true; // Always enable our built-in placeholders
+            LOGGER.info("Using built-in placeholder system - placeholders enabled");
         }
     }
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
         LOGGER.info("Server started - loading holograms");
+        
+        // Initialize placeholder server start time for uptime tracking
+        UtilPlaceholder.setServerStartTime();
+        
         try {
             HologramManager.load();
             LOGGER.info("Holograms loaded successfully");
@@ -102,9 +107,12 @@ public class Forge20Holograms implements PlatformHologramManager {
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
-        LOGGER.info("Server stopping - saving holograms synchronously");
+        LOGGER.info("Server stopping - shutting down hologram manager");
         
-        // First despawn all holograms to ensure they're properly cleaned up
+        // First shutdown the background thread to prevent interference
+        HologramManager.shutdown();
+        
+        // Then despawn all holograms to ensure they're properly cleaned up
         for (Hologram hologram : HologramManager.getAllHolograms()) {
             try {
                 LOGGER.debug("Despawning hologram {} during server shutdown", hologram.getId());
@@ -114,7 +122,7 @@ public class Forge20Holograms implements PlatformHologramManager {
             }
         }
         
-        // Then save the hologram data synchronously to prevent hanging
+        // Finally save the hologram data synchronously to prevent hanging
         try {
             HologramManager.getSaver().save(Lists.newArrayList(HologramManager.getAllHolograms()));
             LOGGER.info("Holograms saved successfully during shutdown");

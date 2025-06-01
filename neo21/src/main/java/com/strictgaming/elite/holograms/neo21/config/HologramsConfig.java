@@ -108,6 +108,48 @@ public class HologramsConfig {
     }
     
     /**
+     * Loads holograms from config directly into the HologramManager.
+     * This is called by HologramManager.load()
+     * 
+     * @throws IOException If loading fails
+     */
+    public void loadHologramsIntoManager() throws IOException {
+        LOGGER.info("Loading holograms into manager from " + configFile.toAbsolutePath());
+        
+        try (Reader reader = Files.newBufferedReader(configFile)) {
+            Type type = new TypeToken<Map<String, HologramData>>() {}.getType();
+            Map<String, HologramData> hologramDataMap = GSON.fromJson(reader, type);
+            
+            if (hologramDataMap == null) {
+                LOGGER.warn("No holograms found in config for manager loading.");
+                return;
+            }
+            
+            for (Map.Entry<String, HologramData> entry : hologramDataMap.entrySet()) {
+                String id = entry.getKey();
+                HologramData data = entry.getValue();
+                
+                // Create the NeoForgeHologram instance, which adds itself to the manager
+                NeoForgeHologram hologram = new NeoForgeHologram(
+                    id,
+                    data.world,
+                    data.x,
+                    data.y,
+                    data.z,
+                    data.lines
+                );
+                // Hologram is added to manager via its constructor.
+                // Spawning will be handled by HologramManager or other logic if needed.
+                hologram.spawn(); // Spawn after adding to manager
+                LOGGER.debug("Loaded hologram into manager: " + id);
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error loading holograms into manager from config", e);
+            Files.writeString(configFile, "{}"); // Attempt to reset if corrupt
+        }
+    }
+    
+    /**
      * Saves the configuration to disk
      * 
      * @throws IOException If saving fails
@@ -135,6 +177,41 @@ public class HologramsConfig {
         // Write to file
         try (Writer writer = Files.newBufferedWriter(configFile)) {
             GSON.toJson(hologramDataMap, writer);
+        }
+    }
+    
+    /**
+     * Saves holograms from the HologramManager to the config file.
+     * This is called by HologramManager.save()
+     * 
+     * @param holograms The map of holograms from the HologramManager
+     * @throws IOException If saving fails
+     */
+    public void saveHologramsFromManager(Map<String, Hologram> holograms) throws IOException {
+        LOGGER.info("Saving {} holograms from manager to {}", holograms.size(), configFile.toAbsolutePath());
+        
+        Map<String, HologramData> hologramDataMap = new HashMap<>();
+        
+        for (Map.Entry<String, Hologram> entry : holograms.entrySet()) {
+            String id = entry.getKey();
+            Hologram hologram = entry.getValue();
+            
+            HologramData data = new HologramData();
+            data.world = hologram.getWorld();
+            data.x = hologram.getX();
+            data.y = hologram.getY();
+            data.z = hologram.getZ();
+            data.lines = hologram.getLines();
+            
+            hologramDataMap.put(id, data);
+        }
+        
+        try (Writer writer = Files.newBufferedWriter(configFile)) {
+            GSON.toJson(hologramDataMap, writer);
+            LOGGER.debug("Successfully saved holograms from manager.");
+        } catch (IOException e) {
+            LOGGER.error("Failed to save holograms from manager to config", e);
+            throw e; // Re-throw to allow caller to handle
         }
     }
     

@@ -3,6 +3,7 @@ package com.strictgaming.elite.holograms.forge20.command;
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
 import com.strictgaming.elite.holograms.forge20.hologram.HologramManager;
 import com.strictgaming.elite.holograms.forge20.util.UtilChatColour;
+import com.strictgaming.elite.holograms.forge20.util.UtilPermissions;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -56,6 +57,7 @@ public class HologramsCommand {
      */
     private void registerCommandWithAliases(CommandDispatcher<CommandSourceStack> dispatcher, String alias) {
         LiteralArgumentBuilder<CommandSourceStack> command = Commands.literal(alias)
+                .requires(source -> UtilPermissions.hasPermission(source, UtilPermissions.LIST))
                 .executes(this::onCommand);
         
         // Register subcommands
@@ -63,6 +65,28 @@ public class HologramsCommand {
             String name = entry.getKey();
             
             LiteralArgumentBuilder<CommandSourceStack> subCommand = Commands.literal(name);
+            
+            // Add permission requirements based on command type
+            if (name.equals("create")) {
+                subCommand.requires(UtilPermissions::canCreate);
+            } else if (name.equals("delete")) {
+                subCommand.requires(UtilPermissions::canDelete);
+            } else if (name.equals("list")) {
+                subCommand.requires(UtilPermissions::canList);
+            } else if (name.equals("info")) {
+                subCommand.requires(UtilPermissions::canInfo);
+            } else if (name.equals("teleport")) {
+                subCommand.requires(UtilPermissions::canTeleport);
+            } else if (name.equals("near")) {
+                subCommand.requires(UtilPermissions::canNear);
+            } else if (name.equals("addline") || name.equals("setline") || name.equals("insertline") || 
+                       name.equals("removeline") || name.equals("movehere")) {
+                subCommand.requires(UtilPermissions::canEdit);
+            } else if (name.equals("copy")) {
+                subCommand.requires(UtilPermissions::canCreate); // Copy requires create permission
+            } else if (name.equals("reload")) {
+                subCommand.requires(UtilPermissions::canAdmin);
+            }
             
             // Add appropriate arguments based on command name
             if (name.equals("create")) {
