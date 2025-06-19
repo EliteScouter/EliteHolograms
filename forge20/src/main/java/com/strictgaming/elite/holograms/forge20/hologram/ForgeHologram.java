@@ -218,11 +218,12 @@ public class ForgeHologram implements Hologram {
 
     @Override
     public void despawn() {
-        // Clear all lines and despawn them
-        for (HologramLine line : new ArrayList<>(this.lines)) {
+        // Despawn visual entities but keep line data
+        for (HologramLine line : this.lines) {
             this.despawnLine(line);
         }
-        this.lines.clear();
+        // Clear nearby players list since no one is seeing the hologram anymore
+        this.nearbyPlayers.clear();
     }
 
     private void despawnLine(HologramLine line) {
@@ -268,7 +269,6 @@ public class ForgeHologram implements Hologram {
         );
         
         // Clear any auto-added lines
-        newHologram.despawn();
         newHologram.lines.clear();
         
         // Get all lines' text and add them in the same order

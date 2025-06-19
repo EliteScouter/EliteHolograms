@@ -1,5 +1,4 @@
 package com.strictgaming.elite.holograms.forge20;
-
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
 import com.strictgaming.elite.holograms.api.hologram.HologramBuilder;
 import com.strictgaming.elite.holograms.api.manager.HologramFactory;
@@ -20,6 +19,7 @@ import com.strictgaming.elite.holograms.forge20.command.HologramsCopyCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsInfoCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsNearCommand;
 import com.strictgaming.elite.holograms.forge20.config.HologramsConfig;
+import com.strictgaming.elite.holograms.forge20.hologram.ForgeHologram;
 import com.strictgaming.elite.holograms.forge20.hologram.HologramManager;
 import com.strictgaming.elite.holograms.forge20.hologram.manager.ForgeHologramFactory;
 import com.strictgaming.elite.holograms.forge20.hologram.manager.ForgeHologramManager;
@@ -99,6 +99,14 @@ public class Forge20Holograms implements PlatformHologramManager {
         try {
             HologramManager.load();
             LOGGER.info("Holograms loaded successfully");
+            
+            // Force refresh visibility for all loaded holograms to ensure they spawn properly
+            for (Hologram hologram : HologramManager.getAllHolograms()) {
+                if (hologram instanceof ForgeHologram) {
+                    ((ForgeHologram) hologram).refreshVisibility();
+                }
+            }
+            LOGGER.info("Refreshed visibility for all loaded holograms");
         } catch (Exception e) {
             LOGGER.error("Error loading holograms", e);
         }
