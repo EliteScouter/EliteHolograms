@@ -135,6 +135,9 @@ public class NeoForgeHologram implements Hologram {
             armorStand.setInvulnerable(true);
             // NeoForge uses persistent data for Marker status
             armorStand.getPersistentData().putBoolean("Marker", true);
+            
+            // Add Forbidden and Arcanus compatibility - prevent Spectral Eye Amulet highlighting
+            armorStand.addTag("spectral_vision_unaffected");
         }
 
         public void spawnToPlayer(ServerPlayer player) {
