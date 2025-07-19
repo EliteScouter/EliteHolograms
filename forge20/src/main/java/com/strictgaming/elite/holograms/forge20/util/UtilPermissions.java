@@ -5,6 +5,12 @@ import net.minecraft.server.level.ServerPlayer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+// LuckPerms API imports (optional - will be available if LuckPerms is installed)
+import net.luckperms.api.LuckPerms;
+import net.luckperms.api.LuckPermsProvider;
+import net.luckperms.api.model.user.User;
+import net.luckperms.api.util.Tristate;
+
 /**
  * Utility class for handling permissions with support for permission systems and OP fallback
  */
@@ -147,12 +153,13 @@ public class UtilPermissions {
      */
     private static boolean isLuckPermsActuallyLoaded() {
         try {
-            Class<?> luckPermsClass = Class.forName("net.luckperms.api.LuckPerms");
-            Object api = luckPermsClass.getMethod("getApi").invoke(null);
-            return true;
-        } catch (ClassNotFoundException e) {
+            LuckPerms api = LuckPermsProvider.get();
+            return api != null;
+        } catch (IllegalStateException e) {
+            // LuckPerms not loaded
             return false;
         } catch (Exception e) {
+            LOGGER.debug("Error checking LuckPerms availability", e);
             return false;
         }
     }
@@ -183,22 +190,17 @@ public class UtilPermissions {
      */
     private static boolean checkLuckPerms(ServerPlayer player, String permission) {
         try {
-            Class<?> luckPermsClass = Class.forName("net.luckperms.api.LuckPerms");
-            Object api = luckPermsClass.getMethod("getApi").invoke(null);
+            LuckPerms api = LuckPermsProvider.get();
+            User user = api.getUserManager().getUser(player.getUUID());
             
-            Class<?> userManagerClass = Class.forName("net.luckperms.api.model.user.UserManager");
-            Object userManager = api.getClass().getMethod("getUserManager").invoke(api);
-            
-            Object user = userManagerClass.getMethod("getUser", java.util.UUID.class).invoke(userManager, player.getUUID());
             if (user == null) {
                 return false;
             }
             
-            Object permissionData = user.getClass().getMethod("getCachedData").invoke(user);
-            Object checkResult = permissionData.getClass().getMethod("checkPermission", String.class).invoke(permissionData, permission);
-            
-            return "TRUE".equals(checkResult.toString());
+            Tristate result = user.getCachedData().getPermissionData().checkPermission(permission);
+            return result == Tristate.TRUE;
         } catch (Exception e) {
+            LOGGER.debug("Error checking LuckPerms permission for player " + player.getName().getString(), e);
             return false;
         }
     }
@@ -250,18 +252,14 @@ public class UtilPermissions {
      */
     private static String getLuckPermsRank(ServerPlayer player) {
         try {
-            Class<?> luckPermsClass = Class.forName("net.luckperms.api.LuckPerms");
-            Object api = luckPermsClass.getMethod("getApi").invoke(null);
+            LuckPerms api = LuckPermsProvider.get();
+            User user = api.getUserManager().getUser(player.getUUID());
             
-            Class<?> userManagerClass = Class.forName("net.luckperms.api.model.user.UserManager");
-            Object userManager = api.getClass().getMethod("getUserManager").invoke(api);
-            
-            Object user = userManagerClass.getMethod("getUser", java.util.UUID.class).invoke(userManager, player.getUUID());
             if (user == null) {
                 return null;
             }
             
-            String primaryGroup = (String) user.getClass().getMethod("getPrimaryGroup").invoke(user);
+            String primaryGroup = user.getPrimaryGroup();
             
             if (primaryGroup != null && !primaryGroup.isEmpty()) {
                 return primaryGroup.substring(0, 1).toUpperCase() + primaryGroup.substring(1).toLowerCase();
@@ -269,6 +267,7 @@ public class UtilPermissions {
             
             return null;
         } catch (Exception e) {
+            LOGGER.debug("Error getting LuckPerms rank for player " + player.getName().getString(), e);
             return null;
         }
     }

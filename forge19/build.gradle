@@ -69,6 +69,7 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 repositories {
     mavenCentral()
     maven { url = 'https://repo.spongepowered.org/maven' }
+    maven { url = 'https://oss.sonatype.org/content/repositories/snapshots' }
 }
 
 configurations {
@@ -84,6 +85,9 @@ dependencies {
     
     // GSON is already provided by Forge - use 'implementation' instead of 'embed'
     implementation group: 'com.google.code.gson', name: 'gson', version: '2.10.1'
+    
+    // Permission system APIs (compileOnly - they're provided by the server)
+    compileOnly 'net.luckperms:api:5.4'
     
     // Our own API module
     embed project(':api')

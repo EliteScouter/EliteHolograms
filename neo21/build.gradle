@@ -19,6 +19,7 @@ group = mod_group_id
 
 repositories {
     mavenLocal()
+    maven { url = 'https://oss.sonatype.org/content/repositories/snapshots' }
 }
 
 base {
@@ -121,6 +122,9 @@ dependencies {
 
     // Add Gson dependency
     implementation 'com.google.code.gson:gson:2.10.1'
+    
+    // Permission system APIs (compileOnly - they're provided by the server)
+    compileOnly 'net.luckperms:api:5.4'
 
     // Example mod dependency using a mod jar from ./libs with a flat dir repository
     // This maps to ./libs/coolmod-${mc_version}-${coolmod_version}.jar
