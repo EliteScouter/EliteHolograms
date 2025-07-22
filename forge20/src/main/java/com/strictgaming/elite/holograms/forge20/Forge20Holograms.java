@@ -6,6 +6,7 @@ import com.strictgaming.elite.holograms.api.manager.PlatformHologramManager;
 import com.strictgaming.elite.holograms.forge20.command.CommandFactory;
 import com.strictgaming.elite.holograms.forge20.command.HologramsCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsCreateCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsCreateScoreboardCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsListCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsDeleteCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsReloadCommand;
@@ -130,10 +131,31 @@ public class Forge20Holograms implements PlatformHologramManager {
             }
         }
         
-        // Finally save the hologram data synchronously to prevent hanging
+        // Finally save all hologram data synchronously to prevent hanging
+        // Save all holograms before shutdown with timeout protection
         try {
-            HologramManager.getSaver().save(Lists.newArrayList(HologramManager.getAllHolograms()));
-            LOGGER.info("Holograms saved successfully during shutdown");
+            LOGGER.info("Saving all holograms before shutdown...");
+            
+            // Use a separate thread with timeout to prevent hanging during save
+            Thread saveThread = new Thread(() -> {
+                try {
+                    HologramManager.getSaver().save(Lists.newArrayList(HologramManager.getAllHolograms()));
+                    HologramManager.saveScoreboardHologramsSync();
+                } catch (Exception e) {
+                    LOGGER.error("Error in save thread during shutdown", e);
+                }
+            });
+            
+            saveThread.start();
+            saveThread.join(5000); // Wait max 5 seconds for save to complete
+            
+            if (saveThread.isAlive()) {
+                LOGGER.warn("Save operation timed out during shutdown - forcing thread termination");
+                saveThread.interrupt();
+            } else {
+                LOGGER.info("All holograms saved successfully during shutdown");
+            }
+            
         } catch (Exception e) {
             LOGGER.error("Error saving holograms during shutdown", e);
         }
@@ -146,6 +168,7 @@ public class Forge20Holograms implements PlatformHologramManager {
         // Create command instances
         HologramsCommand command = new HologramsCommand();
         HologramsCreateCommand createCommand = new HologramsCreateCommand();
+        HologramsCreateScoreboardCommand createScoreboardCommand = new HologramsCreateScoreboardCommand();
         HologramsListCommand listCommand = new HologramsListCommand();
         HologramsDeleteCommand deleteCommand = new HologramsDeleteCommand();
         HologramsReloadCommand reloadCommand = new HologramsReloadCommand();
@@ -161,6 +184,7 @@ public class Forge20Holograms implements PlatformHologramManager {
         
         // Register commands with main command handler
         command.registerSubCommand("create", createCommand);
+        command.registerSubCommand("createscoreboard", createScoreboardCommand);
         command.registerSubCommand("list", listCommand);
         command.registerSubCommand("delete", deleteCommand);
         command.registerSubCommand("reload", reloadCommand);

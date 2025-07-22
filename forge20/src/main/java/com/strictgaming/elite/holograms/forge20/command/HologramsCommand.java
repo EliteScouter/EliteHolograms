@@ -4,7 +4,9 @@ import com.strictgaming.elite.holograms.api.hologram.Hologram;
 import com.strictgaming.elite.holograms.forge20.hologram.HologramManager;
 import com.strictgaming.elite.holograms.forge20.util.UtilChatColour;
 import com.strictgaming.elite.holograms.forge20.util.UtilPermissions;
+import com.strictgaming.elite.holograms.forge20.command.HologramsCreateScoreboardCommand;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
@@ -67,7 +69,7 @@ public class HologramsCommand {
             LiteralArgumentBuilder<CommandSourceStack> subCommand = Commands.literal(name);
             
             // Add permission requirements based on command type
-            if (name.equals("create")) {
+            if (name.equals("create") || name.equals("createscoreboard")) {
                 subCommand.requires(UtilPermissions::canCreate);
             } else if (name.equals("delete")) {
                 subCommand.requires(UtilPermissions::canDelete);
@@ -100,6 +102,36 @@ public class HologramsCommand {
                         };
                         return executeSubCommand(ctx, "create", args);
                     })));
+            } else if (name.equals("createscoreboard")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .then(Commands.argument("objective", StringArgumentType.word())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "objective")
+                        };
+                        return executeSubCommand(ctx, "createscoreboard", args);
+                    })
+                    .then(Commands.argument("topCount", IntegerArgumentType.integer(1, 10))
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "objective"),
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "topCount"))
+                        };
+                        return executeSubCommand(ctx, "createscoreboard", args);
+                    })
+                    .then(Commands.argument("updateInterval", IntegerArgumentType.integer(5, 300))
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "objective"),
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "topCount")),
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "updateInterval"))
+                        };
+                        return executeSubCommand(ctx, "createscoreboard", args);
+                    })))));
             } else if (name.equals("delete") || name.equals("info") || name.equals("movehere") || name.equals("teleport")) {
                 subCommand
                     .then(Commands.argument("id", StringArgumentType.word())
@@ -252,6 +284,8 @@ public class HologramsCommand {
             // Call the executeCommand method on the subcommand
             if (subCommand instanceof HologramsCreateCommand) {
                 return ((HologramsCreateCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsCreateScoreboardCommand) {
+                return ((HologramsCreateScoreboardCommand) subCommand).run(context);
             } else if (subCommand instanceof HologramsDeleteCommand) {
                 return ((HologramsDeleteCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsListCommand) {
