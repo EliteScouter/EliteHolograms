@@ -3,16 +3,22 @@ package com.strictgaming.elite.holograms.neo21.hologram;
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
 import com.strictgaming.elite.holograms.neo21.Neo21Holograms;
 import com.strictgaming.elite.holograms.neo21.config.HologramsConfig;
+// import com.strictgaming.elite.holograms.neo21.config.ScoreboardHologramConfig;
 import com.strictgaming.elite.holograms.neo21.hologram.implementation.NeoForgeHologram;
 
 import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 
 import net.minecraft.server.level.ServerPlayer;
 
@@ -23,12 +29,29 @@ public class HologramManager {
     
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Map<String, Hologram> HOLOGRAMS = new HashMap<>();
+    // private static ScoreboardHologramConfig scoreboardConfig;
+    private static boolean initialized = false;
     
     /**
      * Initialize the hologram system
      */
     public static void preInit() {
         LOGGER.info("Pre-initializing hologram manager");
+        
+        // Initialize scoreboard hologram config
+        if (!initialized) {
+            try {
+                File configDir = new File("config/eliteholograms");
+                if (!configDir.exists()) {
+                    configDir.mkdirs();
+                }
+                // scoreboardConfig = new ScoreboardHologramConfig(configDir);
+                initialized = true;
+                LOGGER.info("Scoreboard hologram config initialized");
+            } catch (Exception e) {
+                LOGGER.error("Failed to initialize scoreboard hologram config", e);
+            }
+        }
     }
     
     /**
@@ -51,6 +74,9 @@ public class HologramManager {
         
         // Let config directly add to manager
         config.loadHologramsIntoManager();
+        
+        // Load scoreboard holograms separately
+        // loadScoreboardHolograms();
     }
     
     /**
@@ -110,6 +136,9 @@ public class HologramManager {
         if (config != null) {
             config.saveHologramsFromManager(HOLOGRAMS);
             LOGGER.info("Saved {} holograms to config.", HOLOGRAMS.size());
+            
+            // Save scoreboard holograms separately
+            // saveScoreboardHolograms();
         } else {
             LOGGER.warn("Config is null, cannot save holograms.");
         }
@@ -166,6 +195,69 @@ public class HologramManager {
                     nfHologram.updateTextForPlayer(player); 
                 }
             }
+            
+            // Update scoreboard holograms
+            // if (hologram instanceof ScoreboardHologram scoreboardHologram) {
+            //     scoreboardHologram.tick();
+            // }
         });
+    }
+    
+    /**
+     * Save scoreboard holograms to separate config file (async)
+     */
+    private static void saveScoreboardHolograms() {
+        // Disabled for now
+    }
+    
+    /**
+     * Save scoreboard holograms to separate config file (synchronous - for shutdown)
+     */
+    public static void saveScoreboardHologramsSync() {
+        // Disabled for now
+    }
+    
+    /**
+     * Load scoreboard holograms from separate config file
+     */
+    private static void loadScoreboardHolograms() {
+        // Disabled for now
+    }
+    
+    /**
+     * Find a world by name
+     */
+    private static Level findWorldByName(String worldName) {
+        try {
+            net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
+            var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
+            if (server == null) {
+                return null;
+            }
+            
+            for (Level world : server.getAllLevels()) {
+                if (world.dimension().location().toString().equals(worldName)) {
+                    return world;
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.debug("Error finding world by name: {}", e.getMessage());
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Get hologram by ID (compatibility method)
+     */
+    public static Hologram getById(String id) {
+        return HOLOGRAMS.get(id);
+    }
+    
+    /**
+     * Get all holograms as list (compatibility method)
+     */
+    public static List<Hologram> getAllHolograms() {
+        return new ArrayList<>(HOLOGRAMS.values());
     }
 } 

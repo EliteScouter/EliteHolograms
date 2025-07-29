@@ -18,6 +18,7 @@ import com.strictgaming.elite.holograms.neo21.command.HologramsNearCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsInfoCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsCopyCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsInsertLineCommand;
+// import com.strictgaming.elite.holograms.neo21.command.HologramsCreateScoreboardCommand;
 import com.strictgaming.elite.holograms.neo21.config.HologramsConfig;
 import com.strictgaming.elite.holograms.neo21.hologram.HologramManager;
 import com.strictgaming.elite.holograms.neo21.hologram.manager.NeoForgeHologramFactory;
@@ -76,6 +77,7 @@ public class Neo21Holograms implements PlatformHologramManager {
     private HologramsInfoCommand infoCommand;
     private HologramsCopyCommand copyCommand;
     private HologramsInsertLineCommand insertLineCommand;
+    // private HologramsCreateScoreboardCommand createScoreboardCommand;
 
     public Neo21Holograms(IEventBus modEventBus) {
         instance = this;
@@ -103,6 +105,7 @@ public class Neo21Holograms implements PlatformHologramManager {
         infoCommand = new HologramsInfoCommand();
         copyCommand = new HologramsCopyCommand();
         insertLineCommand = new HologramsInsertLineCommand();
+        // createScoreboardCommand = new HologramsCreateScoreboardCommand();
         
         // Set up subcommands
         mainCommand.registerSubCommand("create", createCommand);
@@ -118,6 +121,7 @@ public class Neo21Holograms implements PlatformHologramManager {
         mainCommand.registerSubCommand("info", infoCommand);
         mainCommand.registerSubCommand("copy", copyCommand);
         mainCommand.registerSubCommand("insertline", insertLineCommand);
+        // mainCommand.registerSubCommand("createscoreboard", createScoreboardCommand);
     }
     
     private void commonSetup(final FMLCommonSetupEvent event) {
@@ -161,6 +165,7 @@ public class Neo21Holograms implements PlatformHologramManager {
         infoCommand.register(event.getDispatcher());
         copyCommand.register(event.getDispatcher());
         insertLineCommand.register(event.getDispatcher());
+        // createScoreboardCommand.register(event.getDispatcher());
         
         LOGGER.info("Commands registered successfully!");
     }
@@ -196,26 +201,66 @@ public class Neo21Holograms implements PlatformHologramManager {
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
-        LOGGER.info("Server stopping - preparing to save holograms");
+        LOGGER.info("Server stopping - preparing to save holograms with timeout protection");
         
-        // First despawn all holograms to ensure they're properly cleaned up
-        HologramManager.getHolograms().values().forEach(hologram -> {
+        // Create a separate thread for shutdown operations with timeout
+        Thread shutdownThread = new Thread(() -> {
             try {
-                if (hologram.isSpawned()) {
-                    LOGGER.debug("Despawning hologram {} during server shutdown", hologram.getId());
-                    hologram.despawn();
+                // First despawn all holograms to ensure they're properly cleaned up
+                HologramManager.getHolograms().values().forEach(hologram -> {
+                    try {
+                        if (hologram.isSpawned()) {
+                            LOGGER.debug("Despawning hologram {} during server shutdown", hologram.getId());
+                            hologram.despawn();
+                        }
+                    } catch (Exception e) {
+                        LOGGER.error("Error despawning hologram {} during shutdown: {}", hologram.getId(), e.getMessage());
+                    }
+                });
+                
+                // Then save the hologram data with timeout protection
+                Thread saveThread = new Thread(() -> {
+                    try {
+                        HologramManager.save();
+                        // Also save scoreboard holograms synchronously during shutdown
+                        HologramManager.saveScoreboardHologramsSync();
+                        LOGGER.info("Holograms saved successfully during shutdown");
+                    } catch (Exception e) {
+                        LOGGER.error("Error saving holograms during shutdown", e);
+                    }
+                }, "EliteHolograms-Save");
+                
+                saveThread.start();
+                
+                try {
+                    // Wait up to 5 seconds for save to complete
+                    saveThread.join(5000);
+                    if (saveThread.isAlive()) {
+                        LOGGER.warn("Save operation timed out during shutdown, forcing interruption");
+                        saveThread.interrupt();
+                    }
+                } catch (InterruptedException e) {
+                    LOGGER.warn("Shutdown save interrupted");
+                    Thread.currentThread().interrupt();
                 }
+                
             } catch (Exception e) {
-                LOGGER.error("Error despawning hologram {} during shutdown: {}", hologram.getId(), e.getMessage());
+                LOGGER.error("Error during shutdown operations", e);
             }
-        });
+        }, "EliteHolograms-Shutdown");
         
-        // Then save the hologram data
+        shutdownThread.start();
+        
         try {
-            HologramManager.save();
-            LOGGER.info("Holograms saved successfully");
-        } catch (IOException e) {
-            LOGGER.error("Error saving holograms", e);
+            // Wait up to 2 seconds for shutdown thread to complete
+            shutdownThread.join(2000);
+            if (shutdownThread.isAlive()) {
+                LOGGER.warn("Shutdown thread timed out, forcing interruption");
+                shutdownThread.interrupt();
+            }
+        } catch (InterruptedException e) {
+            LOGGER.warn("Main shutdown interrupted");
+            Thread.currentThread().interrupt();
         }
     }
 

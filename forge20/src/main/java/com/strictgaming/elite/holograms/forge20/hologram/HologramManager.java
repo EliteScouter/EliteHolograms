@@ -40,6 +40,8 @@ public class HologramManager implements Runnable {
     private static ScoreboardHologramConfig scoreboardConfig;
     private static boolean shutdown = false;
     private static Thread managerThread;
+    private static long lastScoreboardSave = 0;
+    private static final long SCOREBOARD_SAVE_COOLDOWN = 5000; // 5 seconds cooldown
 
     public static void preInit() {
         managerThread = new Thread(new HologramManager());
@@ -158,6 +160,12 @@ public class HologramManager implements Runnable {
      * Save scoreboard holograms to separate config file (async)
      */
     private static void saveScoreboardHolograms() {
+        // Rate limit scoreboard saves to prevent spam
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastScoreboardSave < SCOREBOARD_SAVE_COOLDOWN) {
+            return; // Skip save if too recent
+        }
+        
         List<ScoreboardHologram> scoreboardHolograms = Lists.newArrayList();
         
         for (ForgeHologram hologram : HOLOGRAMS.values()) {
@@ -168,6 +176,7 @@ public class HologramManager implements Runnable {
         
         if (!scoreboardHolograms.isEmpty()) {
             scoreboardConfig.save(scoreboardHolograms);
+            lastScoreboardSave = currentTime;
         }
     }
     

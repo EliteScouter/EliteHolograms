@@ -57,7 +57,7 @@ public class ScoreboardHologramConfig {
             
             try (OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(configFile), StandardCharsets.UTF_8)) {
                 GSON.toJson(configData, SCOREBOARD_CONFIG_LIST_TYPE, writer);
-                LOGGER.info("Saved {} scoreboard hologram configurations", configData.size());
+                LOGGER.debug("Saved {} scoreboard hologram configurations", configData.size());
             }
             
         } catch (IOException e) {

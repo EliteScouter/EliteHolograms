@@ -101,6 +101,8 @@ public class HologramsCommand {
                 return UtilPermissions.INFO;
             case "copy":
                 return UtilPermissions.CREATE; // Copy requires create permission
+            case "createscoreboard":
+                return UtilPermissions.CREATE; // Scoreboard creation requires create permission
             case "reload":
                 return UtilPermissions.ADMIN;
             default:
@@ -119,6 +121,7 @@ public class HologramsCommand {
         
         source.sendSuccess(() -> Component.literal("§3§l┌─§b§lElite Holograms §3§l──────┐"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh create <id> <text>"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh createscoreboard <id> <objective> [top] [interval]"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh list"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh delete <id>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh addline <id> <text>"), false);
