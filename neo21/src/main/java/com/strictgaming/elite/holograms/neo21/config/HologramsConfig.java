@@ -54,7 +54,8 @@ public class HologramsConfig {
      */
     private void setupDirectories() throws IOException {
         Path serverDirectory = ServerLifecycleHooks.getCurrentServer().getServerDirectory();
-        configDir = serverDirectory.resolve("holograms");
+        // Standardize location under config/eliteholograms
+        configDir = serverDirectory.resolve("config").resolve("eliteholograms");
         
         if (!Files.exists(configDir)) {
             Files.createDirectories(configDir);

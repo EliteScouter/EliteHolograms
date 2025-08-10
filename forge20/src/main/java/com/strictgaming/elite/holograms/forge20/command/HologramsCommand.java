@@ -132,7 +132,45 @@ public class HologramsCommand {
                         };
                         return executeSubCommand(ctx, "createscoreboard", args);
                     })))));
-            } else if (name.equals("delete") || name.equals("info") || name.equals("movehere") || name.equals("teleport") || name.equals("movevertical")) {
+            } else if (name.equals("movevertical")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.argument("amount", StringArgumentType.word())
+                        .executes(ctx -> {
+                            String[] args = new String[] {
+                                StringArgumentType.getString(ctx, "id"),
+                                StringArgumentType.getString(ctx, "amount")
+                            };
+                            return executeSubCommand(ctx, name, args);
+                        })
+                    )
+                    .then(Commands.literal("up")
+                        .then(Commands.argument("amount", StringArgumentType.word())
+                            .executes(ctx -> {
+                                String[] args = new String[] {
+                                    StringArgumentType.getString(ctx, "id"),
+                                    "up",
+                                    StringArgumentType.getString(ctx, "amount")
+                                };
+                                return executeSubCommand(ctx, name, args);
+                            })
+                        )
+                    )
+                    .then(Commands.literal("down")
+                        .then(Commands.argument("amount", StringArgumentType.word())
+                            .executes(ctx -> {
+                                String[] args = new String[] {
+                                    StringArgumentType.getString(ctx, "id"),
+                                    "down",
+                                    StringArgumentType.getString(ctx, "amount")
+                                };
+                                return executeSubCommand(ctx, name, args);
+                            })
+                        )
+                    )
+                );
+            } else if (name.equals("delete") || name.equals("info") || name.equals("movehere") || name.equals("teleport")) {
                 subCommand
                     .then(Commands.argument("id", StringArgumentType.word())
                     .suggests(HOLOGRAM_ID_SUGGESTIONS)
@@ -141,15 +179,7 @@ public class HologramsCommand {
                             StringArgumentType.getString(ctx, "id")
                         };
                         return executeSubCommand(ctx, name, args);
-                    })
-                    .then(Commands.argument("amount", StringArgumentType.word())
-                    .executes(ctx -> {
-                        String[] args = new String[] {
-                            StringArgumentType.getString(ctx, "id"),
-                            StringArgumentType.getString(ctx, "amount")
-                        };
-                        return executeSubCommand(ctx, name, args);
-                    })));
+                    }));
             } else if (name.equals("addline")) {
                 subCommand
                     .then(Commands.argument("id", StringArgumentType.word())
@@ -290,7 +320,9 @@ public class HologramsCommand {
         
         try {
             // Call the executeCommand method on the subcommand
-            if (subCommand instanceof HologramsCreateCommand) {
+            if (subCommand instanceof HologramsMoveVerticalCommand) {
+                return ((HologramsMoveVerticalCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsCreateCommand) {
                 return ((HologramsCreateCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsCreateScoreboardCommand) {
                 return ((HologramsCreateScoreboardCommand) subCommand).run(context);

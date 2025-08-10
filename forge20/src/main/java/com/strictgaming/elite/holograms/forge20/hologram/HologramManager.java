@@ -49,7 +49,13 @@ public class HologramManager implements Runnable {
 
         new PlayerEventListener();
         saver = (HologramSaver) new JsonHologramSaver(Forge20Holograms.getInstance().getConfig().getStorageLocation());
-        scoreboardConfig = new ScoreboardHologramConfig(new File(Forge20Holograms.getInstance().getConfig().getStorageLocation()));
+        // Ensure scoreboard configs are saved alongside other config files
+        File storagePath = new File(Forge20Holograms.getInstance().getConfig().getStorageLocation());
+        File configDir = storagePath.isDirectory() ? storagePath : storagePath.getParentFile();
+        if (configDir != null && !configDir.exists()) {
+            configDir.mkdirs();
+        }
+        scoreboardConfig = new ScoreboardHologramConfig(configDir);
     }
 
     private HologramManager() {

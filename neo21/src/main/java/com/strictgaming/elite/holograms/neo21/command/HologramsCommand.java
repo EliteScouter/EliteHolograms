@@ -134,6 +134,7 @@ public class HologramsCommand {
         source.sendSuccess(() -> Component.literal("§3│ §b/eh copy <target> <id>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh insertline <id> <line> <text>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh info <id>"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh movevertical <id> <up|down> <amount> or <amount>"), false);
         source.sendSuccess(() -> Component.literal("§3§l└─────────────────┘"), false);
         
         return 1;

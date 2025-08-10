@@ -5,7 +5,6 @@ import com.strictgaming.elite.holograms.api.manager.database.HologramSaver;
 import com.strictgaming.elite.holograms.forge20.hologram.ForgeHologram;
 import com.strictgaming.elite.holograms.forge20.hologram.ForgeHologramTypeAdapter;
 import com.strictgaming.elite.holograms.forge20.hologram.HologramManager;
-import com.strictgaming.elite.holograms.forge20.hologram.ScoreboardHologram;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.gson.Gson;
@@ -139,8 +138,9 @@ public class JsonHologramSaver implements HologramSaver {
                     continue;
                 }
                 
-                // Skip ScoreboardHologram instances - they cannot be serialized safely
-                if (hologram instanceof ScoreboardHologram) {
+                // Skip scoreboard-type holograms without loading the class (avoid classloader issues)
+                String clazz = hologram.getClass().getName();
+                if (clazz.endsWith(".ScoreboardHologram") || clazz.contains("ScoreboardHologram")) {
                     LOGGER.debug("Skipping ScoreboardHologram '{}' from save (not serializable)", hologram.getId());
                     continue;
                 }

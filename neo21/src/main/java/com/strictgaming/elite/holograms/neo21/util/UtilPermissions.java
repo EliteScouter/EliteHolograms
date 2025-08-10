@@ -112,14 +112,22 @@ public class UtilPermissions {
     }
 
     private static boolean isLuckPermsActuallyLoaded() {
+        // First ensure the provider class exists to avoid NoClassDefFoundError when LuckPerms is not installed
         try {
-            LuckPerms api = LuckPermsProvider.get();
-            return api != null;
-        } catch (IllegalStateException e) {
-            // LuckPerms not loaded
+            Class.forName("net.luckperms.api.LuckPermsProvider", false, UtilPermissions.class.getClassLoader());
+        } catch (ClassNotFoundException e) {
             return false;
-        } catch (Exception e) {
-            LOGGER.debug("Error checking LuckPerms availability", e);
+        } catch (Throwable t) {
+            LOGGER.debug("LuckPermsProvider class check failed", t);
+            return false;
+        }
+        // Then attempt to get() via reflection to avoid hard dependency
+        try {
+            Class<?> provider = Class.forName("net.luckperms.api.LuckPermsProvider");
+            Object api = provider.getMethod("get").invoke(null);
+            return api != null;
+        } catch (Throwable t) {
+            LOGGER.debug("Error checking LuckPerms availability", t);
             return false;
         }
     }

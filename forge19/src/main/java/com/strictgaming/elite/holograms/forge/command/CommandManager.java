@@ -26,6 +26,7 @@ public class CommandManager {
         
         // Register all subcommands here
         factory.registerChildCommand(mainCommand, new HologramsCreateCommand());
+        factory.registerChildCommand(mainCommand, new HologramsCreateScoreboardCommand());
         factory.registerChildCommand(mainCommand, new HologramsDeleteCommand());
         factory.registerChildCommand(mainCommand, new HologramsAddLineCommand());
         factory.registerChildCommand(mainCommand, new HologramsSetLineCommand());

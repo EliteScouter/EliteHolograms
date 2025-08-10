@@ -22,12 +22,13 @@ public class HologramsMoveVerticalCommand implements Command<CommandSourceStack>
 
     public int executeCommand(CommandContext<CommandSourceStack> context, String[] args) throws CommandSyntaxException {
         if (args.length < 2) {
-            context.getSource().sendSystemMessage(Component.literal("§c§l(!) §cUsage: /eh movevertical <id> <amount>"));
+            context.getSource().sendSystemMessage(Component.literal("§c§l(!) §cUsage: /eh movevertical <id> <up|down> <amount> or <amount> (positive up, negative down)"));
             return 0;
         }
 
         String id = args[0];
-        String amountStr = args[1];
+        String dirOrAmount = args[1];
+        String amountStr = args.length >= 3 ? args[2] : args[1];
 
         Hologram hologram = HologramManager.getById(id);
         if (hologram == null) {
@@ -41,6 +42,12 @@ public class HologramsMoveVerticalCommand implements Command<CommandSourceStack>
         } catch (NumberFormatException e) {
             context.getSource().sendSystemMessage(Component.literal("§c§l(!) §cAmount must be a number (e.g., 1.5)"));
             return 0;
+        }
+
+        // Interpret direction keyword if present
+        if (args.length >= 3) {
+            if ("down".equalsIgnoreCase(dirOrAmount)) delta = -Math.abs(delta);
+            else if ("up".equalsIgnoreCase(dirOrAmount)) delta = Math.abs(delta);
         }
 
         try {

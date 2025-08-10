@@ -54,7 +54,15 @@ public class HologramManager implements Runnable {
 
         new PlayerEventListener();
         saver = (HologramSaver) new JsonHologramSaver(ForgeHolograms.getInstance().getConfig().getStorageLocation());
-        scoreboardConfig = new ScoreboardHologramConfig(new File(ForgeHolograms.getInstance().getConfig().getStorageLocation()));
+        // Ensure we pass the DIRECTORY for scoreboard config, not the JSON file path
+        File storagePath = new File(ForgeHolograms.getInstance().getConfig().getStorageLocation());
+        File configDir = storagePath.isDirectory() ? storagePath : storagePath.getParentFile();
+        if (configDir != null && !configDir.exists()) {
+            // Best-effort create parent directories
+            // Ignore return value; save() will still fail loudly if something's wrong
+            configDir.mkdirs();
+        }
+        scoreboardConfig = new ScoreboardHologramConfig(configDir);
     }
 
     public static void clear() {

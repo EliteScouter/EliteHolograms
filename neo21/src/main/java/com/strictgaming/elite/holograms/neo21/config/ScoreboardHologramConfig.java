@@ -37,6 +37,11 @@ public class ScoreboardHologramConfig {
      */
     public void save(List<ScoreboardHologram> scoreboardHolograms) {
         try {
+            // Ensure parent directory exists before writing
+            File parent = configFile.getParentFile();
+            if (parent != null && !parent.exists()) {
+                parent.mkdirs();
+            }
             List<ScoreboardHologramData> configData = new ArrayList<>();
             for (ScoreboardHologram holo : scoreboardHolograms) {
                 ScoreboardHologramData d = new ScoreboardHologramData();

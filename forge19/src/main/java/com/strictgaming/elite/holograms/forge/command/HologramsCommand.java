@@ -66,6 +66,38 @@ public class HologramsCommand {
                     };
                     return executeSubCommand(ctx, "create", args);
                 })));
+
+        // createscoreboard command with optional topCount and updateInterval
+        LiteralArgumentBuilder<CommandSourceStack> createScoreboardCommand = Commands.literal("createscoreboard")
+                .requires(UtilPermissions::canCreate)
+                .then(Commands.argument("id", StringArgumentType.word())
+                .then(Commands.argument("objective", StringArgumentType.word())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "objective")
+                    };
+                    return executeSubCommand(ctx, "createscoreboard", args);
+                })
+                .then(Commands.argument("topCount", com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 10))
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "objective"),
+                        String.valueOf(com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "topCount"))
+                    };
+                    return executeSubCommand(ctx, "createscoreboard", args);
+                })
+                .then(Commands.argument("updateInterval", com.mojang.brigadier.arguments.IntegerArgumentType.integer(5, 300))
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "objective"),
+                        String.valueOf(com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "topCount")),
+                        String.valueOf(com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "updateInterval"))
+                    };
+                    return executeSubCommand(ctx, "createscoreboard", args);
+                }))))) ;
                 
         LiteralArgumentBuilder<CommandSourceStack> deleteCommand = Commands.literal("delete")
                 .requires(UtilPermissions::canDelete)
@@ -207,6 +239,20 @@ public class HologramsCommand {
                     };
                     return executeSubCommand(ctx, "insertline", args);
                 }))));
+
+        // MoveVertical command
+        LiteralArgumentBuilder<CommandSourceStack> moveVerticalCommand = Commands.literal("movevertical")
+                .requires(UtilPermissions::canEdit)
+                .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                .then(Commands.argument("amount", StringArgumentType.word())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "amount")
+                    };
+                    return executeSubCommand(ctx, "movevertical", args);
+                })));
                 
         // Reload command
         LiteralArgumentBuilder<CommandSourceStack> reloadCommand = Commands.literal("reload")
@@ -218,6 +264,7 @@ public class HologramsCommand {
                 
         command.then(createCommand);
         command.then(deleteCommand);
+        command.then(createScoreboardCommand);
         command.then(addLineCommand);
         command.then(setLineCommand);
         command.then(removeLineCommand);
@@ -228,6 +275,7 @@ public class HologramsCommand {
         command.then(copyCommand);
         command.then(moveHereCommand);
         command.then(insertLineCommand);
+        command.then(moveVerticalCommand);
         command.then(reloadCommand);
         
         dispatcher.register(command);
@@ -246,6 +294,7 @@ public class HologramsCommand {
         
         source.sendSystemMessage(UtilChatColour.parse("&3&l┌─&b&lElite Holograms &3&l──────┐"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh create <id> <text>"));
+        source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh createscoreboard <id> <objective> [top] [interval]"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh list"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh delete <id>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh addline <id> <text>"));
@@ -258,6 +307,7 @@ public class HologramsCommand {
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh copy <target> <id>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh insertline <id> <line> <text>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh info <id>"));
+        source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh movevertical <id> <up|down> <amount>"));
         source.sendSystemMessage(UtilChatColour.parse("&3&l└─────────────────┘"));
         return 1;
     }
@@ -332,6 +382,10 @@ public class HologramsCommand {
         
         try {
             LOGGER.debug("Executing command: {} with class: {}", name, subCommand.getClass().getName());
+            // Special handling: scoreboard creator uses Brigadier arguments directly via run(context)
+            if (subCommand instanceof HologramsCreateScoreboardCommand) {
+                return ((HologramsCreateScoreboardCommand) subCommand).run(context);
+            }
             return (int) subCommand.getClass().getMethod("executeCommand", CommandContext.class, String[].class)
                                  .invoke(subCommand, context, args);
         } catch (Exception e) {
@@ -367,6 +421,82 @@ public class HologramsCommand {
                     };
                     return executeSubCommand(ctx, "create", args);
                 }))));
+
+        // Add createscoreboard command to the alias
+        aliasCommand.then(
+            Commands.literal("createscoreboard")
+                .requires(UtilPermissions::canCreate)
+                .then(
+                    Commands.argument("id", StringArgumentType.word())
+                        .then(
+                            Commands.argument("objective", StringArgumentType.word())
+                                .executes(ctx -> {
+                                    String[] args = new String[] {
+                                        StringArgumentType.getString(ctx, "id"),
+                                        StringArgumentType.getString(ctx, "objective")
+                                    };
+                                    return executeSubCommand(ctx, "createscoreboard", args);
+                                })
+                                .then(
+                                    Commands.argument("topCount", com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 10))
+                                        .executes(ctx -> {
+                                            String[] args = new String[] {
+                                                StringArgumentType.getString(ctx, "id"),
+                                                StringArgumentType.getString(ctx, "objective"),
+                                                String.valueOf(com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "topCount"))
+                                            };
+                                            return executeSubCommand(ctx, "createscoreboard", args);
+                                        })
+                                        .then(
+                                            Commands.argument("updateInterval", com.mojang.brigadier.arguments.IntegerArgumentType.integer(5, 300))
+                                                .executes(ctx -> {
+                                                    String[] args = new String[] {
+                                                        StringArgumentType.getString(ctx, "id"),
+                                                        StringArgumentType.getString(ctx, "objective"),
+                                                        String.valueOf(com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "topCount")),
+                                                        String.valueOf(com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "updateInterval"))
+                                                    };
+                                                    return executeSubCommand(ctx, "createscoreboard", args);
+                                                })
+                                        )
+                                )
+                        )
+                )
+        );
+
+        // movevertical alias with suggestions and up/down
+        aliasCommand.then(Commands.literal("movevertical")
+                .requires(UtilPermissions::canEdit)
+                .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                .then(Commands.argument("amount", StringArgumentType.word())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "amount")
+                    };
+                    return executeSubCommand(ctx, "movevertical", args);
+                }))
+                .then(Commands.literal("up")
+                    .then(Commands.argument("amount", StringArgumentType.word())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            "up",
+                            StringArgumentType.getString(ctx, "amount")
+                        };
+                        return executeSubCommand(ctx, "movevertical", args);
+                    })))
+                .then(Commands.literal("down")
+                    .then(Commands.argument("amount", StringArgumentType.word())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            "down",
+                            StringArgumentType.getString(ctx, "amount")
+                        };
+                        return executeSubCommand(ctx, "movevertical", args);
+                    })))));
                 
         // Add delete command
         aliasCommand.then(Commands.literal("delete")
