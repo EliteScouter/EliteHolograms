@@ -18,7 +18,7 @@ import com.strictgaming.elite.holograms.neo21.command.HologramsNearCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsInfoCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsCopyCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsInsertLineCommand;
-// import com.strictgaming.elite.holograms.neo21.command.HologramsCreateScoreboardCommand;
+import com.strictgaming.elite.holograms.neo21.command.HologramsCreateScoreboardCommand;
 import com.strictgaming.elite.holograms.neo21.config.HologramsConfig;
 import com.strictgaming.elite.holograms.neo21.hologram.HologramManager;
 import com.strictgaming.elite.holograms.neo21.hologram.manager.NeoForgeHologramFactory;
@@ -77,7 +77,7 @@ public class Neo21Holograms implements PlatformHologramManager {
     private HologramsInfoCommand infoCommand;
     private HologramsCopyCommand copyCommand;
     private HologramsInsertLineCommand insertLineCommand;
-    // private HologramsCreateScoreboardCommand createScoreboardCommand;
+    private HologramsCreateScoreboardCommand createScoreboardCommand;
 
     public Neo21Holograms(IEventBus modEventBus) {
         instance = this;
@@ -105,7 +105,7 @@ public class Neo21Holograms implements PlatformHologramManager {
         infoCommand = new HologramsInfoCommand();
         copyCommand = new HologramsCopyCommand();
         insertLineCommand = new HologramsInsertLineCommand();
-        // createScoreboardCommand = new HologramsCreateScoreboardCommand();
+        createScoreboardCommand = new HologramsCreateScoreboardCommand();
         
         // Set up subcommands
         mainCommand.registerSubCommand("create", createCommand);
@@ -121,7 +121,7 @@ public class Neo21Holograms implements PlatformHologramManager {
         mainCommand.registerSubCommand("info", infoCommand);
         mainCommand.registerSubCommand("copy", copyCommand);
         mainCommand.registerSubCommand("insertline", insertLineCommand);
-        // mainCommand.registerSubCommand("createscoreboard", createScoreboardCommand);
+        mainCommand.registerSubCommand("createscoreboard", createScoreboardCommand);
     }
     
     private void commonSetup(final FMLCommonSetupEvent event) {
@@ -165,7 +165,7 @@ public class Neo21Holograms implements PlatformHologramManager {
         infoCommand.register(event.getDispatcher());
         copyCommand.register(event.getDispatcher());
         insertLineCommand.register(event.getDispatcher());
-        // createScoreboardCommand.register(event.getDispatcher());
+        createScoreboardCommand.register(event.getDispatcher());
         
         LOGGER.info("Commands registered successfully!");
     }
@@ -286,6 +286,8 @@ public class Neo21Holograms implements PlatformHologramManager {
             for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
                 HologramManager.handlePlayerMove(player);
             }
+            // Also tick scoreboard holograms once per second
+            HologramManager.tickScoreboards();
         }
     }
 

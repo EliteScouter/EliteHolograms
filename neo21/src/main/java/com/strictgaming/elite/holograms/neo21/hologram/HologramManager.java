@@ -3,7 +3,7 @@ package com.strictgaming.elite.holograms.neo21.hologram;
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
 import com.strictgaming.elite.holograms.neo21.Neo21Holograms;
 import com.strictgaming.elite.holograms.neo21.config.HologramsConfig;
-// import com.strictgaming.elite.holograms.neo21.config.ScoreboardHologramConfig;
+import com.strictgaming.elite.holograms.neo21.config.ScoreboardHologramConfig;
 import com.strictgaming.elite.holograms.neo21.hologram.implementation.NeoForgeHologram;
 
 import org.slf4j.Logger;
@@ -29,8 +29,10 @@ public class HologramManager {
     
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Map<String, Hologram> HOLOGRAMS = new HashMap<>();
-    // private static ScoreboardHologramConfig scoreboardConfig;
+    private static ScoreboardHologramConfig scoreboardConfig;
     private static boolean initialized = false;
+    private static long lastScoreboardSave = 0L;
+    private static final long SCOREBOARD_SAVE_COOLDOWN_MS = 5000L;
     
     /**
      * Initialize the hologram system
@@ -45,7 +47,7 @@ public class HologramManager {
                 if (!configDir.exists()) {
                     configDir.mkdirs();
                 }
-                // scoreboardConfig = new ScoreboardHologramConfig(configDir);
+                scoreboardConfig = new ScoreboardHologramConfig(configDir);
                 initialized = true;
                 LOGGER.info("Scoreboard hologram config initialized");
             } catch (Exception e) {
@@ -76,7 +78,7 @@ public class HologramManager {
         config.loadHologramsIntoManager();
         
         // Load scoreboard holograms separately
-        // loadScoreboardHolograms();
+        loadScoreboardHolograms();
     }
     
     /**
@@ -138,7 +140,7 @@ public class HologramManager {
             LOGGER.info("Saved {} holograms to config.", HOLOGRAMS.size());
             
             // Save scoreboard holograms separately
-            // saveScoreboardHolograms();
+            saveScoreboardHolograms();
         } else {
             LOGGER.warn("Config is null, cannot save holograms.");
         }
@@ -197,9 +199,7 @@ public class HologramManager {
             }
             
             // Update scoreboard holograms
-            // if (hologram instanceof ScoreboardHologram scoreboardHologram) {
-            //     scoreboardHologram.tick();
-            // }
+            // scoreboard ticking is handled globally each second
         });
     }
     
@@ -207,21 +207,80 @@ public class HologramManager {
      * Save scoreboard holograms to separate config file (async)
      */
     private static void saveScoreboardHolograms() {
-        // Disabled for now
+        try {
+            if (scoreboardConfig == null) return;
+            long now = System.currentTimeMillis();
+            if (now - lastScoreboardSave < SCOREBOARD_SAVE_COOLDOWN_MS) {
+                return;
+            }
+            List<com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram> list = new ArrayList<>();
+            for (Hologram h : HOLOGRAMS.values()) {
+                if (h instanceof com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram sb) {
+                    list.add(sb);
+                }
+            }
+            if (!list.isEmpty()) {
+                scoreboardConfig.save(list);
+                lastScoreboardSave = now;
+            }
+        } catch (Exception e) {
+            LOGGER.error("Failed to save scoreboard holograms", e);
+        }
     }
     
     /**
      * Save scoreboard holograms to separate config file (synchronous - for shutdown)
      */
     public static void saveScoreboardHologramsSync() {
-        // Disabled for now
+        saveScoreboardHolograms();
     }
     
     /**
      * Load scoreboard holograms from separate config file
      */
     private static void loadScoreboardHolograms() {
-        // Disabled for now
+        // Load scoreboard holograms from dedicated config if present
+        try {
+            if (scoreboardConfig == null) return;
+            var list = scoreboardConfig.load();
+            for (var data : list) {
+                if (data == null || data.id == null || data.id.isEmpty()) continue;
+                if (getHologram(data.id).isPresent()) continue;
+                var holo = new com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram(
+                        data.id,
+                        data.worldName,
+                        data.x, data.y, data.z,
+                        data.range,
+                        data.objectiveName,
+                        data.topCount,
+                        data.updateInterval,
+                        data.headerFormat,
+                        data.playerFormat,
+                        data.emptyFormat
+                );
+                holo.spawn();
+                holo.forceUpdate();
+                addHologram(holo);
+                LOGGER.info("Recreated scoreboard hologram '{}' for objective '{}'", data.id, data.objectiveName);
+            }
+        } catch (Exception e) {
+            LOGGER.error("Failed to load scoreboard holograms", e);
+        }
+    }
+
+    /**
+     * Tick all scoreboard holograms once. Intended to be called once per second.
+     */
+    public static void tickScoreboards() {
+        try {
+            for (Hologram h : HOLOGRAMS.values()) {
+                if (h instanceof com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram sb) {
+                    sb.tick();
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error ticking scoreboard holograms", e);
+        }
     }
     
     /**

@@ -7,6 +7,7 @@ import com.strictgaming.elite.holograms.api.hologram.Hologram;
 import com.strictgaming.elite.holograms.neo21.Neo21Holograms;
 import com.strictgaming.elite.holograms.neo21.hologram.HologramManager;
 import com.strictgaming.elite.holograms.neo21.hologram.implementation.NeoForgeHologram;
+import com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram;
 
 import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
@@ -195,6 +196,10 @@ public class HologramsConfig {
         for (Map.Entry<String, Hologram> entry : holograms.entrySet()) {
             String id = entry.getKey();
             Hologram hologram = entry.getValue();
+            // Do not persist scoreboard holograms in the main holograms.json; they have their own store
+            if (hologram instanceof ScoreboardHologram) {
+                continue;
+            }
             
             HologramData data = new HologramData();
             data.world = hologram.getWorld();

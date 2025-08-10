@@ -3,7 +3,7 @@ package com.strictgaming.elite.holograms.neo21.config;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
-// import com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram;
+import com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import org.apache.logging.log4j.LogManager;
@@ -35,9 +35,34 @@ public class ScoreboardHologramConfig {
     /**
      * Save scoreboard hologram configurations
      */
-    public void save(List<Object> scoreboardHolograms) {
-        // Temporarily disabled - will be re-enabled once ScoreboardHologram compilation
-        // is resolved
+    public void save(List<ScoreboardHologram> scoreboardHolograms) {
+        try {
+            List<ScoreboardHologramData> configData = new ArrayList<>();
+            for (ScoreboardHologram holo : scoreboardHolograms) {
+                ScoreboardHologramData d = new ScoreboardHologramData();
+                d.id = holo.getId();
+                d.objectiveName = holo.getObjectiveName();
+                d.topCount = holo.getTopCount();
+                d.updateInterval = holo.getUpdateInterval();
+                d.range = holo.getRange();
+                d.worldName = holo.getWorldName();
+                double[] loc = holo.getLocation();
+                d.x = loc[0];
+                d.y = loc[1];
+                d.z = loc[2];
+                d.headerFormat = null;
+                d.playerFormat = null;
+                d.emptyFormat = null;
+                configData.add(d);
+            }
+
+            try (OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(configFile), StandardCharsets.UTF_8)) {
+                GSON.toJson(configData, SCOREBOARD_CONFIG_LIST_TYPE, writer);
+                LOGGER.debug("Saved {} scoreboard hologram configurations", configData.size());
+            }
+        } catch (IOException e) {
+            LOGGER.error("Error saving scoreboard hologram config: {}", e.getMessage());
+        }
     }
 
     /**
