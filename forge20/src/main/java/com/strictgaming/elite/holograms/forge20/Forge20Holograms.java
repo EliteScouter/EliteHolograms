@@ -19,6 +19,7 @@ import com.strictgaming.elite.holograms.forge20.command.HologramsInsertLineComma
 import com.strictgaming.elite.holograms.forge20.command.HologramsCopyCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsInfoCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsNearCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsMoveVerticalCommand;
 import com.strictgaming.elite.holograms.forge20.config.HologramsConfig;
 import com.strictgaming.elite.holograms.forge20.hologram.ForgeHologram;
 import com.strictgaming.elite.holograms.forge20.hologram.HologramManager;
@@ -45,7 +46,7 @@ import java.io.IOException;
 public class Forge20Holograms implements PlatformHologramManager {
 
     public static final String MOD_ID = "eliteholograms";
-    public static final String VERSION = "1.20.1-1.0.4";
+    public static final String VERSION = "1.20.1-1.0.5";
     private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
 
     private static Forge20Holograms instance;
@@ -181,6 +182,7 @@ public class Forge20Holograms implements PlatformHologramManager {
         HologramsCopyCommand copyCommand = new HologramsCopyCommand();
         HologramsInfoCommand infoCommand = new HologramsInfoCommand();
         HologramsNearCommand nearCommand = new HologramsNearCommand();
+        HologramsMoveVerticalCommand moveVerticalCommand = new HologramsMoveVerticalCommand();
         
         // Register commands with main command handler
         command.registerSubCommand("create", createCommand);
@@ -197,6 +199,7 @@ public class Forge20Holograms implements PlatformHologramManager {
         command.registerSubCommand("copy", copyCommand);
         command.registerSubCommand("info", infoCommand);
         command.registerSubCommand("near", nearCommand);
+        command.registerSubCommand("movevertical", moveVerticalCommand);
         
         // Register main command with command dispatcher
         command.register(event.getDispatcher());

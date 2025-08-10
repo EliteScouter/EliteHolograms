@@ -132,7 +132,7 @@ public class HologramsCommand {
                         };
                         return executeSubCommand(ctx, "createscoreboard", args);
                     })))));
-            } else if (name.equals("delete") || name.equals("info") || name.equals("movehere") || name.equals("teleport")) {
+            } else if (name.equals("delete") || name.equals("info") || name.equals("movehere") || name.equals("teleport") || name.equals("movevertical")) {
                 subCommand
                     .then(Commands.argument("id", StringArgumentType.word())
                     .suggests(HOLOGRAM_ID_SUGGESTIONS)
@@ -141,7 +141,15 @@ public class HologramsCommand {
                             StringArgumentType.getString(ctx, "id")
                         };
                         return executeSubCommand(ctx, name, args);
-                    }));
+                    })
+                    .then(Commands.argument("amount", StringArgumentType.word())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "amount")
+                        };
+                        return executeSubCommand(ctx, name, args);
+                    })));
             } else if (name.equals("addline")) {
                 subCommand
                     .then(Commands.argument("id", StringArgumentType.word())

@@ -39,6 +39,7 @@ public class CommandManager {
         factory.registerChildCommand(mainCommand, new HologramsMoveHereCommand());
         factory.registerChildCommand(mainCommand, new HologramsCopyCommand());
         factory.registerChildCommand(mainCommand, new HologramsInsertLineCommand());
+        factory.registerChildCommand(mainCommand, new HologramsMoveVerticalCommand());
         factory.registerChildCommand(mainCommand, new HologramsReloadCommand());
         factory.registerChildCommand(mainCommand, new HologramsInfoCommand());
         
