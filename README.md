@@ -7,11 +7,13 @@ A lightweight and powerful Minecraft mod for creating and managing holographic d
 - Create persistent holograms that stay loaded across server restarts.
 - Manage multiple lines (add, insert, remove, set).
 - Position control (create at your location, teleport to holograms).
+- Move holograms vertically with precise offsets (e.g., up/down 1.5 blocks).
 - **Comprehensive built-in placeholder system** with server and player-specific variables, including `%player_rank%`.
 - **Advanced permission system** with support for LuckPerms, FTB Ranks, or operator (OP level 2) fallback.
 - Easy-to-use commands with **tab completion** and intuitive syntax.
 - Performance optimized for servers with **proper shutdown handling** and efficient hologram rendering.
 - Support for Minecraft 1.19.2 (Forge), 1.20.x (Forge), and 1.21.1 (NeoForge).
+- Scoreboard holograms: display top players from any scoreboard objective (supports both online and offline entries) with configurable refresh interval.
 
 ## Placeholder System
 
@@ -63,8 +65,36 @@ These show different information for each player viewing the hologram:
 | `/eh teleport <id>`         | Teleport to a hologram                       | `.teleport`            |
 | `/eh copy <source_id> <new_id>`| Copy an existing hologram to a new one    | `.create` (as it creates) |
 | `/eh info <id>`             | Display information about a hologram         | `.info`                |
+| `/eh movevertical <id> <up|down> <amount>` | Move a hologram up or down by the specified amount (e.g., 1.5) | `.edit` |
+| `/eh createscoreboard <id> <objective> [topCount] [updateInterval]` | Create a scoreboard-based hologram showing the top X players for an objective, refreshing every N seconds | `.create` |
 
 All commands support **tab completion** for hologram IDs and relevant parameters. The base permission is `eliteholograms`. For example, to use `/eh create`, a player would need `eliteholograms.create`.
+
+### Scoreboard Holograms
+
+Create a hologram that renders entries from a scoreboard objective (works with online and offline player data):
+
+```
+/eh createscoreboard top_time TimePlayed 10 30
+```
+
+- **id**: a unique hologram id (e.g., `top_time`)
+- **objective**: scoreboard objective name (e.g., `TimePlayed`)
+- **topCount** (optional): number of rows to show; default 5; range 1–10
+- **updateInterval** (optional): refresh interval in seconds; default 30; range 5–300
+
+Notes:
+- Time-based objectives (e.g., playtime measured in ticks/seconds) are auto-formatted to human-friendly values.
+- Entries include players even if they’re currently offline.
+
+### Move Hologram Vertically
+
+```
+/eh movevertical <id> up 1.5
+/eh movevertical <id> down 0.25
+```
+
+Moves the hologram’s base Y position by the provided amount and persists to storage.
 
 ## Permissions
 
@@ -103,11 +133,18 @@ For a detailed guide on setting up permissions, please see `PERMISSIONS.md`.
 
 ## Version Support
 
-- **Forge19**: Minecraft 1.19.2 (EliteHolograms version `1.19.2-1.0.3`)
-- **Forge20**: Minecraft 1.20.x (EliteHolograms version `1.20.x-1.0.3`)
-- **Neo21**: Minecraft 1.21.1 (EliteHolograms version `1.21.1-1.0.2`)
+- **Forge19**: Minecraft 1.19.2 (EliteHolograms version `1.19.2-1.0.4`)
+- **Forge20**: Minecraft 1.20.1 (EliteHolograms version `1.20.1-1.0.5`)
+- **Neo21**: Minecraft 1.21.1 (EliteHolograms version `1.21.1-1.0.3`)
 
 All versions aim for feature parity, including the advanced permission system and full placeholder support.
+
+## Storage & Config Paths
+
+- Standardized path for configs and saved holograms: `config/eliteholograms`.
+- Scoreboard holograms save to `config/eliteholograms/scoreboard_holograms.json` on all platforms.
+- NeoForge 1.21.1 main holograms file: `config/eliteholograms/holograms.json`.
+- Forge 1.20.x uses `config/elite-holograms/config.json` to set its storage location. For a unified path, set `storage_location` there to `config/eliteholograms`.
 
 ## License
 
