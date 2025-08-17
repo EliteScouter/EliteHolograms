@@ -201,6 +201,9 @@ public class UtilPermissions {
     }
 
     private static String getLuckPermsRank(ServerPlayer player) {
+        if (!isLuckPermsActuallyLoaded()) {
+            return null;
+        }
         try {
             LuckPerms api = LuckPermsProvider.get();
             User user = api.getUserManager().getUser(player.getUUID());
