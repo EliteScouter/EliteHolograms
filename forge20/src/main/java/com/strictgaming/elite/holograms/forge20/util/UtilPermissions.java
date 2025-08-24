@@ -198,15 +198,27 @@ public class UtilPermissions {
      */
     private static boolean checkLuckPerms(ServerPlayer player, String permission) {
         try {
+            // Additional safety check to prevent NoClassDefFoundError
+            if (!isLuckPermsActuallyLoaded()) {
+                return false;
+            }
+
             LuckPerms api = LuckPermsProvider.get();
+            if (api == null) {
+                return false;
+            }
+
             User user = api.getUserManager().getUser(player.getUUID());
-            
+
             if (user == null) {
                 return false;
             }
-            
+
             Tristate result = user.getCachedData().getPermissionData().checkPermission(permission);
             return result == Tristate.TRUE;
+        } catch (NoClassDefFoundError e) {
+            LOGGER.debug("LuckPerms classes not available despite detection", e);
+            return false;
         } catch (Exception e) {
             LOGGER.debug("Error checking LuckPerms permission for player " + player.getName().getString(), e);
             return false;
@@ -259,20 +271,31 @@ public class UtilPermissions {
      * Get player's primary group from LuckPerms
      */
     private static String getLuckPermsRank(ServerPlayer player) {
+        if (!isLuckPermsActuallyLoaded()) {
+            return null;
+        }
         try {
+            // Additional safety check to prevent NoClassDefFoundError
             LuckPerms api = LuckPermsProvider.get();
+            if (api == null) {
+                return null;
+            }
+
             User user = api.getUserManager().getUser(player.getUUID());
-            
+
             if (user == null) {
                 return null;
             }
-            
+
             String primaryGroup = user.getPrimaryGroup();
-            
+
             if (primaryGroup != null && !primaryGroup.isEmpty()) {
                 return primaryGroup.substring(0, 1).toUpperCase() + primaryGroup.substring(1).toLowerCase();
             }
-            
+
+            return null;
+        } catch (NoClassDefFoundError e) {
+            LOGGER.debug("LuckPerms classes not available despite detection", e);
             return null;
         } catch (Exception e) {
             LOGGER.debug("Error getting LuckPerms rank for player " + player.getName().getString(), e);
