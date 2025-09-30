@@ -356,6 +356,11 @@ public class ScoreboardHologram extends NeoForgeHologram {
     public String getWorldName() { return getWorld(); }
     public double[] getLocation() { return new double[] { getX(), getY(), getZ() }; }
 
+    // Getter methods for format fields
+    public String getHeaderFormat() { return headerFormat; }
+    public String getPlayerFormat() { return playerFormat; }
+    public String getEmptyFormat() { return emptyFormat; }
+
     private static class ScoreEntry {
         final String playerName;
         final int score;

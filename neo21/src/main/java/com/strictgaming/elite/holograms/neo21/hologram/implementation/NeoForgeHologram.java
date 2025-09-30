@@ -72,7 +72,9 @@ public class NeoForgeHologram implements Hologram {
         if (lines != null) {
             this.rawLines.addAll(lines);
         }
-        HologramManager.addHologram(this); // Add to manager first
+        synchronized (com.strictgaming.elite.holograms.neo21.hologram.HologramManager.class) {
+            HologramManager.addHologram(this); // Add to manager first
+        }
         rebuildHologramLines(); // Then build lines
     }
     

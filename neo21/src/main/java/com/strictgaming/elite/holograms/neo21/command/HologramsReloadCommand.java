@@ -50,15 +50,17 @@ public class HologramsReloadCommand implements HologramsCommand.SubCommand {
 
     public int run(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
-        
+
         try {
             // Clear and reload all holograms
-            HologramManager.getHolograms().values().forEach(hologram -> hologram.despawn());
-            HologramManager.getHolograms().clear();
-            
+            // Need to get the actual internal map reference to properly clear it
+            var hologramsMap = HologramManager.getHologramsInternal();
+            hologramsMap.values().forEach(hologram -> hologram.despawn());
+            hologramsMap.clear();
+
             // Reload from config
             HologramManager.load();
-            
+
             source.sendSuccess(() -> Component.literal("Holograms reloaded successfully!"), false);
             LOGGER.info("Holograms reloaded by " + source.getTextName());
             return Command.SINGLE_SUCCESS;

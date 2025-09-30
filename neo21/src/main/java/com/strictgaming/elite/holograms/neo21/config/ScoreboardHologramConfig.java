@@ -55,9 +55,10 @@ public class ScoreboardHologramConfig {
                 d.x = loc[0];
                 d.y = loc[1];
                 d.z = loc[2];
-                d.headerFormat = null;
-                d.playerFormat = null;
-                d.emptyFormat = null;
+                // Preserve the actual format settings
+                d.headerFormat = holo.getHeaderFormat();
+                d.playerFormat = holo.getPlayerFormat();
+                d.emptyFormat = holo.getEmptyFormat();
                 configData.add(d);
             }
 

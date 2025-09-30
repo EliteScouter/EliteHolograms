@@ -26,13 +26,14 @@ import net.minecraft.server.level.ServerPlayer;
  * Manager for handling hologram operations
  */
 public class HologramManager {
-    
+
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Map<String, Hologram> HOLOGRAMS = new HashMap<>();
     private static ScoreboardHologramConfig scoreboardConfig;
     private static boolean initialized = false;
     private static long lastScoreboardSave = 0L;
     private static final long SCOREBOARD_SAVE_COOLDOWN_MS = 5000L;
+    private static final Object SAVE_LOAD_LOCK = new Object();
     
     /**
      * Initialize the hologram system
@@ -58,37 +59,41 @@ public class HologramManager {
     
     /**
      * Load holograms from config
-     * 
+     *
      * @throws IOException If loading fails
      */
     public static void load() throws IOException {
-        LOGGER.info("Loading holograms from config");
-        HologramsConfig config = Neo21Holograms.getInstance().getConfig();
-        
-        if (config == null) {
-            LOGGER.warn("Config is null, cannot load holograms.");
-            return;
+        synchronized (SAVE_LOAD_LOCK) {
+            LOGGER.info("Loading holograms from config");
+            HologramsConfig config = Neo21Holograms.getInstance().getConfig();
+
+            if (config == null) {
+                LOGGER.warn("Config is null, cannot load holograms.");
+                return;
+            }
+
+            // Despawn all existing before clearing
+            HOLOGRAMS.values().forEach(Hologram::despawn);
+            HOLOGRAMS.clear();
+
+            // Let config directly add to manager
+            config.loadHologramsIntoManager();
+
+            // Load scoreboard holograms separately
+            loadScoreboardHolograms();
         }
-        
-        // Despawn all existing before clearing
-        HOLOGRAMS.values().forEach(Hologram::despawn);
-        HOLOGRAMS.clear();
-        
-        // Let config directly add to manager
-        config.loadHologramsIntoManager();
-        
-        // Load scoreboard holograms separately
-        loadScoreboardHolograms();
     }
     
     /**
      * Add a hologram to the manager
-     * 
+     *
      * @param hologram The hologram to add
      */
     public static void addHologram(Hologram hologram) {
         if (hologram == null) return;
-        HOLOGRAMS.put(hologram.getId(), hologram);
+        synchronized (SAVE_LOAD_LOCK) {
+            HOLOGRAMS.put(hologram.getId(), hologram);
+        }
         // No save here, let config do it or explicit calls
     }
     
@@ -104,45 +109,62 @@ public class HologramManager {
     
     /**
      * Remove a hologram from the manager
-     * 
+     *
      * @param id The hologram ID
      * @return True if removed, false if not found
      */
     public static boolean removeHologram(String id) {
-        Hologram hologram = HOLOGRAMS.remove(id);
-        if (hologram != null) {
-            // Ensure it's fully despawned / marked inactive
-            hologram.despawn();
-            saveHolograms();
-            return true;
+        synchronized (SAVE_LOAD_LOCK) {
+            Hologram hologram = HOLOGRAMS.remove(id);
+            if (hologram != null) {
+                // Ensure it's fully despawned / marked inactive
+                hologram.despawn();
+                try {
+                    save();
+                } catch (IOException e) {
+                    LOGGER.error("Failed to save after removing hologram", e);
+                }
+                return true;
+            }
+            return false;
         }
-        return false;
     }
     
     /**
      * Get all holograms
-     * 
-     * @return The map of holograms
+     *
+     * @return The map of holograms (returns a copy for external use)
      */
     public static Map<String, Hologram> getHolograms() {
         return new HashMap<>(HOLOGRAMS);
     }
+
+    /**
+     * Get the internal holograms map reference (for internal operations that need to modify the map)
+     *
+     * @return The internal holograms map
+     */
+    public static Map<String, Hologram> getHologramsInternal() {
+        return HOLOGRAMS;
+    }
     
     /**
      * Save holograms to config
-     * 
+     *
      * @throws IOException If saving fails
      */
     public static void save() throws IOException {
-        HologramsConfig config = Neo21Holograms.getInstance().getConfig();
-        if (config != null) {
-            config.saveHologramsFromManager(HOLOGRAMS);
-            LOGGER.info("Saved {} holograms to config.", HOLOGRAMS.size());
-            
-            // Save scoreboard holograms separately
-            saveScoreboardHolograms();
-        } else {
-            LOGGER.warn("Config is null, cannot save holograms.");
+        synchronized (SAVE_LOAD_LOCK) {
+            HologramsConfig config = Neo21Holograms.getInstance().getConfig();
+            if (config != null) {
+                config.saveHologramsFromManager(HOLOGRAMS);
+                LOGGER.info("Saved {} holograms to config.", HOLOGRAMS.size());
+
+                // Save scoreboard holograms separately
+                saveScoreboardHolograms();
+            } else {
+                LOGGER.warn("Config is null, cannot save holograms.");
+            }
         }
     }
     
@@ -207,24 +229,26 @@ public class HologramManager {
      * Save scoreboard holograms to separate config file (async)
      */
     private static void saveScoreboardHolograms() {
-        try {
-            if (scoreboardConfig == null) return;
-            long now = System.currentTimeMillis();
-            if (now - lastScoreboardSave < SCOREBOARD_SAVE_COOLDOWN_MS) {
-                return;
-            }
-            List<com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram> list = new ArrayList<>();
-            for (Hologram h : HOLOGRAMS.values()) {
-                if (h instanceof com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram sb) {
-                    list.add(sb);
+        synchronized (SAVE_LOAD_LOCK) {
+            try {
+                if (scoreboardConfig == null) return;
+                long now = System.currentTimeMillis();
+                if (now - lastScoreboardSave < SCOREBOARD_SAVE_COOLDOWN_MS) {
+                    return;
                 }
+                List<com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram> list = new ArrayList<>();
+                for (Hologram h : HOLOGRAMS.values()) {
+                    if (h instanceof com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram sb) {
+                        list.add(sb);
+                    }
+                }
+                if (!list.isEmpty()) {
+                    scoreboardConfig.save(list);
+                    lastScoreboardSave = now;
+                }
+            } catch (Exception e) {
+                LOGGER.error("Failed to save scoreboard holograms", e);
             }
-            if (!list.isEmpty()) {
-                scoreboardConfig.save(list);
-                lastScoreboardSave = now;
-            }
-        } catch (Exception e) {
-            LOGGER.error("Failed to save scoreboard holograms", e);
         }
     }
     
