@@ -83,11 +83,29 @@ dependencies {
     // Core dependencies that will be included in the JAR
     compileOnly group: 'org.spongepowered', name: 'configurate-yaml', version: '4.0.0'
     
-    // GSON is already provided by Forge - use 'implementation' instead of 'embed'
-    implementation group: 'com.google.code.gson', name: 'gson', version: '2.10.1'
+    // GSON is already provided by Forge - don't embed
+    compileOnly group: 'com.google.code.gson', name: 'gson', version: '2.10.1'
     
     // Permission system APIs (compileOnly - they're provided by the server)
     compileOnly 'net.luckperms:api:5.4'
+    
+    // Adventure MiniMessage for gradient text support (with transitive dependency exclusions)
+    embed('net.kyori:adventure-text-minimessage:4.14.0') {
+        exclude group: 'com.google.code.gson'
+        exclude group: 'org.jetbrains'
+    }
+    embed('net.kyori:adventure-text-serializer-gson:4.14.0') {
+        exclude group: 'com.google.code.gson'
+        exclude group: 'org.jetbrains'
+    }
+    embed('net.kyori:adventure-text-serializer-legacy:4.14.0') {
+        exclude group: 'com.google.code.gson'
+        exclude group: 'org.jetbrains'
+    }
+    embed('net.kyori:adventure-api:4.14.0') {
+        exclude group: 'com.google.code.gson'
+        exclude group: 'org.jetbrains'
+    }
     
     // Our own API module
     embed project(':api')
@@ -117,6 +135,11 @@ jar {
     exclude 'META-INF/*.DSA'
     exclude 'META-INF/*.RSA'
     exclude "**/module-info.class"
+    
+    // Exclude packages that conflict with Forge/Minecraft
+    exclude 'com/google/gson/**'
+    exclude 'org/intellij/**'
+    exclude 'org/jetbrains/**'
     
     // Ensure reproducible builds
     preserveFileTimestamps = false
