@@ -22,6 +22,7 @@ import java.io.IOException;
 public class HologramsReloadCommand implements HologramsCommand.SubCommand {
 
     private static final Logger LOGGER = LogUtils.getLogger();
+    private static volatile boolean isReloading = false;
 
     /**
      * Registers this command with the given dispatcher
@@ -51,7 +52,17 @@ public class HologramsReloadCommand implements HologramsCommand.SubCommand {
     public int run(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
 
+        // Prevent concurrent reloads
+        if (isReloading) {
+            source.sendFailure(Component.literal("Hologram reload already in progress. Please wait."));
+            return 0;
+        }
+
+        isReloading = true;
         try {
+            // Ensure any pending saves are completed before reloading
+            HologramManager.save();
+
             // Clear and reload all holograms
             // Need to get the actual internal map reference to properly clear it
             var hologramsMap = HologramManager.getHologramsInternal();
@@ -68,6 +79,8 @@ public class HologramsReloadCommand implements HologramsCommand.SubCommand {
             source.sendFailure(Component.literal("Failed to reload holograms: " + e.getMessage()));
             LOGGER.error("Error reloading holograms", e);
             return 0;
+        } finally {
+            isReloading = false;
         }
     }
     

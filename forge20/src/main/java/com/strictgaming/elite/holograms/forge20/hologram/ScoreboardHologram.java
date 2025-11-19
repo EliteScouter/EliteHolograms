@@ -1,5 +1,7 @@
 package com.strictgaming.elite.holograms.forge20.hologram;
 
+import com.strictgaming.elite.holograms.forge20.hologram.entity.HologramLine;
+import com.strictgaming.elite.holograms.forge20.util.UtilPlayer;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
@@ -29,9 +31,6 @@ public class ScoreboardHologram extends ForgeHologram {
     private final String playerFormat;
     private final String emptyFormat;
     private final boolean isTimeObjective;
-    
-    // Metadata for JSON serialization
-    private final String hologramType = "SCOREBOARD";
     
     private long lastUpdate = 0;
     private List<ScoreEntry> lastScores = new ArrayList<>();
@@ -150,10 +149,16 @@ public class ScoreboardHologram extends ForgeHologram {
         }
         
         // Update hologram lines
-        // Clear existing lines first
-        while (getLines().size() > 0) {
-            removeLine(0);
+        // Clear existing lines first (despawn for all nearby players)
+        for (HologramLine line : getLines()) {
+            for (UUID playerUUID : getNearbyPlayers()) {
+                ServerPlayer player = UtilPlayer.getOnlinePlayer(playerUUID);
+                if (player != null) {
+                    line.despawnForPlayer(player);
+                }
+            }
         }
+        getLines().clear();
         
         // Add new lines
         for (String line : newLines) {

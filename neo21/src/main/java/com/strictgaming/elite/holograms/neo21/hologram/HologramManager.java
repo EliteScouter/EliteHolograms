@@ -160,8 +160,8 @@ public class HologramManager {
                 config.saveHologramsFromManager(HOLOGRAMS);
                 LOGGER.info("Saved {} holograms to config.", HOLOGRAMS.size());
 
-                // Save scoreboard holograms separately
-                saveScoreboardHolograms();
+                // Force save scoreboard holograms immediately (bypass cooldown)
+                forceSaveScoreboardHolograms();
             } else {
                 LOGGER.warn("Config is null, cannot save holograms.");
             }
@@ -258,6 +258,30 @@ public class HologramManager {
     public static void saveScoreboardHologramsSync() {
         saveScoreboardHolograms();
     }
+
+    /**
+     * Force save scoreboard holograms immediately (bypass cooldown)
+     */
+    public static void forceSaveScoreboardHolograms() {
+        synchronized (SAVE_LOAD_LOCK) {
+            try {
+                if (scoreboardConfig == null) return;
+                List<com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram> list = new ArrayList<>();
+                for (Hologram h : HOLOGRAMS.values()) {
+                    if (h instanceof com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram sb) {
+                        list.add(sb);
+                    }
+                }
+                if (!list.isEmpty()) {
+                    scoreboardConfig.save(list);
+                    lastScoreboardSave = System.currentTimeMillis(); // Update timestamp to prevent rapid saves
+                    LOGGER.debug("Force saved {} scoreboard holograms", list.size());
+                }
+            } catch (Exception e) {
+                LOGGER.error("Failed to force save scoreboard holograms", e);
+            }
+        }
+    }
     
     /**
      * Load scoreboard holograms from separate config file
@@ -267,25 +291,36 @@ public class HologramManager {
         try {
             if (scoreboardConfig == null) return;
             var list = scoreboardConfig.load();
+            LOGGER.debug("Loading {} scoreboard hologram configurations from config", list.size());
             for (var data : list) {
-                if (data == null || data.id == null || data.id.isEmpty()) continue;
-                if (getHologram(data.id).isPresent()) continue;
-                var holo = new com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram(
-                        data.id,
-                        data.worldName,
-                        data.x, data.y, data.z,
-                        data.range,
-                        data.objectiveName,
-                        data.topCount,
-                        data.updateInterval,
-                        data.headerFormat,
-                        data.playerFormat,
-                        data.emptyFormat
-                );
-                holo.spawn();
-                holo.forceUpdate();
-                addHologram(holo);
-                LOGGER.info("Recreated scoreboard hologram '{}' for objective '{}'", data.id, data.objectiveName);
+                if (data == null || data.id == null || data.id.isEmpty()) {
+                    LOGGER.warn("Skipping invalid scoreboard hologram data: null or empty id");
+                    continue;
+                }
+                if (getHologram(data.id).isPresent()) {
+                    LOGGER.debug("Skipping duplicate scoreboard hologram: {}", data.id);
+                    continue;
+                }
+                try {
+                    var holo = new com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram(
+                            data.id,
+                            data.worldName,
+                            data.x, data.y, data.z,
+                            data.range,
+                            data.objectiveName,
+                            data.topCount,
+                            data.updateInterval,
+                            data.headerFormat,
+                            data.playerFormat,
+                            data.emptyFormat
+                    );
+                    holo.spawn();
+                    holo.forceUpdate();
+                    addHologram(holo);
+                    LOGGER.info("Recreated scoreboard hologram '{}' for objective '{}'", data.id, data.objectiveName);
+                } catch (Exception e) {
+                    LOGGER.error("Failed to recreate scoreboard hologram '{}': {}", data.id, e.getMessage());
+                }
             }
         } catch (Exception e) {
             LOGGER.error("Failed to load scoreboard holograms", e);
