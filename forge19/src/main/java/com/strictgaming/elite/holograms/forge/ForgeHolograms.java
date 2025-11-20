@@ -19,6 +19,8 @@ import com.strictgaming.elite.holograms.forge.command.HologramsCopyCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsInsertLineCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsReloadCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsInfoCommand;
+import com.strictgaming.elite.holograms.forge.command.HologramsAnimateLineCommand;
+import com.strictgaming.elite.holograms.forge.command.HologramsCreateItemCommand;
 import com.strictgaming.elite.holograms.forge.config.HologramsConfig;
 import com.strictgaming.elite.holograms.forge.hologram.HologramManager;
 import com.strictgaming.elite.holograms.forge.hologram.manager.ForgeHologramManager;
@@ -97,6 +99,13 @@ public class ForgeHolograms {
             LOGGER.error("Error loading holograms", e);
         }
         this.checkForPlaceholders();
+    }
+
+    @SubscribeEvent
+    public void onServerTick(net.minecraftforge.event.TickEvent.ServerTickEvent event) {
+        if (event.phase == net.minecraftforge.event.TickEvent.Phase.END) {
+            HologramManager.tick();
+        }
     }
 
     @SubscribeEvent
@@ -211,6 +220,12 @@ public class ForgeHolograms {
         
         LOGGER.info("Registering HologramsInfoCommand");
         command.registerSubCommand("info", new HologramsInfoCommand());
+        
+        LOGGER.info("Registering HologramsAnimateLineCommand");
+        command.registerSubCommand("animateline", new HologramsAnimateLineCommand());
+        
+        LOGGER.info("Registering HologramsCreateItemCommand");
+        command.registerSubCommand("createitem", new HologramsCreateItemCommand());
         
         LOGGER.info("Registering main command dispatcher");
         this.commandFactory.registerCommand(event.getDispatcher(), command);

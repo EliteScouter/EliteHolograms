@@ -13,7 +13,13 @@ A lightweight and powerful Minecraft mod for creating and managing holographic d
 - Easy-to-use commands with **tab completion** and intuitive syntax.
 - Performance optimized for servers with **proper shutdown handling** and efficient hologram rendering.
 - Support for Minecraft 1.19.2 (Forge), 1.20.x (Forge), and 1.21.1 (NeoForge).
-- Scoreboard holograms: display top players from any scoreboard objective (supports both online and offline entries) with configurable refresh interval.
+- Scoreboard holograms: display top players from any scoreboard objective.
+- **Rich Text Formatting**: Support for RGB gradients, hex colors, and rainbows using MiniMessage.
+- **Animations**: Cycle text lines with custom intervals.
+- **Item Displays**: Show floating items with text.
+
+## Documentation
+Full documentation is available in the [Wiki](https://github.com/StrictGaming/EliteHolograms/wiki).
 
 ## Placeholder System
 

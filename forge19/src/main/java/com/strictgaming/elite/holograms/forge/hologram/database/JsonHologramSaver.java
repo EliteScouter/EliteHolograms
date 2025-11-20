@@ -5,6 +5,7 @@ import com.strictgaming.elite.holograms.api.manager.database.HologramSaver;
 import com.strictgaming.elite.holograms.forge.hologram.ForgeHologram;
 import com.strictgaming.elite.holograms.forge.hologram.ForgeHologramTypeAdapter;
 import com.strictgaming.elite.holograms.forge.hologram.HologramManager;
+import com.strictgaming.elite.holograms.forge.hologram.ItemHologram;
 import com.strictgaming.elite.holograms.forge.hologram.ScoreboardHologram;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -38,7 +39,7 @@ public class JsonHologramSaver implements HologramSaver {
     
     private static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting()
-            .registerTypeAdapter(ForgeHologram.class, new ForgeHologramTypeAdapter())
+            .registerTypeHierarchyAdapter(ForgeHologram.class, new ForgeHologramTypeAdapter())
             .excludeFieldsWithModifiers(Modifier.TRANSIENT, Modifier.STATIC)
             .create();
             

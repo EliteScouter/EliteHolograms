@@ -113,7 +113,7 @@ public class UtilChatColour {
             return Component.Serializer.fromJson(json);
             
         } catch (Exception e) {
-            // Fallback to legacy parsing if anything fails
+            // Fallback to legacy parsing if MiniMessage fails
             return Component.literal(colour(message));
         }
     }
@@ -190,8 +190,6 @@ public class UtilChatColour {
                message.contains("<rainbow") || 
                message.contains("<color:") ||
                message.contains("<colour:") ||
-               message.contains("<transition") ||
-               message.contains("<click") ||
-               message.contains("<hover");
+               message.contains("<transition");
     }
 } 

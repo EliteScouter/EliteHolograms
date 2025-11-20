@@ -5,6 +5,7 @@ import com.strictgaming.elite.holograms.api.manager.database.HologramSaver;
 import com.strictgaming.elite.holograms.forge.ForgeHolograms;
 import com.strictgaming.elite.holograms.forge.config.ScoreboardHologramConfig;
 import com.strictgaming.elite.holograms.forge.hologram.database.JsonHologramSaver;
+import com.strictgaming.elite.holograms.forge.hologram.entity.AnimatedHologramLine;
 import com.strictgaming.elite.holograms.forge.hologram.entity.HologramLine;
 import com.strictgaming.elite.holograms.forge.util.UtilConcurrency;
 import com.strictgaming.elite.holograms.forge.util.UtilPlayer;
@@ -301,6 +302,29 @@ public class HologramManager implements Runnable {
         }
     }
     
+    /**
+     * Called every server tick to update animations and scoreboards
+     */
+    public static void tick() {
+        if (ServerLifecycleHooks.getCurrentServer() == null) {
+            return;
+        }
+
+        for (ForgeHologram hologram : HOLOGRAMS.values()) {
+            if (hologram == null || hologram.getWorld() == null) {
+                continue; 
+            }
+            
+            // Tick all holograms (for animations)
+            hologram.tick();
+            
+            // Additional scoreboard-specific ticking
+            if (hologram instanceof ScoreboardHologram) {
+                ((ScoreboardHologram) hologram).tick();
+            }
+        }
+    }
+
     private void checkHolograms() {
         if (ServerLifecycleHooks.getCurrentServer() == null) {
             return;
@@ -316,15 +340,17 @@ public class HologramManager implements Runnable {
                     continue; // Skip if hologram or its world is null
                 }
                 
-                // Update scoreboard holograms
-                if (hologram instanceof ScoreboardHologram) {
-                    ((ScoreboardHologram) hologram).tick();
-                }
+                boolean isNearby = hologram.getNearbyPlayers().contains(player.getUUID());
                 
                 if (!hologram.getWorld().equals(player.level)) {
-                    if (hologram.getNearbyPlayers().contains(player.getUUID())) {
+                    if (isNearby) {
                         hologram.getNearbyPlayers().remove(player.getUUID());
 
+                        // Despawn item if this is an ItemHologram
+                        if (hologram instanceof ItemHologram) {
+                            UtilConcurrency.runSync(() -> ((ItemHologram) hologram).despawnItemFor(player));
+                        }
+                        
                         for (HologramLine line : hologram.getLines()) {
                             if (line != null) { // Check if line is not null
                                 UtilConcurrency.runSync(() -> line.despawnForPlayer(player));
@@ -336,9 +362,14 @@ public class HologramManager implements Runnable {
                 }
 
                 if (player.distanceToSqr(hologram.getPosition()) > (Math.pow(hologram.getRange(), 2))) {
-                    if (hologram.getNearbyPlayers().contains(player.getUUID())) {
+                    if (isNearby) {
                         hologram.getNearbyPlayers().remove(player.getUUID());
 
+                        // Despawn item if this is an ItemHologram
+                        if (hologram instanceof ItemHologram) {
+                            UtilConcurrency.runSync(() -> ((ItemHologram) hologram).despawnItemFor(player));
+                        }
+                        
                         for (HologramLine line : hologram.getLines()) {
                             if (line != null) { // Check if line is not null
                                 UtilConcurrency.runSync(() -> line.despawnForPlayer(player));
@@ -349,7 +380,12 @@ public class HologramManager implements Runnable {
                     continue;
                 }
 
-                if (!hologram.getNearbyPlayers().contains(player.getUUID())) {
+                if (!isNearby) {
+                    // Spawn item first if this is an ItemHologram
+                    if (hologram instanceof ItemHologram) {
+                        UtilConcurrency.runSync(() -> ((ItemHologram) hologram).spawnItemFor(player));
+                    }
+                    
                     for (HologramLine line : hologram.getLines()) {
                         if (line != null) { // Check if line is not null
                             UtilConcurrency.runSync(() -> line.spawnForPlayer(player));
@@ -359,7 +395,7 @@ public class HologramManager implements Runnable {
                     hologram.getNearbyPlayers().add(player.getUUID());
                 } else {
                     for (HologramLine line : hologram.getLines()) {
-                        if (line != null) { // Check if line is not null
+                        if (line != null && !(line instanceof AnimatedHologramLine)) {
                             UtilConcurrency.runSync(() -> line.updateForPlayer(player));
                         }
                     }

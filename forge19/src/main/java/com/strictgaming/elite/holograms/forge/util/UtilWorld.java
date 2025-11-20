@@ -41,7 +41,7 @@ public class UtilWorld {
                             net.minecraft.core.Registry.DIMENSION_REGISTRY, 
                             dimensionKey));
         } catch (Exception e) {
-            System.out.println("[AdvancedHolograms] Error finding world: " + worldName);
+            System.out.println("[EliteHolograms] Error finding world: " + worldName);
             e.printStackTrace();
             return null;
         }

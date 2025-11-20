@@ -15,11 +15,11 @@ import org.apache.logging.log4j.Logger;
 @EventBusSubscriber(modid = ForgeHolograms.MOD_ID)
 public class CommandManager {
 
-    private static final Logger LOGGER = LogManager.getLogger("AdvancedHolograms");
+    private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
 
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
-        LOGGER.info("Registering commands for Advanced Holograms");
+        LOGGER.info("Registering commands for Elite Holograms");
 
         CommandFactory factory = new CommandFactory();
         HologramsCommand mainCommand = new HologramsCommand();
@@ -43,6 +43,8 @@ public class CommandManager {
         factory.registerChildCommand(mainCommand, new HologramsMoveVerticalCommand());
         factory.registerChildCommand(mainCommand, new HologramsReloadCommand());
         factory.registerChildCommand(mainCommand, new HologramsInfoCommand());
+        factory.registerChildCommand(mainCommand, new HologramsAnimateLineCommand());
+        factory.registerChildCommand(mainCommand, new HologramsCreateItemCommand());
         
         // Register the main command with all subcommands
         factory.registerCommand(event.getDispatcher(), mainCommand);

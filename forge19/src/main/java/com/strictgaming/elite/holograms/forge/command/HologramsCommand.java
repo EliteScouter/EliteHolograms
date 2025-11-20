@@ -261,6 +261,46 @@ public class HologramsCommand {
                     String[] args = new String[] {};
                     return executeSubCommand(ctx, "reload", args);
                 });
+        
+        // AnimateLine command
+        LiteralArgumentBuilder<CommandSourceStack> animateLineCommand = Commands.literal("animateline")
+                .requires(UtilPermissions::canEdit)
+                .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                .then(Commands.argument("line", StringArgumentType.word())
+                .then(Commands.argument("interval", StringArgumentType.word())
+                .then(Commands.argument("frames", StringArgumentType.greedyString())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "line"),
+                        StringArgumentType.getString(ctx, "interval"),
+                        StringArgumentType.getString(ctx, "frames")
+                    };
+                    return executeSubCommand(ctx, "animateline", args);
+                })))));
+        
+        // CreateItem command
+        LiteralArgumentBuilder<CommandSourceStack> createItemCommand = Commands.literal("createitem")
+                .requires(UtilPermissions::canCreate)
+                .then(Commands.argument("id", StringArgumentType.word())
+                .then(Commands.argument("item", StringArgumentType.word())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "item")
+                    };
+                    return executeSubCommand(ctx, "createitem", args);
+                })
+                .then(Commands.argument("text", StringArgumentType.greedyString())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "item"),
+                        StringArgumentType.getString(ctx, "text")
+                    };
+                    return executeSubCommand(ctx, "createitem", args);
+                }))));
                 
         command.then(createCommand);
         command.then(deleteCommand);
@@ -277,6 +317,8 @@ public class HologramsCommand {
         command.then(insertLineCommand);
         command.then(moveVerticalCommand);
         command.then(reloadCommand);
+        command.then(animateLineCommand);
+        command.then(createItemCommand);
         
         dispatcher.register(command);
         
@@ -308,6 +350,8 @@ public class HologramsCommand {
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh insertline <id> <line> <text>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh info <id>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh movevertical <id> <up|down> <amount>"));
+        source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh animateline <id> <line> <sec> <frame1>|<frame2>"));
+        source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh createitem <id> <item> [text...]"));
         source.sendSystemMessage(UtilChatColour.parse("&3&l└─────────────────┘"));
         return 1;
     }
@@ -382,9 +426,15 @@ public class HologramsCommand {
         
         try {
             LOGGER.debug("Executing command: {} with class: {}", name, subCommand.getClass().getName());
-            // Special handling: scoreboard creator uses Brigadier arguments directly via run(context)
+            // Special handling for commands that use executeCommand method
             if (subCommand instanceof HologramsCreateScoreboardCommand) {
                 return ((HologramsCreateScoreboardCommand) subCommand).run(context);
+            }
+            if (subCommand instanceof HologramsAnimateLineCommand) {
+                return ((HologramsAnimateLineCommand) subCommand).executeCommand(context, args);
+            }
+            if (subCommand instanceof HologramsCreateItemCommand) {
+                return ((HologramsCreateItemCommand) subCommand).executeCommand(context, args);
             }
             return (int) subCommand.getClass().getMethod("executeCommand", CommandContext.class, String[].class)
                                  .invoke(subCommand, context, args);
@@ -630,6 +680,46 @@ public class HologramsCommand {
         aliasCommand.then(Commands.literal("reload")
                 .requires(UtilPermissions::canAdmin)
                 .executes(ctx -> executeSubCommand(ctx, "reload", new String[0])));
+        
+        // AnimateLine command
+        aliasCommand.then(Commands.literal("animateline")
+                .requires(UtilPermissions::canEdit)
+                .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                .then(Commands.argument("line", StringArgumentType.word())
+                .then(Commands.argument("interval", StringArgumentType.word())
+                .then(Commands.argument("frames", StringArgumentType.greedyString())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "line"),
+                        StringArgumentType.getString(ctx, "interval"),
+                        StringArgumentType.getString(ctx, "frames")
+                    };
+                    return executeSubCommand(ctx, "animateline", args);
+                }))))));
+        
+        // CreateItem command
+        aliasCommand.then(Commands.literal("createitem")
+                .requires(UtilPermissions::canCreate)
+                .then(Commands.argument("id", StringArgumentType.word())
+                .then(Commands.argument("item", StringArgumentType.word())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "item")
+                    };
+                    return executeSubCommand(ctx, "createitem", args);
+                })
+                .then(Commands.argument("text", StringArgumentType.greedyString())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "item"),
+                        StringArgumentType.getString(ctx, "text")
+                    };
+                    return executeSubCommand(ctx, "createitem", args);
+                })))));
                 
         // Info command
         aliasCommand.then(Commands.literal("info")

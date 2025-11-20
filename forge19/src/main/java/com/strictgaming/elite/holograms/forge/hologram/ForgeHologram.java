@@ -2,6 +2,7 @@ package com.strictgaming.elite.holograms.forge.hologram;
 
 import com.strictgaming.elite.holograms.api.exception.HologramException;
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
+import com.strictgaming.elite.holograms.forge.hologram.entity.AnimatedHologramLine;
 import com.strictgaming.elite.holograms.forge.hologram.entity.HologramLine;
 import com.strictgaming.elite.holograms.forge.util.UtilConcurrency;
 import com.strictgaming.elite.holograms.forge.util.UtilPlayer;
@@ -17,6 +18,7 @@ import net.minecraftforge.server.ServerLifecycleHooks;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  *
@@ -34,7 +36,8 @@ public class ForgeHologram implements Hologram {
     private int range;
 
     private final List<HologramLine> lines = Lists.newArrayList();
-    private final List<UUID> nearbyPlayers = Lists.newArrayList();
+    private final List<UUID> nearbyPlayers = new CopyOnWriteArrayList<>();
+    private long tickCount = 0;
 
     public ForgeHologram(String id, Level world, Vec3 position, int range, boolean save, String... lines) {
         this.id = id;
@@ -47,6 +50,28 @@ public class ForgeHologram implements Hologram {
 
         if (save) {
             HologramManager.save();
+        }
+    }
+    
+    /**
+     * Tick animated hologram lines
+     */
+    public void tick() {
+        tickCount++;
+        
+        for (HologramLine line : lines) {
+            if (line instanceof AnimatedHologramLine) {
+                AnimatedHologramLine animatedLine = (AnimatedHologramLine) line;
+                if (animatedLine.tick(tickCount)) {
+                    // Frame changed, update for all nearby players
+                    for (UUID playerUUID : nearbyPlayers) {
+                        ServerPlayer player = UtilPlayer.getOnlinePlayer(playerUUID);
+                        if (player != null) {
+                            animatedLine.updateForPlayer(player);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -326,7 +351,7 @@ public class ForgeHologram implements Hologram {
      * This will cause the hologram manager to check and respawn the hologram for all nearby players
      */
     public void refreshVisibility() {
-        System.out.println("[AdvancedHolograms] Refreshing visibility for hologram: " + this.id);
+        System.out.println("[EliteHolograms] Refreshing visibility for hologram: " + this.id);
         
         // Clear the nearby players list - this will force the hologram manager
         // to recalculate which players should see this hologram
@@ -338,5 +363,71 @@ public class ForgeHologram implements Hologram {
             line.setWorld(this.world);
             line.setPosition(this.position.x, this.position.y - (HOLOGRAM_LINE_GAP * i), this.position.z);
         }
+    }
+    
+    /**
+     * Add an animated line to the hologram
+     * @param frames List of text frames to cycle through
+     * @param intervalSeconds Seconds between frame changes
+     */
+    public void addAnimatedLine(List<String> frames, int intervalSeconds) {
+        if (!ServerLifecycleHooks.getCurrentServer().isSameThread()) {
+            UtilConcurrency.runSync(() -> this.addAnimatedLine(frames, intervalSeconds));
+            return;
+        }
+
+        AnimatedHologramLine animatedLine = new AnimatedHologramLine(
+            new ArmorStand(this.world, this.position.x,
+                this.position.y - (HOLOGRAM_LINE_GAP * this.lines.size()), this.position.z),
+            frames,
+            intervalSeconds * 20 // Convert seconds to ticks
+        );
+
+        this.lines.add(animatedLine);
+        this.spawnLine(animatedLine);
+        HologramManager.save();
+    }
+    
+    /**
+     * Convert an existing line to an animated line
+     * @param lineIndex The line index (1-based)
+     * @param frames List of text frames to cycle through
+     * @param intervalSeconds Seconds between frame changes
+     */
+    public void setLineAnimated(int lineIndex, List<String> frames, int intervalSeconds) throws HologramException {
+        if (lineIndex < 1 || lineIndex > this.lines.size()) {
+            throw new HologramException("§4Line index out of bounds!");
+        }
+        
+        int index = lineIndex - 1;
+        HologramLine oldLine = this.lines.get(index);
+        
+        // Despawn old line for all nearby players
+        for (UUID playerUUID : this.nearbyPlayers) {
+            ServerPlayer player = UtilPlayer.getOnlinePlayer(playerUUID);
+            if (player != null) {
+                oldLine.despawnForPlayer(player);
+            }
+        }
+        
+        // Create new animated line at same position
+        AnimatedHologramLine newLine = new AnimatedHologramLine(
+            new ArmorStand(this.world, this.position.x,
+                this.position.y - (HOLOGRAM_LINE_GAP * index), this.position.z),
+            frames,
+            intervalSeconds * 20 // Convert seconds to ticks
+        );
+        
+        this.lines.set(index, newLine);
+        
+        // Spawn new line for all nearby players
+        for (UUID playerUUID : this.nearbyPlayers) {
+            ServerPlayer player = UtilPlayer.getOnlinePlayer(playerUUID);
+            if (player != null) {
+                newLine.spawnForPlayer(player);
+            }
+        }
+        
+        HologramManager.save();
     }
 } 
