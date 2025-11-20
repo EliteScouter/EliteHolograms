@@ -19,6 +19,7 @@ A lightweight and powerful Minecraft mod for creating and managing holographic d
 - **Item Displays**: Show floating items with text.
 
 ## Documentation
+
 Full documentation is available in the [Wiki](https://github.com/StrictGaming/EliteHolograms/wiki).
 
 ## Placeholder System
@@ -26,6 +27,7 @@ Full documentation is available in the [Wiki](https://github.com/StrictGaming/El
 Elite Holograms includes a built-in placeholder system that updates in real-time. No external placeholder API is required.
 
 ### Server Placeholders
+
 These show the same information for all players:
 - `%players%` - Current online player count.
 - `%maxplayers%` - Server maximum players.
@@ -35,6 +37,7 @@ These show the same information for all players:
 - `%server_time%` - Real world time in HH:MM:SS format.
 
 ### Player-Specific Placeholders
+
 These show different information for each player viewing the hologram:
 - `%player%` - Player's display name.
 - `%player_rank%` - Player's rank (from LuckPerms/FTB Ranks, or "OP"/"Player").
@@ -45,6 +48,7 @@ These show different information for each player viewing the hologram:
 - `%player_gamemode%` - Game mode (Creative/Survival/Adventure/Spectator).
 
 ### Example Usage
+
 ```
 /eh create welcome &bWelcome &f%player%&b to the server!
 /eh addline welcome &7Your rank: &e%player_rank%
@@ -71,7 +75,7 @@ These show different information for each player viewing the hologram:
 | `/eh teleport <id>`         | Teleport to a hologram                       | `.teleport`            |
 | `/eh copy <source_id> <new_id>`| Copy an existing hologram to a new one    | `.create` (as it creates) |
 | `/eh info <id>`             | Display information about a hologram         | `.info`                |
-| `/eh movevertical <id> <up|down> <amount>` | Move a hologram up or down by the specified amount (e.g., 1.5) | `.edit` |
+| `/eh movevertical <id> <up\|down> <amount>` | Move a hologram up or down by the specified amount (e.g., 1.5) | `.edit` |
 | `/eh createscoreboard <id> <objective> [topCount] [updateInterval]` | Create a scoreboard-based hologram showing the top X players for an objective, refreshing every N seconds | `.create` |
 
 All commands support **tab completion** for hologram IDs and relevant parameters. The base permission is `eliteholograms`. For example, to use `/eh create`, a player would need `eliteholograms.create`.
@@ -109,14 +113,14 @@ Elite Holograms features a flexible permission system:
 - **Supported Systems:** Automatically detects and integrates with LuckPerms and FTB Ranks.
 - **Fallback:** If no supported permission mod is found, commands default to requiring operator (OP level 2) status.
 - **Granular Nodes:** Assign specific permissions for different actions. The base node is `eliteholograms`.
-    - `eliteholograms.create` - Allows creation of holograms (`/eh create`, `/eh copy`).
-    - `eliteholograms.delete` - Allows deletion of holograms (`/eh delete`).
-    - `eliteholograms.edit` - Allows modification of existing holograms (`/eh addline`, `/eh setline`, `/eh removeline`, `/eh insertline`, `/eh movehere`).
-    - `eliteholograms.list` - Allows listing all holograms (`/eh list`).
-    - `eliteholograms.info` - Allows viewing detailed hologram information (`/eh info`).
-    - `eliteholograms.near` - Allows listing nearby holograms (`/eh near`).
-    - `eliteholograms.teleport` - Allows teleporting to holograms (`/eh teleport`).
-    - `eliteholograms.admin` - Allows administrative actions like `/eh reload`.
+  - `eliteholograms.create` - Allows creation of holograms (`/eh create`, `/eh copy`).
+  - `eliteholograms.delete` - Allows deletion of holograms (`/eh delete`).
+  - `eliteholograms.edit` - Allows modification of existing holograms (`/eh addline`, `/eh setline`, `/eh removeline`, `/eh insertline`, `/eh movehere`).
+  - `eliteholograms.list` - Allows listing all holograms (`/eh list`).
+  - `eliteholograms.info` - Allows viewing detailed hologram information (`/eh info`).
+  - `eliteholograms.near` - Allows listing nearby holograms (`/eh near`).
+  - `eliteholograms.teleport` - Allows teleporting to holograms (`/eh teleport`).
+  - `eliteholograms.admin` - Allows administrative actions like `/eh reload`.
 - **Console & Command Blocks:** Always have full permission to execute hologram commands.
 
 For a detailed guide on setting up permissions, please see `PERMISSIONS.md`.
@@ -155,4 +159,3 @@ All versions aim for feature parity, including the advanced permission system an
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
-
