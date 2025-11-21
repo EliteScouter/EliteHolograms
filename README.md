@@ -143,9 +143,9 @@ For a detailed guide on setting up permissions, please see `PERMISSIONS.md`.
 
 ## Version Support
 
-- **Forge19**: Minecraft 1.19.2 (EliteHolograms version `1.19.2-1.0.4`)
-- **Forge20**: Minecraft 1.20.1 (EliteHolograms version `1.20.1-1.0.5`)
-- **Neo21**: Minecraft 1.21.1 (EliteHolograms version `1.21.1-1.0.4`)
+- **Forge19**: Minecraft 1.19.2 (EliteHolograms version `1.19.2-1.0.5`)
+- **Forge20**: Minecraft 1.20.1 (EliteHolograms version `1.20.1-1.0.6`)
+- **Neo21**: Minecraft 1.21.1 (EliteHolograms version `1.21.1-1.0.5`)
 
 All versions aim for feature parity, including the advanced permission system and full placeholder support.
 

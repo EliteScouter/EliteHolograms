@@ -4,8 +4,10 @@ import com.strictgaming.elite.holograms.api.hologram.HologramBuilder;
 import com.strictgaming.elite.holograms.api.manager.HologramFactory;
 import com.strictgaming.elite.holograms.api.manager.PlatformHologramManager;
 import com.strictgaming.elite.holograms.neo21.command.CommandFactory;
+import com.strictgaming.elite.holograms.neo21.command.HologramsAnimateLineCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsCreateCommand;
+import com.strictgaming.elite.holograms.neo21.command.HologramsCreateItemCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsDeleteCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsListCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsMoveHereCommand;
@@ -52,7 +54,7 @@ import java.io.IOException;
 public class Neo21Holograms implements PlatformHologramManager {
 
     public static final String MOD_ID = "eliteholograms";
-    public static final String VERSION = "1.21.1-1.0.4";
+    public static final String VERSION = "1.21.1-1.0.5";
     private static final Logger LOGGER = LogUtils.getLogger();
 
     private static Neo21Holograms instance;
@@ -63,9 +65,10 @@ public class Neo21Holograms implements PlatformHologramManager {
     private NeoForgeHologramFactory hologramFactory;
     private NeoForgeHologramManager hologramManager;
     
-    // Command instances that we'll use for registration
+    // Command instances
     private HologramsCommand mainCommand;
     private HologramsCreateCommand createCommand;
+    private HologramsCreateItemCommand createItemCommand;
     private HologramsListCommand listCommand;
     private HologramsDeleteCommand deleteCommand;
     private HologramsReloadCommand reloadCommand;
@@ -73,6 +76,7 @@ public class Neo21Holograms implements PlatformHologramManager {
     private HologramsAddLineCommand addLineCommand;
     private HologramsSetLineCommand setLineCommand;
     private HologramsRemoveLineCommand removeLineCommand;
+    private HologramsAnimateLineCommand animateLineCommand;
     private HologramsMoveHereCommand moveHereCommand;
     private HologramsNearCommand nearCommand;
     private HologramsInfoCommand infoCommand;
@@ -85,7 +89,6 @@ public class Neo21Holograms implements PlatformHologramManager {
         instance = this;
         LOGGER.info("Initializing Elite Holograms mod for Minecraft 1.21.1");
         
-        // Register with both event buses
         NeoForge.EVENT_BUS.register(this);
         modEventBus.addListener(this::commonSetup);
         
@@ -95,6 +98,7 @@ public class Neo21Holograms implements PlatformHologramManager {
         // Initialize commands
         mainCommand = new HologramsCommand();
         createCommand = new HologramsCreateCommand();
+        createItemCommand = new HologramsCreateItemCommand();
         listCommand = new HologramsListCommand();
         deleteCommand = new HologramsDeleteCommand();
         reloadCommand = new HologramsReloadCommand();
@@ -102,6 +106,7 @@ public class Neo21Holograms implements PlatformHologramManager {
         addLineCommand = new HologramsAddLineCommand();
         setLineCommand = new HologramsSetLineCommand();
         removeLineCommand = new HologramsRemoveLineCommand();
+        animateLineCommand = new HologramsAnimateLineCommand();
         moveHereCommand = new HologramsMoveHereCommand();
         nearCommand = new HologramsNearCommand();
         infoCommand = new HologramsInfoCommand();
@@ -112,6 +117,7 @@ public class Neo21Holograms implements PlatformHologramManager {
         
         // Set up subcommands
         mainCommand.registerSubCommand("create", createCommand);
+        mainCommand.registerSubCommand("createitem", createItemCommand);
         mainCommand.registerSubCommand("list", listCommand);
         mainCommand.registerSubCommand("delete", deleteCommand);
         mainCommand.registerSubCommand("reload", reloadCommand);
@@ -119,6 +125,7 @@ public class Neo21Holograms implements PlatformHologramManager {
         mainCommand.registerSubCommand("addline", addLineCommand);
         mainCommand.registerSubCommand("setline", setLineCommand);
         mainCommand.registerSubCommand("removeline", removeLineCommand);
+        mainCommand.registerSubCommand("animateline", animateLineCommand);
         mainCommand.registerSubCommand("movehere", moveHereCommand);
         mainCommand.registerSubCommand("near", nearCommand);
         mainCommand.registerSubCommand("info", infoCommand);
@@ -147,15 +154,62 @@ public class Neo21Holograms implements PlatformHologramManager {
         HologramManager.preInit();
     }
 
-    /**
-     * Direct command registration event handler
-     */
     @SubscribeEvent
     public void onRegisterCommands(RegisterCommandsEvent event) {
         LOGGER.info("Registering Elite Holograms commands");
         mainCommand.register(event.getDispatcher());
         
-        // Also register direct commands for better tab completion
+        // The register() method is part of SubCommand interface which these classes implement.
+        // However, SubCommand interface is defined inside HologramsCommand, so let's check if the compiler sees it correctly.
+        // The error "cannot find symbol method register" suggests that createItemCommand variable type doesn't have a register method.
+        // SubCommand interface DOES NOT have a register method in the previous code!
+        // The previous commands implemented it manually or it was missing from interface.
+        // Let's check HologramsCommand.SubCommand interface. It has execute() and getArguments().
+        // It does NOT have register().
+        
+        // The other commands likely have a register() method implemented directly in their class, NOT via interface.
+        // We need to add register() method to HologramsCreateItemCommand and HologramsAnimateLineCommand.
+        // OR use the existing registration pattern if one exists.
+        // Looking at HologramsCreateCommand (impl SubCommand), it has a register() method.
+        // But the variable type in Neo21Holograms is the class type, not interface.
+        // So we just need to add the register() method to the new command classes.
+        
+        // For now, I'll comment out the direct registration lines that are failing since they are also registered via mainCommand.
+        // Actually, the pattern is to register aliases or top-level shortcuts if desired.
+        // If we want /eh createitem, we need to register it.
+        // I will fix the command classes to include register() method in a separate step.
+        
+        // Wait, I can just use the main command registration which registers subcommands.
+        // The lines failing are:
+        // createItemCommand.register(event.getDispatcher());
+        // animateLineCommand.register(event.getDispatcher());
+        
+        // This implies I expected them to be top-level commands or have aliases?
+        // If I want /createitem to work directly (which is unusual for subcommands), I'd need register().
+        // But standard usage is /eh createitem.
+        // The mainCommand.register() call handles /eh <subcommand>.
+        // So these direct register calls might be redundant or for aliases like /createitem directly?
+        // The other commands like createCommand have register() called.
+        
+        // Let's look at createCommand.register(). It registers "eliteholograms" -> "create" AND "eh" -> "create".
+        // It effectively registers the subcommand structure again? That seems redundant if mainCommand does it.
+        // OR maybe mainCommand ONLY registers the main "eh" and "eliteholograms" literals, and subcommands attach to it?
+        // Let's check HologramsCommand.register().
+        // It builds the tree: literal("eh").then(literal("create")...)
+        // So mainCommand.register() does EVERYTHING.
+        
+        // So why are we calling register() on individual commands? 
+        // Maybe to register stand-alone aliases?
+        // If I remove these calls, the subcommands are still registered via mainCommand.
+        // Let's try removing them to fix compilation first.
+        
+        // createItemCommand.register(event.getDispatcher());
+        // listCommand.register(event.getDispatcher()); // This one works? means ListCommand has register()
+        
+        // OK, I will comment them out for now.
+        // createItemCommand.register(event.getDispatcher());
+        // animateLineCommand.register(event.getDispatcher());
+        
         createCommand.register(event.getDispatcher());
         listCommand.register(event.getDispatcher());
         deleteCommand.register(event.getDispatcher());
@@ -171,7 +225,6 @@ public class Neo21Holograms implements PlatformHologramManager {
         insertLineCommand.register(event.getDispatcher());
         createScoreboardCommand.register(event.getDispatcher());
         moveVerticalCommand.register(event.getDispatcher());
-        moveVerticalCommand.register(event.getDispatcher());
         
         LOGGER.info("Commands registered successfully!");
     }
@@ -182,7 +235,7 @@ public class Neo21Holograms implements PlatformHologramManager {
             this.placeholders = true;
             LOGGER.info("External Placeholder API found - placeholders enabled with external support");
         } catch (ClassNotFoundException e) {
-            this.placeholders = true; // Always enable our built-in placeholders
+            this.placeholders = true; 
             LOGGER.info("Using built-in placeholder system - placeholders enabled");
         }
     }
@@ -190,13 +243,8 @@ public class Neo21Holograms implements PlatformHologramManager {
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
         LOGGER.info("Server started - loading holograms");
-        
-        // Initialize placeholder server start time for uptime tracking
         com.strictgaming.elite.holograms.neo21.util.UtilPlaceholder.setServerStartTime();
-        
-        // Check for placeholders BEFORE loading holograms so they're enabled when spawning
         this.checkForPlaceholders();
-        
         try {
             HologramManager.load();
             LOGGER.info("Holograms loaded successfully");
@@ -209,10 +257,8 @@ public class Neo21Holograms implements PlatformHologramManager {
     public void onServerStopping(ServerStoppingEvent event) {
         LOGGER.info("Server stopping - preparing to save holograms with timeout protection");
         
-        // Create a separate thread for shutdown operations with timeout
         Thread shutdownThread = new Thread(() -> {
             try {
-                // First despawn all holograms to ensure they're properly cleaned up
                 HologramManager.getHolograms().values().forEach(hologram -> {
                     try {
                         if (hologram.isSpawned()) {
@@ -224,12 +270,10 @@ public class Neo21Holograms implements PlatformHologramManager {
                     }
                 });
                 
-                // Then save the hologram data with timeout protection
                 Thread saveThread = new Thread(() -> {
                     try {
-                        HologramManager.save();
-                        // Also save scoreboard holograms synchronously during shutdown
-                        HologramManager.saveScoreboardHologramsSync();
+                        HologramManager.saveSync();
+                        // HologramManager.saveScoreboardHologramsSync(); // Already called in saveSync()
                         LOGGER.info("Holograms saved successfully during shutdown");
                     } catch (Exception e) {
                         LOGGER.error("Error saving holograms during shutdown", e);
@@ -239,7 +283,6 @@ public class Neo21Holograms implements PlatformHologramManager {
                 saveThread.start();
                 
                 try {
-                    // Wait up to 5 seconds for save to complete
                     saveThread.join(5000);
                     if (saveThread.isAlive()) {
                         LOGGER.warn("Save operation timed out during shutdown, forcing interruption");
@@ -258,7 +301,6 @@ public class Neo21Holograms implements PlatformHologramManager {
         shutdownThread.start();
         
         try {
-            // Wait up to 2 seconds for shutdown thread to complete
             shutdownThread.join(2000);
             if (shutdownThread.isAlive()) {
                 LOGGER.warn("Shutdown thread timed out, forcing interruption");
@@ -270,7 +312,6 @@ public class Neo21Holograms implements PlatformHologramManager {
         }
     }
 
-    // Player Event Handlers
     @SubscribeEvent
     public void onPlayerJoin(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer player) {
@@ -287,13 +328,14 @@ public class Neo21Holograms implements PlatformHologramManager {
     
     @SubscribeEvent
     public void onServerTick(ServerTickEvent.Post event) {
+        // Tick animations every tick
+        HologramManager.tick();
+
         // Check player movement every 20 ticks (1 second) to avoid performance issues
         if (event.getServer().getTickCount() % 20 == 0) {
             for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
                 HologramManager.handlePlayerMove(player);
             }
-            // Also tick scoreboard holograms once per second
-            HologramManager.tickScoreboards();
         }
     }
 
@@ -346,4 +388,4 @@ public class Neo21Holograms implements PlatformHologramManager {
             .world(world)
             .position(x, y, z);
     }
-} 
+}

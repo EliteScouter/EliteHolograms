@@ -5,6 +5,8 @@ import com.strictgaming.elite.holograms.forge20.hologram.HologramManager;
 import com.strictgaming.elite.holograms.forge20.util.UtilChatColour;
 import com.strictgaming.elite.holograms.forge20.util.UtilPermissions;
 import com.strictgaming.elite.holograms.forge20.command.HologramsCreateScoreboardCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsCreateItemCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsAnimateLineCommand;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -69,7 +71,7 @@ public class HologramsCommand {
             LiteralArgumentBuilder<CommandSourceStack> subCommand = Commands.literal(name);
             
             // Add permission requirements based on command type
-            if (name.equals("create") || name.equals("createscoreboard")) {
+            if (name.equals("create") || name.equals("createscoreboard") || name.equals("createitem")) {
                 subCommand.requires(UtilPermissions::canCreate);
             } else if (name.equals("delete")) {
                 subCommand.requires(UtilPermissions::canDelete);
@@ -82,7 +84,7 @@ public class HologramsCommand {
             } else if (name.equals("near")) {
                 subCommand.requires(UtilPermissions::canNear);
             } else if (name.equals("addline") || name.equals("setline") || name.equals("insertline") || 
-                       name.equals("removeline") || name.equals("movehere")) {
+                       name.equals("removeline") || name.equals("movehere") || name.equals("animateline")) {
                 subCommand.requires(UtilPermissions::canEdit);
             } else if (name.equals("copy")) {
                 subCommand.requires(UtilPermissions::canCreate); // Copy requires create permission
@@ -131,6 +133,42 @@ public class HologramsCommand {
                             String.valueOf(IntegerArgumentType.getInteger(ctx, "updateInterval"))
                         };
                         return executeSubCommand(ctx, "createscoreboard", args);
+                    })))));
+            } else if (name.equals("createitem")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .then(Commands.argument("item", StringArgumentType.word())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "item")
+                        };
+                        return executeSubCommand(ctx, "createitem", args);
+                    })
+                    .then(Commands.argument("text", StringArgumentType.greedyString())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "item"),
+                            StringArgumentType.getString(ctx, "text")
+                        };
+                        return executeSubCommand(ctx, "createitem", args);
+                    }))));
+            } else if (name.equals("animateline")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.argument("line", IntegerArgumentType.integer(1))
+                    .then(Commands.argument("seconds", IntegerArgumentType.integer(1))
+                    .then(Commands.argument("frames", StringArgumentType.greedyString())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "line")),
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "seconds")),
+                            StringArgumentType.getString(ctx, "frames")
+                        };
+                        return executeSubCommand(ctx, "animateline", args);
                     })))));
             } else if (name.equals("movevertical")) {
                 subCommand
@@ -262,6 +300,7 @@ public class HologramsCommand {
         
         source.sendSystemMessage(Component.literal("§3§l┌─§b§lElite Holograms §3§l──────┐"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh create <id> <text>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh createitem <id> <item> [text]"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh list"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh delete <id>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh addline <id> <text>"));
@@ -273,6 +312,7 @@ public class HologramsCommand {
         source.sendSystemMessage(Component.literal("§3│ §b/eh teleport <id>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh copy <target> <id>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh insertline <id> <line> <text>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh animateline <id> <line> <sec> <frames>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh info <id>"));
         source.sendSystemMessage(Component.literal("§3§l└─────────────────┘"));
         return 1;
@@ -326,6 +366,10 @@ public class HologramsCommand {
                 return ((HologramsCreateCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsCreateScoreboardCommand) {
                 return ((HologramsCreateScoreboardCommand) subCommand).run(context);
+            } else if (subCommand instanceof HologramsCreateItemCommand) {
+                return ((HologramsCreateItemCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsAnimateLineCommand) {
+                return ((HologramsAnimateLineCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsDeleteCommand) {
                 return ((HologramsDeleteCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsListCommand) {

@@ -38,7 +38,20 @@ public class UtilConcurrency {
      * @param runnable The task to run
      */
     public static void runAsync(Runnable runnable) {
-        CompletableFuture.runAsync(runnable);
+        // Capture the current classloader (ModClassLoader) to ensure classes can be loaded in the background thread
+        final ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+        
+        CompletableFuture.runAsync(() -> {
+            // Set the classloader for this background thread
+            ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
+            Thread.currentThread().setContextClassLoader(contextClassLoader);
+            try {
+                runnable.run();
+            } finally {
+                // Restore the old classloader
+                Thread.currentThread().setContextClassLoader(oldClassLoader);
+            }
+        });
     }
 
     /**

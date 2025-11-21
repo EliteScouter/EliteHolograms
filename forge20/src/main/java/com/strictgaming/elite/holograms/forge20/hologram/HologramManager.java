@@ -1,10 +1,12 @@
 package com.strictgaming.elite.holograms.forge20.hologram;
+
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
 import com.strictgaming.elite.holograms.api.manager.database.HologramSaver;
 import com.strictgaming.elite.holograms.forge20.Forge20Holograms;
 import com.strictgaming.elite.holograms.forge20.config.ScoreboardHologramConfig;
 import com.strictgaming.elite.holograms.forge20.hologram.database.JsonHologramSaver;
 import com.strictgaming.elite.holograms.forge20.hologram.entity.HologramLine;
+import com.strictgaming.elite.holograms.forge20.hologram.entity.AnimatedHologramLine;
 import com.strictgaming.elite.holograms.forge20.hologram.ScoreboardHologram;
 import com.strictgaming.elite.holograms.forge20.util.UtilConcurrency;
 import com.strictgaming.elite.holograms.forge20.util.UtilPlayer;
@@ -44,8 +46,9 @@ public class HologramManager implements Runnable {
     private static final long SCOREBOARD_SAVE_COOLDOWN = 5000; // 5 seconds cooldown
 
     public static void preInit() {
-        managerThread = new Thread(new HologramManager());
-        managerThread.start();
+        // Don't start thread here anymore
+        // managerThread = new Thread(new HologramManager());
+        // managerThread.start();
 
         new PlayerEventListener();
         saver = (HologramSaver) new JsonHologramSaver(Forge20Holograms.getInstance().getConfig().getStorageLocation());
@@ -56,6 +59,22 @@ public class HologramManager implements Runnable {
             configDir.mkdirs();
         }
         scoreboardConfig = new ScoreboardHologramConfig(configDir);
+    }
+    
+    /**
+     * Starts the background manager thread. Should be called when server starts.
+     */
+    public static void start() {
+        if (managerThread != null && managerThread.isAlive()) {
+            return;
+        }
+        
+        shutdown = false;
+        managerThread = new Thread(new HologramManager());
+        managerThread.setName("HologramManager-Thread");
+        managerThread.setDaemon(true); // Ensure it dies if JVM exits
+        managerThread.start();
+        LOGGER.info("Hologram manager thread started");
     }
 
     private HologramManager() {
@@ -72,34 +91,57 @@ public class HologramManager implements Runnable {
     public static void load() throws IOException {
         LOGGER.info("Loading holograms from storage...");
         
-        // Save a snapshot of the currently loaded holograms
-        Map<String, ForgeHologram> existingHolograms = new HashMap<>(HOLOGRAMS);
+        // Use the correct context classloader for Gson deserialization
+        ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
+        Thread.currentThread().setContextClassLoader(Forge20Holograms.class.getClassLoader());
         
-        // Load from the saver
-        Map<String, Hologram> loadedHolograms = saver.load();
-        
-        if (loadedHolograms.isEmpty() && !existingHolograms.isEmpty()) {
-            LOGGER.info("No holograms loaded from file, but we have " + existingHolograms.size() + " in memory - preserving existing");
-            // If we have holograms in memory but none loaded from file, likely an error in loading
-            // Just write the existing ones to file again
-            save();
-            return;
-        }
-        
-        // Add any missing holograms to the HOLOGRAMS map
-        for (Map.Entry<String, Hologram> entry : loadedHolograms.entrySet()) {
-            if (entry.getValue() instanceof ForgeHologram && 
-                !HOLOGRAMS.containsKey(entry.getKey().toLowerCase())) {
-                
-                HOLOGRAMS.put(entry.getKey().toLowerCase(), (ForgeHologram) entry.getValue());
-                LOGGER.info("Added hologram from storage: " + entry.getKey());
+        try {
+            // Save a snapshot of the currently loaded holograms
+            Map<String, ForgeHologram> existingHolograms = new HashMap<>(HOLOGRAMS);
+            
+            // Load from the saver
+            Map<String, Hologram> loadedHolograms = saver.load();
+            
+            if (loadedHolograms.isEmpty() && !existingHolograms.isEmpty()) {
+                LOGGER.info("No holograms loaded from file, but we have " + existingHolograms.size() + " in memory - preserving existing");
+                // If we have holograms in memory but none loaded from file, likely an error in loading
+                // Just write the existing ones to file again
+                save();
+                return;
             }
+            
+            // Clear current holograms to ensure a clean state matching the file
+            // BUT we need to despawn existing ones first if the server is running
+            if (ServerLifecycleHooks.getCurrentServer() != null) {
+                 for (ForgeHologram h : HOLOGRAMS.values()) {
+                     h.despawn();
+                 }
+            }
+            HOLOGRAMS.clear();
+
+            // Add loaded holograms
+            for (Map.Entry<String, Hologram> entry : loadedHolograms.entrySet()) {
+                if (entry.getValue() instanceof ForgeHologram) {
+                    HOLOGRAMS.put(entry.getKey().toLowerCase(), (ForgeHologram) entry.getValue());
+                    LOGGER.info("Added hologram from storage: " + entry.getKey());
+                }
+            }
+            
+            LOGGER.info("Successfully loaded " + HOLOGRAMS.size() + " holograms");
+            
+            // Spawn all loaded holograms now that they're added to the manager
+            // This ensures ItemHolograms initialize their item stands
+            for (ForgeHologram hologram : HOLOGRAMS.values()) {
+                if (hologram != null) {
+                    hologram.spawn();
+                }
+            }
+            
+            // Load scoreboard holograms separately
+            loadScoreboardHolograms();
+        } finally {
+            Thread.currentThread().setContextClassLoader(oldClassLoader);
         }
-        
-        LOGGER.info("Successfully loaded " + HOLOGRAMS.size() + " holograms");
-        
-        // Load scoreboard holograms separately
-        loadScoreboardHolograms();
     }
 
     public static void save() {
@@ -307,6 +349,30 @@ public class HologramManager implements Runnable {
         }
     }
     
+    /**
+     * Called every server tick to update animations and scoreboards
+     * This should be called from the main server thread
+     */
+    public static void tick() {
+        if (ServerLifecycleHooks.getCurrentServer() == null) {
+            return;
+        }
+
+        for (ForgeHologram hologram : HOLOGRAMS.values()) {
+            if (hologram == null || hologram.getWorld() == null) {
+                continue; 
+            }
+            
+            // Tick all holograms (for animations)
+            hologram.tick();
+            
+            // Additional scoreboard-specific ticking
+            if (hologram instanceof ScoreboardHologram) {
+                ((ScoreboardHologram) hologram).tick();
+            }
+        }
+    }
+
     private void checkHolograms() {
         if (ServerLifecycleHooks.getCurrentServer() == null) {
             return;
@@ -322,15 +388,17 @@ public class HologramManager implements Runnable {
                     continue; // Skip if hologram or its world is null
                 }
                 
-                // Update scoreboard holograms
-                if (hologram instanceof ScoreboardHologram) {
-                    ((ScoreboardHologram) hologram).tick();
-                }
+                boolean isNearby = hologram.getNearbyPlayers().contains(player.getUUID());
                 
                 if (!hologram.getWorld().equals(player.level())) {
-                    if (hologram.getNearbyPlayers().contains(player.getUUID())) {
+                    if (isNearby) {
                         hologram.getNearbyPlayers().remove(player.getUUID());
 
+                        // Despawn item if this is an ItemHologram
+                        if (hologram instanceof ItemHologram) {
+                            UtilConcurrency.runSync(() -> ((ItemHologram) hologram).despawnItemFor(player));
+                        }
+                        
                         for (HologramLine line : hologram.getLines()) {
                             if (line != null) { // Check if line is not null
                                 UtilConcurrency.runSync(() -> line.despawnForPlayer(player));
@@ -342,9 +410,14 @@ public class HologramManager implements Runnable {
                 }
 
                 if (player.distanceToSqr(hologram.getPosition()) > (Math.pow(hologram.getRange(), 2))) {
-                    if (hologram.getNearbyPlayers().contains(player.getUUID())) {
+                    if (isNearby) {
                         hologram.getNearbyPlayers().remove(player.getUUID());
 
+                        // Despawn item if this is an ItemHologram
+                        if (hologram instanceof ItemHologram) {
+                            UtilConcurrency.runSync(() -> ((ItemHologram) hologram).despawnItemFor(player));
+                        }
+                        
                         for (HologramLine line : hologram.getLines()) {
                             if (line != null) { // Check if line is not null
                                 UtilConcurrency.runSync(() -> line.despawnForPlayer(player));
@@ -356,17 +429,33 @@ public class HologramManager implements Runnable {
                 }
 
                 if (!hologram.getNearbyPlayers().contains(player.getUUID())) {
+                    // Spawn item first if this is an ItemHologram
+                    if (hologram instanceof ItemHologram) {
+                        UtilConcurrency.runSync(() -> ((ItemHologram) hologram).spawnItemFor(player));
+                    }
+                    
                     for (HologramLine line : hologram.getLines()) {
                         if (line != null) { // Check if line is not null
-                            UtilConcurrency.runSync(() -> line.spawnForPlayer(player));
+                            UtilConcurrency.runSync(() -> {
+                                line.spawnForPlayer(player);
+                            });
                         }
                     }
 
                     hologram.getNearbyPlayers().add(player.getUUID());
                 } else {
+                     // This else block was refreshing every tick, which is wasteful and might be causing flicker or issues
+                     // Forge19 does NOT update every tick unless it's an animated line.
+                     // We should only update if it's animated or if we need to force an update.
+                     
                     for (HologramLine line : hologram.getLines()) {
-                        if (line != null) { // Check if line is not null
-                            UtilConcurrency.runSync(() -> line.updateForPlayer(player));
+                        if (line != null && line instanceof AnimatedHologramLine) {
+                             // Only update animated lines here. 
+                             // Normal lines don't need constant packet spam.
+                             // The tick() method handles the actual animation logic.
+                             // But wait, the tick() method updates for all nearby players.
+                             // So we don't need to do ANYTHING here for already-nearby players
+                             // unless we are handling general periodic refreshes.
                         }
                     }
                 }
@@ -416,4 +505,4 @@ public class HologramManager implements Runnable {
             LOGGER.debug("Refreshed hologram visibility for player: {}", event.getEntity().getName().getString());
         }
     }
-} 
+}

@@ -1,5 +1,6 @@
 package com.strictgaming.elite.holograms.forge20.hologram;
 
+import com.strictgaming.elite.holograms.forge20.hologram.entity.AnimatedHologramLine;
 import com.strictgaming.elite.holograms.forge20.hologram.entity.HologramLine;
 import com.strictgaming.elite.holograms.forge20.util.UtilWorld;
 import com.google.common.collect.Lists;
@@ -25,14 +26,37 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
         JsonArray lines = new JsonArray();
 
         for (HologramLine line : hologram.getLines()) {
-            lines.add(line.getText());
+            if (line instanceof AnimatedHologramLine) {
+                AnimatedHologramLine animated = (AnimatedHologramLine) line;
+                JsonObject animObj = new JsonObject();
+                animObj.addProperty("type", "animated");
+                animObj.addProperty("interval", animated.getIntervalTicks() / 20); // Convert ticks to seconds
+                
+                JsonArray frames = new JsonArray();
+                for (String frame : animated.getFrames()) {
+                    frames.add(frame);
+                }
+                animObj.add("frames", frames);
+                lines.add(animObj);
+            } else {
+                lines.add(line.getText());
+            }
         }
 
         object.add("lines", lines);
         object.addProperty("range", hologram.getRange());
+
+        // Include hologram type metadata for specialized holograms
+        if (hologram instanceof ItemHologram) {
+            object.addProperty("type", "item");
+            object.addProperty("itemId", ((ItemHologram) hologram).getItemId());
+        } else {
+            object.addProperty("type", "basic");
+        }
         return object;
     }
-
+    
+    // ... getLocationObject ...
     private JsonObject getLocationObject(ForgeHologram hologram) {
         JsonObject object = new JsonObject();
 
@@ -66,13 +90,6 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
                 }
             }
     
-            JsonArray lines = object.getAsJsonArray("lines");
-            String[] textLines = new String[lines.size()];
-    
-            for (int i = 0; i < lines.size(); i++) {
-                textLines[i] = lines.get(i).getAsString();
-            }
-    
             // Get the world from the name
             Level world = UtilWorld.findWorld(worldName);
             
@@ -81,8 +98,45 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
                 return null;
             }
             
-            // Create the hologram directly
-            return new ForgeHologram(id, world, new Vec3(x, y, z), range, false, textLines);
+            String hologramType = object.has("type") ? object.get("type").getAsString() : "basic";
+            ForgeHologram hologram;
+
+            if ("item".equalsIgnoreCase(hologramType) && object.has("itemId")) {
+                String itemId = object.get("itemId").getAsString();
+                hologram = new ItemHologram(id, world, new Vec3(x, y, z), range, itemId);
+            } else {
+                // Create the hologram base first (without lines)
+                hologram = new ForgeHologram(id, world, new Vec3(x, y, z), range, false);
+            }
+            
+            // Process lines manually to handle animations
+            JsonArray lines = object.getAsJsonArray("lines");
+            
+            for (int i = 0; i < lines.size(); i++) {
+                JsonElement lineElement = lines.get(i);
+                
+                if (lineElement.isJsonObject()) {
+                    // It's likely an animated line or complex object
+                    JsonObject lineObj = lineElement.getAsJsonObject();
+                    if (lineObj.has("type") && lineObj.get("type").getAsString().equals("animated")) {
+                        int interval = lineObj.get("interval").getAsInt();
+                        JsonArray framesArray = lineObj.getAsJsonArray("frames");
+                        List<String> frames = Lists.newArrayList();
+                        for (JsonElement frame : framesArray) {
+                            frames.add(frame.getAsString());
+                        }
+                        hologram.addAnimatedLine(frames, interval);
+                    } else {
+                        // Fallback if type unknown
+                         hologram.addLine("Error: Unknown line type");
+                    }
+                } else {
+                    // Simple string line
+                        hologram.addLine(lineElement.getAsString());
+                }
+            }
+            
+            return hologram;
         } catch (Exception e) {
             System.out.println("[EliteHolograms] Error deserializing hologram: " + e.getMessage());
             e.printStackTrace();

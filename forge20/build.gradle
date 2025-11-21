@@ -14,7 +14,7 @@ apply plugin: 'java'
 apply plugin: 'maven-publish'
 
 group = 'com.strictgaming.elite.holograms'
-version = '1.20.1-1.0.5'
+version = '1.20.1-1.0.6'
 archivesBaseName = 'EliteHolograms'
 
 // Java version compatibility
@@ -87,6 +87,20 @@ dependencies {
     
     // GSON is already provided by Forge - use 'implementation' instead of 'embed'
     implementation group: 'com.google.code.gson', name: 'gson', version: '2.10.1'
+    
+    // Exclude GSON from Adventure to prevent conflicts
+    embed('net.kyori:adventure-text-minimessage:4.14.0') {
+        exclude group: 'com.google.code.gson', module: 'gson'
+    }
+    embed('net.kyori:adventure-text-serializer-gson:4.14.0') {
+        exclude group: 'com.google.code.gson', module: 'gson'
+    }
+    embed('net.kyori:adventure-text-serializer-legacy:4.14.0') {
+        exclude group: 'com.google.code.gson', module: 'gson'
+    }
+    embed('net.kyori:adventure-api:4.14.0') {
+        exclude group: 'com.google.code.gson', module: 'gson'
+    }
     
     // Permission system APIs (compileOnly - they're provided by the server)
     compileOnly 'net.luckperms:api:5.4'

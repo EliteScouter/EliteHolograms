@@ -23,7 +23,7 @@ repositories {
 }
 
 base {
-    archivesName = mod_id
+    archivesName = "EliteHolograms"
 }
 
 // Mojang ships Java 21 to end users starting in 1.20.5, so mods should target Java 21.
@@ -123,6 +123,56 @@ dependencies {
     // Add Gson dependency
     implementation 'com.google.code.gson:gson:2.10.1'
     
+    // Adventure API
+    // For NeoForge 1.21, jarJar requires explicit version ranges or exact versions in the bracket
+    jarJar("net.kyori:adventure-text-minimessage:[4.17.0,)") {
+         transitive = false
+    }
+    jarJar("net.kyori:adventure-text-serializer-gson:[4.17.0,)") {
+         transitive = false
+    }
+    jarJar("net.kyori:adventure-text-serializer-json:[4.17.0,)") {
+         transitive = false
+    }
+    jarJar("net.kyori:adventure-text-serializer-legacy:[4.17.0,)") {
+         transitive = false
+    }
+    jarJar("net.kyori:adventure-text-serializer-plain:[4.17.0,)") {
+         transitive = false
+    }
+    jarJar("net.kyori:adventure-text-serializer-ansi:[4.17.0,)") {
+         transitive = false
+    }
+    jarJar("net.kyori:adventure-api:[4.17.0,)") {
+         transitive = false
+    }
+    jarJar("net.kyori:adventure-key:[4.17.0,)") {
+         transitive = false
+    }
+    jarJar("net.kyori:option:[1.0.0,)") {
+         transitive = false
+    }
+    // We also need examination which adventure depends on but we excluded transitive dependencies
+    jarJar("net.kyori:examination-api:[1.3.0,)") {
+        transitive = false
+    }
+    jarJar("net.kyori:examination-string:[1.3.0,)") {
+        transitive = false
+    }
+
+    // Also need implementation so they are available at compile time
+    implementation "net.kyori:adventure-text-minimessage:4.17.0"
+    implementation "net.kyori:adventure-text-serializer-gson:4.17.0"
+    implementation "net.kyori:adventure-text-serializer-json:4.17.0"
+    implementation "net.kyori:adventure-text-serializer-legacy:4.17.0"
+    implementation "net.kyori:adventure-text-serializer-plain:4.17.0"
+    implementation "net.kyori:adventure-text-serializer-ansi:4.17.0"
+    implementation "net.kyori:adventure-api:4.17.0"
+    implementation "net.kyori:adventure-key:4.17.0"
+    implementation "net.kyori:option:1.0.0"
+    implementation "net.kyori:examination-api:1.3.0"
+    implementation "net.kyori:examination-string:1.3.0"
+
     // Permission system APIs (compileOnly - they're provided by the server)
     compileOnly 'net.luckperms:api:5.4'
 

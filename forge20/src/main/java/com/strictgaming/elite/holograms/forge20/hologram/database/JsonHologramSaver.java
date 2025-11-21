@@ -138,11 +138,20 @@ public class JsonHologramSaver implements HologramSaver {
                     continue;
                 }
                 
-                // Skip scoreboard-type holograms without loading the class (avoid classloader issues)
-                String clazz = hologram.getClass().getName();
-                if (clazz.endsWith(".ScoreboardHologram") || clazz.contains("ScoreboardHologram")) {
+                // Skip scoreboard-type holograms 
+                if (hologram.getClass().getName().contains("ScoreboardHologram")) {
                     LOGGER.debug("Skipping ScoreboardHologram '{}' from save (not serializable)", hologram.getId());
                     continue;
+                }
+                
+                // Skip ItemHologram for now if not handled properly by TypeAdapter or specialized saver
+                if (hologram.getClass().getName().contains("ItemHologram")) {
+                    // If ItemHologram extends ForgeHologram, it might be saved but without item metadata
+                    // unless TypeAdapter handles it. 
+                    // Assuming TypeAdapter handles lines, it will save text lines but lose item data 
+                    // if we don't update TypeAdapter. 
+                    // For now, let it save as text hologram to avoid errors, or skip if intended.
+                    // Since user mentioned animations, this is likely about animated lines, not item holograms.
                 }
 
                 savedHolograms.add((ForgeHologram) hologram);

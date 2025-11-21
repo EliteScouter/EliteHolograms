@@ -2,10 +2,14 @@ package com.strictgaming.elite.holograms.neo21.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
 import com.strictgaming.elite.holograms.neo21.Neo21Holograms;
 import com.strictgaming.elite.holograms.neo21.hologram.HologramManager;
+import com.strictgaming.elite.holograms.neo21.hologram.ItemHologram;
 import com.strictgaming.elite.holograms.neo21.hologram.implementation.NeoForgeHologram;
 import com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram;
 
@@ -20,6 +24,7 @@ import java.io.Writer;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,23 +43,12 @@ public class HologramsConfig {
     private Path configFile;
     private Path configDir;
     
-    /**
-     * Creates a new config instance
-     * 
-     * @throws IOException If directories cannot be created
-     */
     public HologramsConfig() throws IOException {
         setupDirectories();
     }
     
-    /**
-     * Sets up the configuration directories
-     * 
-     * @throws IOException If directories cannot be created
-     */
     private void setupDirectories() throws IOException {
         Path serverDirectory = ServerLifecycleHooks.getCurrentServer().getServerDirectory();
-        // Standardize location under config/eliteholograms
         configDir = serverDirectory.resolve("config").resolve("eliteholograms");
         
         if (!Files.exists(configDir)) {
@@ -64,57 +58,14 @@ public class HologramsConfig {
         configFile = configDir.resolve("holograms.json");
         if (!Files.exists(configFile)) {
             Files.createFile(configFile);
-            // Write default config
             Files.writeString(configFile, "{}");
         }
     }
     
-    /**
-     * Loads the configuration from disk
-     * 
-     * @throws IOException If loading fails
-     */
     public void load() throws IOException {
-        LOGGER.info("Loading configuration from " + configFile.toAbsolutePath());
-        
-        try (Reader reader = Files.newBufferedReader(configFile)) {
-            Type type = new TypeToken<Map<String, HologramData>>() {}.getType();
-            Map<String, HologramData> hologramDataMap = GSON.fromJson(reader, type);
-            
-            if (hologramDataMap == null) {
-                LOGGER.warn("No holograms found in config");
-                return;
-            }
-            
-            for (Map.Entry<String, HologramData> entry : hologramDataMap.entrySet()) {
-                String id = entry.getKey();
-                HologramData data = entry.getValue();
-                
-                // Create the hologram from saved data
-                Hologram hologram = Neo21Holograms.getInstance().getFactory().builder()
-                        .id(id)
-                        .world(data.world)
-                        .position(data.x, data.y, data.z)
-                        .lines(data.lines)
-                        .build();
-                
-                // Spawn the hologram
-                hologram.spawn();
-                LOGGER.info("Loaded hologram: " + id);
-            }
-        } catch (Exception e) {
-            LOGGER.error("Error loading holograms from config", e);
-            // Create empty file if it's corrupted
-            Files.writeString(configFile, "{}");
-        }
+        loadHologramsIntoManager();
     }
     
-    /**
-     * Loads holograms from config directly into the HologramManager.
-     * This is called by HologramManager.load()
-     * 
-     * @throws IOException If loading fails
-     */
     public void loadHologramsIntoManager() throws IOException {
         LOGGER.info("Loading holograms into manager from " + configFile.toAbsolutePath());
         
@@ -131,64 +82,70 @@ public class HologramsConfig {
                 String id = entry.getKey();
                 HologramData data = entry.getValue();
                 
-                // Create the NeoForgeHologram instance, which adds itself to the manager
-                NeoForgeHologram hologram = new NeoForgeHologram(
-                    id,
-                    data.world,
-                    data.x,
-                    data.y,
-                    data.z,
-                    data.lines
-                );
-                // Hologram is added to manager via its constructor.
-                // Spawning will be handled by HologramManager or other logic if needed.
-                hologram.spawn(); // Spawn after adding to manager
+                List<Object> linesContent = new ArrayList<>();
+                if (data.lines != null) {
+                    for (JsonElement element : data.lines) {
+                        if (element.isJsonObject()) {
+                            // Animated line
+                            JsonObject obj = element.getAsJsonObject();
+                            if (obj.has("type") && "animated".equals(obj.get("type").getAsString())) {
+                                int interval = obj.has("interval") ? obj.get("interval").getAsInt() : 1;
+                                JsonArray framesArray = obj.getAsJsonArray("frames");
+                                List<String> frames = new ArrayList<>();
+                                for (JsonElement frame : framesArray) {
+                                    frames.add(frame.getAsString());
+                                }
+                                linesContent.add(new NeoForgeHologram.AnimatedLineData(frames, interval));
+                            } else {
+                                linesContent.add(element.toString()); // Fallback
+                            }
+                        } else {
+                            linesContent.add(element.getAsString());
+                        }
+                    }
+                }
+                
+                // Convert linesContent to String list for constructor, then set content
+                List<String> stringLines = new ArrayList<>();
+                for (Object obj : linesContent) {
+                     if (obj instanceof NeoForgeHologram.AnimatedLineData) {
+                         List<String> f = ((NeoForgeHologram.AnimatedLineData) obj).frames;
+                         stringLines.add(f.isEmpty() ? "" : f.get(0));
+                     } else {
+                         stringLines.add(obj.toString());
+                     }
+                }
+                
+                NeoForgeHologram hologram;
+                if (data.item != null && !data.item.isEmpty()) {
+                    LOGGER.info("Loading hologram {} as ItemHologram with item: {}", id, data.item);
+                    hologram = new ItemHologram(
+                        id, data.world, data.x, data.y, data.z, data.item, stringLines
+                    );
+                } else {
+                    LOGGER.info("Loading hologram {} as standard NeoForgeHologram (no item data found)", id);
+                    hologram = new NeoForgeHologram(
+                        id, data.world, data.x, data.y, data.z, stringLines
+                    );
+                }
+                
+                // Restore complex content
+                hologram.setLinesContent(linesContent);
+                
+                // Don't spawn yet - let the HologramManager handle it
                 LOGGER.debug("Loaded hologram into manager: " + id);
+                HologramManager.addHologram(hologram);
             }
         } catch (Exception e) {
             LOGGER.error("Error loading holograms into manager from config", e);
-            Files.writeString(configFile, "{}"); // Attempt to reset if corrupt
+            // Files.writeString(configFile, "{}"); // Don't auto-reset, might lose data if just a bad read
         }
     }
     
-    /**
-     * Saves the configuration to disk
-     * 
-     * @throws IOException If saving fails
-     */
     public void save() throws IOException {
-        LOGGER.info("Saving configuration to " + configFile.toAbsolutePath());
-        
-        Map<String, HologramData> hologramDataMap = new HashMap<>();
-        
-        // Convert holograms to serializable data
-        for (Map.Entry<String, Hologram> entry : HologramManager.getHolograms().entrySet()) {
-            String id = entry.getKey();
-            Hologram hologram = entry.getValue();
-            
-            HologramData data = new HologramData();
-            data.world = hologram.getWorld();
-            data.x = hologram.getX();
-            data.y = hologram.getY();
-            data.z = hologram.getZ();
-            data.lines = hologram.getLines();
-            
-            hologramDataMap.put(id, data);
-        }
-        
-        // Write to file
-        try (Writer writer = Files.newBufferedWriter(configFile)) {
-            GSON.toJson(hologramDataMap, writer);
-        }
+        saveHologramsFromManager(HologramManager.getHolograms());
     }
     
-    /**
-     * Saves holograms from the HologramManager to the config file.
-     * This is called by HologramManager.save()
-     * 
-     * @param holograms The map of holograms from the HologramManager
-     * @throws IOException If saving fails
-     */
     public void saveHologramsFromManager(Map<String, Hologram> holograms) throws IOException {
         LOGGER.info("Saving {} holograms from manager to {}", holograms.size(), configFile.toAbsolutePath());
         
@@ -197,7 +154,6 @@ public class HologramsConfig {
         for (Map.Entry<String, Hologram> entry : holograms.entrySet()) {
             String id = entry.getKey();
             Hologram hologram = entry.getValue();
-            // Do not persist scoreboard holograms in the main holograms.json; they have their own store
             if (hologram instanceof ScoreboardHologram) {
                 continue;
             }
@@ -207,7 +163,38 @@ public class HologramsConfig {
             data.x = hologram.getX();
             data.y = hologram.getY();
             data.z = hologram.getZ();
-            data.lines = hologram.getLines();
+            
+            if (hologram instanceof ItemHologram) {
+                data.item = ((ItemHologram) hologram).getItemId();
+                LOGGER.debug("Saving hologram {} as ItemHologram with item: {}", id, data.item);
+            } else {
+                LOGGER.debug("Saving hologram {} as standard NeoForgeHologram", id);
+            }
+            
+            data.lines = new ArrayList<>();
+            if (hologram instanceof NeoForgeHologram) {
+                List<Object> content = ((NeoForgeHologram) hologram).getLinesContent();
+                for (Object lineObj : content) {
+                    if (lineObj instanceof NeoForgeHologram.AnimatedLineData) {
+                        NeoForgeHologram.AnimatedLineData anim = (NeoForgeHologram.AnimatedLineData) lineObj;
+                        JsonObject json = new JsonObject();
+                        json.addProperty("type", "animated");
+                        json.addProperty("interval", anim.interval);
+                        JsonArray frames = new JsonArray();
+                        for (String f : anim.frames) frames.add(f);
+                        json.add("frames", frames);
+                        data.lines.add(json);
+                    } else {
+                        // Use Gson to create JsonPrimitive (String)
+                        data.lines.add(new com.google.gson.JsonPrimitive(lineObj.toString()));
+                    }
+                }
+            } else {
+                // Fallback for other implementations
+                for (String line : hologram.getLines()) {
+                    data.lines.add(new com.google.gson.JsonPrimitive(line));
+                }
+            }
             
             hologramDataMap.put(id, data);
         }
@@ -217,16 +204,14 @@ public class HologramsConfig {
             LOGGER.debug("Successfully saved holograms from manager.");
         } catch (IOException e) {
             LOGGER.error("Failed to save holograms from manager to config", e);
-            throw e; // Re-throw to allow caller to handle
+            throw e;
         }
     }
     
-    /**
-     * Data class for serializing hologram data
-     */
     private static class HologramData {
         String world;
         double x, y, z;
-        List<String> lines;
+        List<JsonElement> lines;
+        String item;
     }
-} 
+}

@@ -20,6 +20,8 @@ import com.strictgaming.elite.holograms.forge20.command.HologramsCopyCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsInfoCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsNearCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsMoveVerticalCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsCreateItemCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsAnimateLineCommand;
 import com.strictgaming.elite.holograms.forge20.config.HologramsConfig;
 import com.strictgaming.elite.holograms.forge20.hologram.ForgeHologram;
 import com.strictgaming.elite.holograms.forge20.hologram.HologramManager;
@@ -46,7 +48,7 @@ import java.io.IOException;
 public class Forge20Holograms implements PlatformHologramManager {
 
     public static final String MOD_ID = "eliteholograms";
-    public static final String VERSION = "1.20.1-1.0.5";
+    public static final String VERSION = "1.20.1-1.0.6";
     private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
 
     private static Forge20Holograms instance;
@@ -77,7 +79,11 @@ public class Forge20Holograms implements PlatformHologramManager {
             LOGGER.error("Error loading config", e);
         }
         
+        // Initialize manager helpers if needed (this is safe to call multiple times)
         HologramManager.preInit();
+        
+        // Start the background thread
+        HologramManager.start();
     }
 
     private void checkForPlaceholders() {
@@ -163,6 +169,13 @@ public class Forge20Holograms implements PlatformHologramManager {
     }
 
     @SubscribeEvent
+    public void onServerTick(net.minecraftforge.event.TickEvent.ServerTickEvent event) {
+        if (event.phase == net.minecraftforge.event.TickEvent.Phase.END) {
+            HologramManager.tick();
+        }
+    }
+
+    @SubscribeEvent
     public void onCommandRegister(RegisterCommandsEvent event) {
         LOGGER.info("Registering commands...");
         
@@ -183,16 +196,20 @@ public class Forge20Holograms implements PlatformHologramManager {
         HologramsInfoCommand infoCommand = new HologramsInfoCommand();
         HologramsNearCommand nearCommand = new HologramsNearCommand();
         HologramsMoveVerticalCommand moveVerticalCommand = new HologramsMoveVerticalCommand();
+        HologramsCreateItemCommand createItemCommand = new HologramsCreateItemCommand();
+        HologramsAnimateLineCommand animateLineCommand = new HologramsAnimateLineCommand();
         
         // Register commands with main command handler
         command.registerSubCommand("create", createCommand);
         command.registerSubCommand("createscoreboard", createScoreboardCommand);
+        command.registerSubCommand("createitem", createItemCommand);
         command.registerSubCommand("list", listCommand);
         command.registerSubCommand("delete", deleteCommand);
         command.registerSubCommand("reload", reloadCommand);
         command.registerSubCommand("addline", addLineCommand);
         command.registerSubCommand("setline", setLineCommand);
         command.registerSubCommand("removeline", removeLineCommand);
+        command.registerSubCommand("animateline", animateLineCommand);
         command.registerSubCommand("movehere", moveHereCommand);
         command.registerSubCommand("teleport", teleportCommand);
         command.registerSubCommand("insertline", insertLineCommand);

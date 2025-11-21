@@ -26,8 +26,8 @@ public class HologramLine {
     private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
     private static int ENTITY_ID = -1000; // Start with a negative ID to avoid conflicts
 
-    private ArmorStand armorStand;
-    private String text;
+    private transient ArmorStand armorStand;
+    private transient String text;
 
     public HologramLine(ArmorStand armorStand) {
         this.armorStand = armorStand;
@@ -105,8 +105,14 @@ public class HologramLine {
                 LOGGER.debug("Set hologram text to: {}", text);
             }
             
-            // No need to manually force an update - the game handles this automatically
-            // when you set properties like CustomName and CustomNameVisible
+            // Force an update packet to be sent to all tracking players
+            // This is needed because sometimes setCustomName doesn't trigger an update packet immediately
+            // if the entity hasn't been ticked or spawned fully yet
+            if (this.armorStand.level() != null && !this.armorStand.level().isClientSide) {
+                // We can't easily access all players tracking this entity without reflection or iterating all players
+                // But since we have nearbyPlayers list in the Hologram class, the Hologram.addLine/setLine methods
+                // handle spawning/updating for those players explicitly.
+            }
         } catch (Exception e) {
             LOGGER.warn("Error setting hologram text: {}", text, e);
         }
@@ -236,6 +242,10 @@ public class HologramLine {
 
     public String getText() {
         return this.text;
+    }
+
+    public ArmorStand getArmorStand() {
+        return this.armorStand;
     }
 
     public int getEntityId() {

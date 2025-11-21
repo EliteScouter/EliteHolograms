@@ -58,15 +58,28 @@ public class HologramsCommand {
             // Determine the appropriate permission for each subcommand
             String permission = getPermissionForCommand(commandName);
             
-            fullCommandBuilder.then(Commands.literal(commandName)
-                    .requires(source -> UtilPermissions.hasPermission(source, permission))
-                    .executes(subCommand::execute)
-                    .then(subCommand.getArguments()));
+            LiteralArgumentBuilder<CommandSourceStack> subCommandBuilder = subCommand.getArguments();
             
-            shortCommandBuilder.then(Commands.literal(commandName)
-                    .requires(source -> UtilPermissions.hasPermission(source, permission))
-                    .executes(subCommand::execute)
-                    .then(subCommand.getArguments()));
+            // Verify the builder matches the expected name (just in case)
+            if (subCommandBuilder.getLiteral().equals(commandName)) {
+                subCommandBuilder.requires(source -> UtilPermissions.hasPermission(source, permission));
+                
+                fullCommandBuilder.then(subCommandBuilder);
+                shortCommandBuilder.then(subCommandBuilder);
+            } else {
+                // Fallback for mismatching names or if stricter structure is needed
+                fullCommandBuilder.then(Commands.literal(commandName)
+                        .requires(source -> UtilPermissions.hasPermission(source, permission))
+                        .then(subCommandBuilder)
+                        .executes(subCommand::execute)
+                );
+                
+                shortCommandBuilder.then(Commands.literal(commandName)
+                        .requires(source -> UtilPermissions.hasPermission(source, permission))
+                        .then(subCommandBuilder)
+                        .executes(subCommand::execute)
+                );
+            }
         }
         
         dispatcher.register(fullCommandBuilder);
@@ -82,14 +95,17 @@ public class HologramsCommand {
     private String getPermissionForCommand(String commandName) {
         switch (commandName.toLowerCase()) {
             case "create":
+            case "createitem":
                 return UtilPermissions.CREATE;
             case "delete":
                 return UtilPermissions.DELETE;
             case "addline":
             case "setline":
             case "removeline":
+            case "animateline":
             case "movehere":
             case "insertline":
+            case "movevertical":
                 return UtilPermissions.EDIT;
             case "list":
                 return UtilPermissions.LIST;
@@ -121,12 +137,14 @@ public class HologramsCommand {
         
         source.sendSuccess(() -> Component.literal("§3§l┌─§b§lElite Holograms §3§l──────┐"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh create <id> <text>"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh createitem <id> <item> [text]"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh createscoreboard <id> <objective> [top] [interval]"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh list"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh delete <id>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh addline <id> <text>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh setline <id> <line> <text>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh removeline <id> <line>"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh animateline <id> <line> <interval> <text>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh movehere <id>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh near [page]"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh reload"), false);
