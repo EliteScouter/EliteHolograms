@@ -2,6 +2,7 @@ plugins {
     id 'java-library'
     id 'maven-publish'
     id 'net.neoforged.moddev' version '2.0.78'
+    id 'com.gradleup.shadow' version '8.3.5'
     id 'idea'
 }
 
@@ -110,6 +111,8 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 // "optional", meaning it will not be pulled by dependents of this mod.
 configurations {
     runtimeClasspath.extendsFrom localRuntime
+    shadow
+    implementation.extendsFrom shadow
 }
 
 dependencies {
@@ -123,43 +126,52 @@ dependencies {
     // Add Gson dependency
     implementation 'com.google.code.gson:gson:2.10.1'
     
-    // Adventure API
-    // For NeoForge 1.21, jarJar requires explicit version ranges or exact versions in the bracket
-    jarJar("net.kyori:adventure-text-minimessage:[4.17.0,)") {
-         transitive = false
+    // Adventure API - using shadow configuration for relocation
+    shadow("net.kyori:adventure-text-minimessage:4.17.0") {
+        exclude group: 'com.google.code.gson'
+        exclude group: 'org.jetbrains'
     }
-    jarJar("net.kyori:adventure-text-serializer-gson:[4.17.0,)") {
-         transitive = false
+    shadow("net.kyori:adventure-text-serializer-gson:4.17.0") {
+        exclude group: 'com.google.code.gson'
+        exclude group: 'org.jetbrains'
     }
-    jarJar("net.kyori:adventure-text-serializer-json:[4.17.0,)") {
-         transitive = false
+    shadow("net.kyori:adventure-text-serializer-json:4.17.0") {
+        exclude group: 'com.google.code.gson'
+        exclude group: 'org.jetbrains'
     }
-    jarJar("net.kyori:adventure-text-serializer-legacy:[4.17.0,)") {
-         transitive = false
+    shadow("net.kyori:adventure-text-serializer-legacy:4.17.0") {
+        exclude group: 'com.google.code.gson'
+        exclude group: 'org.jetbrains'
     }
-    jarJar("net.kyori:adventure-text-serializer-plain:[4.17.0,)") {
-         transitive = false
+    shadow("net.kyori:adventure-text-serializer-plain:4.17.0") {
+        exclude group: 'com.google.code.gson'
+        exclude group: 'org.jetbrains'
     }
-    jarJar("net.kyori:adventure-text-serializer-ansi:[4.17.0,)") {
-         transitive = false
+    shadow("net.kyori:adventure-text-serializer-ansi:4.17.0") {
+        exclude group: 'com.google.code.gson'
+        exclude group: 'org.jetbrains'
     }
-    jarJar("net.kyori:adventure-api:[4.17.0,)") {
-         transitive = false
+    shadow("net.kyori:adventure-api:4.17.0") {
+        exclude group: 'com.google.code.gson'
+        exclude group: 'org.jetbrains'
     }
-    jarJar("net.kyori:adventure-key:[4.17.0,)") {
-         transitive = false
+    shadow("net.kyori:adventure-key:4.17.0") {
+        exclude group: 'com.google.code.gson'
+        exclude group: 'org.jetbrains'
     }
-    jarJar("net.kyori:option:[1.0.0,)") {
-         transitive = false
+    shadow("net.kyori:option:1.0.0") {
+        exclude group: 'com.google.code.gson'
+        exclude group: 'org.jetbrains'
     }
-    // We also need examination which adventure depends on but we excluded transitive dependencies
-    jarJar("net.kyori:examination-api:[1.3.0,)") {
-        transitive = false
+    shadow("net.kyori:examination-api:1.3.0") {
+        exclude group: 'com.google.code.gson'
+        exclude group: 'org.jetbrains'
     }
-    jarJar("net.kyori:examination-string:[1.3.0,)") {
-        transitive = false
+    shadow("net.kyori:examination-string:1.3.0") {
+        exclude group: 'com.google.code.gson'
+        exclude group: 'org.jetbrains'
     }
-
+    
     // Also need implementation so they are available at compile time
     implementation "net.kyori:adventure-text-minimessage:4.17.0"
     implementation "net.kyori:adventure-text-serializer-gson:4.17.0"
@@ -235,6 +247,45 @@ publishing {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+}
+
+// Configure shadowJar to relocate packages
+shadowJar {
+    archiveClassifier = ''
+    configurations = [project.configurations.shadow]
+    
+    // Relocate Adventure API to prevent conflicts with other mods
+    relocate 'net.kyori', 'com.strictgaming.elite.holograms.libs.net.kyori'
+    
+    // Exclude META-INF files from dependencies
+    exclude 'META-INF/MANIFEST.MF'
+    exclude 'META-INF/*.SF'
+    exclude 'META-INF/*.DSA'
+    exclude 'META-INF/*.RSA'
+    exclude "**/module-info.class"
+    
+    // Exclude packages that conflict with NeoForge/Minecraft
+    exclude 'com/google/gson/**'
+    exclude 'org/intellij/**'
+    exclude 'org/jetbrains/**'
+    
+    // Merge service files properly
+    mergeServiceFiles()
+    
+    // Ensure reproducible builds
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
+// Make jar task depend on shadowJar
+tasks.named('jar').configure {
+    dependsOn shadowJar
+    enabled = false
+}
+
+// Use shadowJar output as the main artifact
+tasks.named('assemble').configure {
+    dependsOn shadowJar
 }
 
 // IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.

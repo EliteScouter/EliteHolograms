@@ -2,7 +2,6 @@ buildscript {
     repositories {
         mavenCentral()
         maven { url = 'https://maven.minecraftforge.net/' }
-        maven { url = 'https://plugins.gradle.org/m2/' }
     }
     dependencies {
         classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '5.1.+'
@@ -120,14 +119,13 @@ processResources {
     }
 }
 
-// Create a fat JAR that includes our dependencies
-jar {
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+// Configure shadowJar to relocate packages
+shadowJar {
+    archiveClassifier = ''
+    configurations = [project.configurations.embed]
     
-    // Add all dependencies to the JAR
-    from {
-        configurations.embed.collect { it.isDirectory() ? it : zipTree(it) }
-    }
+    // Relocate Adventure API to prevent conflicts with other mods
+    relocate 'net.kyori', 'com.strictgaming.elite.holograms.libs.net.kyori'
     
     // Exclude META-INF files from dependencies
     exclude 'META-INF/MANIFEST.MF'
@@ -145,6 +143,9 @@ jar {
     preserveFileTimestamps = false
     reproducibleFileOrder = true
     
+    // Merge service files properly
+    mergeServiceFiles()
+    
     manifest {
         attributes(
             'Specification-Title': project.name,
@@ -157,16 +158,37 @@ jar {
     }
 }
 
-// Fix reobf dependency
+// Regular jar task - not used but kept for compatibility
+jar {
+    archiveClassifier = 'slim'
+    manifest {
+        attributes(
+            'Specification-Title': project.name,
+            'Specification-Vendor': 'strictgaming',
+            'Specification-Version': project.version,
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.version,
+            'Implementation-Vendor': 'strictgaming'
+        )
+    }
+}
+
+// Fix reobf dependency - use shadowJar output
 reobf {
-    jar {}
+    shadowJar {}
 }
 
 // Only register the task if it doesn't already exist
 tasks.findByName('versionedRelease') ?: tasks.register('versionedRelease', Copy) {
+    dependsOn 'reobfShadowJar'
     from("build/libs/${archivesBaseName}-${version}.jar")
     into('../../release/')
     rename("${archivesBaseName}-${version}.jar", "${archivesBaseName}-${version}-Forge.jar")
+}
+
+// Replace the default jar task in assemble with shadowJar
+tasks.named('assemble').configure {
+    dependsOn 'reobfShadowJar'
 }
 
 build.finalizedBy('versionedRelease')
