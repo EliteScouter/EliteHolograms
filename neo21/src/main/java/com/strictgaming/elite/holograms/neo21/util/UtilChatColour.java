@@ -198,6 +198,35 @@ public class UtilChatColour {
                message.contains("<rainbow") || 
                message.contains("<color:") ||
                message.contains("<colour:") ||
-               message.contains("<transition");
+               message.contains("<transition") ||
+               // Named colors
+               message.contains("<black>") ||
+               message.contains("<dark_blue>") ||
+               message.contains("<dark_green>") ||
+               message.contains("<dark_aqua>") ||
+               message.contains("<dark_red>") ||
+               message.contains("<dark_purple>") ||
+               message.contains("<gold>") ||
+               message.contains("<gray>") ||
+               message.contains("<dark_gray>") ||
+               message.contains("<blue>") ||
+               message.contains("<green>") ||
+               message.contains("<aqua>") ||
+               message.contains("<red>") ||
+               message.contains("<light_purple>") ||
+               message.contains("<yellow>") ||
+               message.contains("<white>") ||
+               // Formatting tags
+               message.contains("<bold>") ||
+               message.contains("<b>") ||
+               message.contains("<italic>") ||
+               message.contains("<i>") ||
+               message.contains("<underlined>") ||
+               message.contains("<u>") ||
+               message.contains("<strikethrough>") ||
+               message.contains("<st>") ||
+               message.contains("<obfuscated>") ||
+               message.contains("<obf>") ||
+               message.contains("<reset>");
     }
 } 

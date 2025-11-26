@@ -65,3 +65,4 @@ public class AnimatedHologramLine extends HologramLine {
         return intervalTicks;
     }
 }
+

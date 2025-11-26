@@ -67,3 +67,4 @@ public class HologramsAnimateLineCommand implements HologramsCommand.SubCommand 
                                 .executes(this::execute)))));
     }
 }
+
