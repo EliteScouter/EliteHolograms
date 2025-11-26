@@ -7,10 +7,12 @@ import com.strictgaming.elite.holograms.forge.command.CommandFactory;
 import com.strictgaming.elite.holograms.forge.command.HologramsAddLineCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsCreateCommand;
+import com.strictgaming.elite.holograms.forge.command.HologramsCreateAtCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsCreateScoreboardCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsDeleteCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsListCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsMoveHereCommand;
+import com.strictgaming.elite.holograms.forge.command.HologramsMoveToCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsNearCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsRemoveLineCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsSetLineCommand;
@@ -177,6 +179,9 @@ public class ForgeHolograms {
         HologramsListCommand listCommand = new HologramsListCommand();
         command.registerSubCommand("list", listCommand);
         
+        LOGGER.info("Registering HologramsCreateAtCommand");
+        command.registerSubCommand("createat", new HologramsCreateAtCommand());
+        
         LOGGER.info("Registering HologramsCreateScoreboardCommand");
         HologramsCreateScoreboardCommand createScoreboardCommand = new HologramsCreateScoreboardCommand();
         command.registerSubCommand("createscoreboard", createScoreboardCommand);
@@ -205,6 +210,9 @@ public class ForgeHolograms {
         // Register our new commands
         LOGGER.info("Registering HologramsMoveHereCommand");
         command.registerSubCommand("movehere", new HologramsMoveHereCommand());
+        
+        LOGGER.info("Registering HologramsMoveToCommand");
+        command.registerSubCommand("moveto", new HologramsMoveToCommand());
         
         LOGGER.info("Registering HologramsTeleportCommand");
         command.registerSubCommand("teleport", new HologramsTeleportCommand());

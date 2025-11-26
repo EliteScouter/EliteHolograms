@@ -42,7 +42,7 @@ public class HologramsCreateCommand implements Command<CommandSourceStack> {
         System.out.println("Executing create command with args: " + String.join(", ", args));
         
         if (args.length < 1) {
-            context.getSource().sendSystemMessage(Component.literal("§cUsage: /hd create <id> <text>"));
+            context.getSource().sendSystemMessage(Component.literal("§cUsage: /eh create <id> <text>"));
             return 0;
         }
         
@@ -62,7 +62,7 @@ public class HologramsCreateCommand implements Command<CommandSourceStack> {
             }
             text = textBuilder.toString().trim();
         } else {
-            text = "§eEdit this hologram with /holo addline " + name + " <text>";
+            text = "§eEdit this hologram with /eh addline " + name + " <text>";
         }
         
         ForgeHologram hologram = new ForgeHologram(name, player.level, 

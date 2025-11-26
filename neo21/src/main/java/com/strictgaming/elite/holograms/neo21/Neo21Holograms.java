@@ -11,6 +11,8 @@ import com.strictgaming.elite.holograms.neo21.command.HologramsCreateItemCommand
 import com.strictgaming.elite.holograms.neo21.command.HologramsDeleteCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsListCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsMoveHereCommand;
+import com.strictgaming.elite.holograms.neo21.command.HologramsMoveToCommand;
+import com.strictgaming.elite.holograms.neo21.command.HologramsCreateAtCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsReloadCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsTeleportCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsAddLineCommand;
@@ -78,6 +80,8 @@ public class Neo21Holograms implements PlatformHologramManager {
     private HologramsRemoveLineCommand removeLineCommand;
     private HologramsAnimateLineCommand animateLineCommand;
     private HologramsMoveHereCommand moveHereCommand;
+    private HologramsMoveToCommand moveToCommand;
+    private HologramsCreateAtCommand createAtCommand;
     private HologramsNearCommand nearCommand;
     private HologramsInfoCommand infoCommand;
     private HologramsCopyCommand copyCommand;
@@ -108,6 +112,8 @@ public class Neo21Holograms implements PlatformHologramManager {
         removeLineCommand = new HologramsRemoveLineCommand();
         animateLineCommand = new HologramsAnimateLineCommand();
         moveHereCommand = new HologramsMoveHereCommand();
+        moveToCommand = new HologramsMoveToCommand();
+        createAtCommand = new HologramsCreateAtCommand();
         nearCommand = new HologramsNearCommand();
         infoCommand = new HologramsInfoCommand();
         copyCommand = new HologramsCopyCommand();
@@ -127,6 +133,8 @@ public class Neo21Holograms implements PlatformHologramManager {
         mainCommand.registerSubCommand("removeline", removeLineCommand);
         mainCommand.registerSubCommand("animateline", animateLineCommand);
         mainCommand.registerSubCommand("movehere", moveHereCommand);
+        mainCommand.registerSubCommand("moveto", moveToCommand);
+        mainCommand.registerSubCommand("createat", createAtCommand);
         mainCommand.registerSubCommand("near", nearCommand);
         mainCommand.registerSubCommand("info", infoCommand);
         mainCommand.registerSubCommand("copy", copyCommand);
@@ -219,6 +227,8 @@ public class Neo21Holograms implements PlatformHologramManager {
         setLineCommand.register(event.getDispatcher());
         removeLineCommand.register(event.getDispatcher());
         moveHereCommand.register(event.getDispatcher());
+        moveToCommand.register(event.getDispatcher());
+        createAtCommand.register(event.getDispatcher());
         nearCommand.register(event.getDispatcher());
         infoCommand.register(event.getDispatcher());
         copyCommand.register(event.getDispatcher());

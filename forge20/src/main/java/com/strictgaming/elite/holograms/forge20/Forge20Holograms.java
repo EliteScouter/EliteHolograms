@@ -14,6 +14,8 @@ import com.strictgaming.elite.holograms.forge20.command.HologramsAddLineCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsSetLineCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsRemoveLineCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsMoveHereCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsMoveToCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsCreateAtCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsTeleportCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsInsertLineCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsCopyCommand;
@@ -190,6 +192,8 @@ public class Forge20Holograms implements PlatformHologramManager {
         HologramsSetLineCommand setLineCommand = new HologramsSetLineCommand();
         HologramsRemoveLineCommand removeLineCommand = new HologramsRemoveLineCommand();
         HologramsMoveHereCommand moveHereCommand = new HologramsMoveHereCommand();
+        HologramsMoveToCommand moveToCommand = new HologramsMoveToCommand();
+        HologramsCreateAtCommand createAtCommand = new HologramsCreateAtCommand();
         HologramsTeleportCommand teleportCommand = new HologramsTeleportCommand();
         HologramsInsertLineCommand insertLineCommand = new HologramsInsertLineCommand();
         HologramsCopyCommand copyCommand = new HologramsCopyCommand();
@@ -211,6 +215,8 @@ public class Forge20Holograms implements PlatformHologramManager {
         command.registerSubCommand("removeline", removeLineCommand);
         command.registerSubCommand("animateline", animateLineCommand);
         command.registerSubCommand("movehere", moveHereCommand);
+        command.registerSubCommand("moveto", moveToCommand);
+        command.registerSubCommand("createat", createAtCommand);
         command.registerSubCommand("teleport", teleportCommand);
         command.registerSubCommand("insertline", insertLineCommand);
         command.registerSubCommand("copy", copyCommand);

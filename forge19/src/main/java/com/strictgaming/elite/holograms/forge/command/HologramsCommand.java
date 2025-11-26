@@ -67,6 +67,34 @@ public class HologramsCommand {
                     return executeSubCommand(ctx, "create", args);
                 })));
 
+        // createat command with coordinates
+        LiteralArgumentBuilder<CommandSourceStack> createAtCommand = Commands.literal("createat")
+                .requires(UtilPermissions::canCreate)
+                .then(Commands.argument("id", StringArgumentType.word())
+                .then(Commands.argument("x", StringArgumentType.word())
+                .then(Commands.argument("y", StringArgumentType.word())
+                .then(Commands.argument("z", StringArgumentType.word())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "x"),
+                        StringArgumentType.getString(ctx, "y"),
+                        StringArgumentType.getString(ctx, "z")
+                    };
+                    return executeSubCommand(ctx, "createat", args);
+                })
+                .then(Commands.argument("text", StringArgumentType.greedyString())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "x"),
+                        StringArgumentType.getString(ctx, "y"),
+                        StringArgumentType.getString(ctx, "z"),
+                        StringArgumentType.getString(ctx, "text")
+                    };
+                    return executeSubCommand(ctx, "createat", args);
+                }))))));
+
         // createscoreboard command with optional topCount and updateInterval
         LiteralArgumentBuilder<CommandSourceStack> createScoreboardCommand = Commands.literal("createscoreboard")
                 .requires(UtilPermissions::canCreate)
@@ -224,6 +252,35 @@ public class HologramsCommand {
                     return executeSubCommand(ctx, "movehere", args);
                 }));
                 
+        // MoveTo command
+        LiteralArgumentBuilder<CommandSourceStack> moveToCommand = Commands.literal("moveto")
+                .requires(UtilPermissions::canEdit)
+                .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                .then(Commands.argument("x", StringArgumentType.word())
+                .then(Commands.argument("y", StringArgumentType.word())
+                .then(Commands.argument("z", StringArgumentType.word())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "x"),
+                        StringArgumentType.getString(ctx, "y"),
+                        StringArgumentType.getString(ctx, "z")
+                    };
+                    return executeSubCommand(ctx, "moveto", args);
+                })
+                .then(Commands.argument("world", StringArgumentType.greedyString())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "x"),
+                        StringArgumentType.getString(ctx, "y"),
+                        StringArgumentType.getString(ctx, "z"),
+                        StringArgumentType.getString(ctx, "world")
+                    };
+                    return executeSubCommand(ctx, "moveto", args);
+                }))))));
+                
         // InsertLine command
         LiteralArgumentBuilder<CommandSourceStack> insertLineCommand = Commands.literal("insertline")
                 .requires(UtilPermissions::canEdit)
@@ -303,6 +360,7 @@ public class HologramsCommand {
                 }))));
                 
         command.then(createCommand);
+        command.then(createAtCommand);
         command.then(deleteCommand);
         command.then(createScoreboardCommand);
         command.then(addLineCommand);
@@ -314,6 +372,7 @@ public class HologramsCommand {
         command.then(infoCommand);
         command.then(copyCommand);
         command.then(moveHereCommand);
+        command.then(moveToCommand);
         command.then(insertLineCommand);
         command.then(moveVerticalCommand);
         command.then(reloadCommand);
@@ -336,6 +395,7 @@ public class HologramsCommand {
         
         source.sendSystemMessage(UtilChatColour.parse("&3&l┌─&b&lElite Holograms &3&l──────┐"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh create <id> <text>"));
+        source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh createat <id> <x> <y> <z> [world] <text>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh createscoreboard <id> <objective> [top] [interval]"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh list"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh delete <id>"));
@@ -343,6 +403,7 @@ public class HologramsCommand {
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh setline <id> <line> <text>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh removeline <id> <line>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh movehere <id>"));
+        source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh moveto <id> <x> <y> <z> [world]"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh near [page]"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh reload"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh teleport <id>"));
@@ -430,11 +491,20 @@ public class HologramsCommand {
             if (subCommand instanceof HologramsCreateScoreboardCommand) {
                 return ((HologramsCreateScoreboardCommand) subCommand).run(context);
             }
+            if (subCommand instanceof HologramsCreateCommand) {
+                return ((HologramsCreateCommand) subCommand).executeCommand(context, args);
+            }
+            if (subCommand instanceof HologramsCreateAtCommand) {
+                return ((HologramsCreateAtCommand) subCommand).executeCommand(context, args);
+            }
             if (subCommand instanceof HologramsAnimateLineCommand) {
                 return ((HologramsAnimateLineCommand) subCommand).executeCommand(context, args);
             }
             if (subCommand instanceof HologramsCreateItemCommand) {
                 return ((HologramsCreateItemCommand) subCommand).executeCommand(context, args);
+            }
+            if (subCommand instanceof HologramsMoveToCommand) {
+                return ((HologramsMoveToCommand) subCommand).executeCommand(context, args);
             }
             return (int) subCommand.getClass().getMethod("executeCommand", CommandContext.class, String[].class)
                                  .invoke(subCommand, context, args);
@@ -471,6 +541,34 @@ public class HologramsCommand {
                     };
                     return executeSubCommand(ctx, "create", args);
                 }))));
+
+        // Add createat command to the alias
+        aliasCommand.then(Commands.literal("createat")
+                .requires(UtilPermissions::canCreate)
+                .then(Commands.argument("id", StringArgumentType.word())
+                .then(Commands.argument("x", StringArgumentType.word())
+                .then(Commands.argument("y", StringArgumentType.word())
+                .then(Commands.argument("z", StringArgumentType.word())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "x"),
+                        StringArgumentType.getString(ctx, "y"),
+                        StringArgumentType.getString(ctx, "z")
+                    };
+                    return executeSubCommand(ctx, "createat", args);
+                })
+                .then(Commands.argument("text", StringArgumentType.greedyString())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "x"),
+                        StringArgumentType.getString(ctx, "y"),
+                        StringArgumentType.getString(ctx, "z"),
+                        StringArgumentType.getString(ctx, "text")
+                    };
+                    return executeSubCommand(ctx, "createat", args);
+                })))))));
 
         // Add createscoreboard command to the alias
         aliasCommand.then(
@@ -615,6 +713,35 @@ public class HologramsCommand {
                     };
                     return executeSubCommand(ctx, "movehere", args);
                 })));
+                
+        // Move to command
+        aliasCommand.then(Commands.literal("moveto")
+                .requires(UtilPermissions::canEdit)
+                .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                .then(Commands.argument("x", StringArgumentType.word())
+                .then(Commands.argument("y", StringArgumentType.word())
+                .then(Commands.argument("z", StringArgumentType.word())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "x"),
+                        StringArgumentType.getString(ctx, "y"),
+                        StringArgumentType.getString(ctx, "z")
+                    };
+                    return executeSubCommand(ctx, "moveto", args);
+                })
+                .then(Commands.argument("world", StringArgumentType.greedyString())
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "x"),
+                        StringArgumentType.getString(ctx, "y"),
+                        StringArgumentType.getString(ctx, "z"),
+                        StringArgumentType.getString(ctx, "world")
+                    };
+                    return executeSubCommand(ctx, "moveto", args);
+                })))))));
                 
         // Near command - use the direct handler functions
         aliasCommand.then(Commands.literal("near")

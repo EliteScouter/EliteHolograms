@@ -26,6 +26,7 @@ public class CommandManager {
         
         // Register all subcommands here
         factory.registerChildCommand(mainCommand, new HologramsCreateCommand());
+        factory.registerChildCommand(mainCommand, new HologramsCreateAtCommand());
         factory.registerChildCommand(mainCommand, new HologramsCreateScoreboardCommand());
         factory.registerChildCommand(mainCommand, new HologramsDeleteCommand());
         factory.registerChildCommand(mainCommand, new HologramsAddLineCommand());
@@ -38,6 +39,7 @@ public class CommandManager {
         
         // Register additional commands
         factory.registerChildCommand(mainCommand, new HologramsMoveHereCommand());
+        factory.registerChildCommand(mainCommand, new HologramsMoveToCommand());
         factory.registerChildCommand(mainCommand, new HologramsCopyCommand());
         factory.registerChildCommand(mainCommand, new HologramsInsertLineCommand());
         factory.registerChildCommand(mainCommand, new HologramsMoveVerticalCommand());

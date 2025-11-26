@@ -137,6 +137,7 @@ public class HologramsCommand {
         
         source.sendSuccess(() -> Component.literal("§3§l┌─§b§lElite Holograms §3§l──────┐"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh create <id> <text>"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh createat <id> <x> <y> <z> [text]"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh createitem <id> <item> [text]"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh createscoreboard <id> <objective> [top] [interval]"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh list"), false);
@@ -146,6 +147,7 @@ public class HologramsCommand {
         source.sendSuccess(() -> Component.literal("§3│ §b/eh removeline <id> <line>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh animateline <id> <line> <interval> <text>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh movehere <id>"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh moveto <id> <x> <y> <z> [world]"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh near [page]"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh reload"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh teleport <id>"), false);

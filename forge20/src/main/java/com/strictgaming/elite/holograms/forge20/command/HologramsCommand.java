@@ -71,7 +71,7 @@ public class HologramsCommand {
             LiteralArgumentBuilder<CommandSourceStack> subCommand = Commands.literal(name);
             
             // Add permission requirements based on command type
-            if (name.equals("create") || name.equals("createscoreboard") || name.equals("createitem")) {
+            if (name.equals("create") || name.equals("createat") || name.equals("createscoreboard") || name.equals("createitem")) {
                 subCommand.requires(UtilPermissions::canCreate);
             } else if (name.equals("delete")) {
                 subCommand.requires(UtilPermissions::canDelete);
@@ -84,7 +84,7 @@ public class HologramsCommand {
             } else if (name.equals("near")) {
                 subCommand.requires(UtilPermissions::canNear);
             } else if (name.equals("addline") || name.equals("setline") || name.equals("insertline") || 
-                       name.equals("removeline") || name.equals("movehere") || name.equals("animateline")) {
+                       name.equals("removeline") || name.equals("movehere") || name.equals("moveto") || name.equals("animateline")) {
                 subCommand.requires(UtilPermissions::canEdit);
             } else if (name.equals("copy")) {
                 subCommand.requires(UtilPermissions::canCreate); // Copy requires create permission
@@ -270,6 +270,59 @@ public class HologramsCommand {
                             return 0;
                         }
                     }));
+            } else if (name.equals("moveto")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.argument("x", StringArgumentType.word())
+                    .then(Commands.argument("y", StringArgumentType.word())
+                    .then(Commands.argument("z", StringArgumentType.word())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "x"),
+                            StringArgumentType.getString(ctx, "y"),
+                            StringArgumentType.getString(ctx, "z")
+                        };
+                        return executeSubCommand(ctx, name, args);
+                    })
+                    .then(Commands.argument("world", StringArgumentType.greedyString())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "x"),
+                            StringArgumentType.getString(ctx, "y"),
+                            StringArgumentType.getString(ctx, "z"),
+                            StringArgumentType.getString(ctx, "world")
+                        };
+                        return executeSubCommand(ctx, name, args);
+                    }))))));
+            } else if (name.equals("createat")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .then(Commands.argument("x", StringArgumentType.word())
+                    .then(Commands.argument("y", StringArgumentType.word())
+                    .then(Commands.argument("z", StringArgumentType.word())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "x"),
+                            StringArgumentType.getString(ctx, "y"),
+                            StringArgumentType.getString(ctx, "z")
+                        };
+                        return executeSubCommand(ctx, name, args);
+                    })
+                    .then(Commands.argument("text", StringArgumentType.greedyString())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "x"),
+                            StringArgumentType.getString(ctx, "y"),
+                            StringArgumentType.getString(ctx, "z"),
+                            StringArgumentType.getString(ctx, "text")
+                        };
+                        return executeSubCommand(ctx, name, args);
+                    }))))));
             } else if (name.equals("copy")) {
                 subCommand
                     .then(Commands.argument("target", StringArgumentType.word())
@@ -300,6 +353,7 @@ public class HologramsCommand {
         
         source.sendSystemMessage(Component.literal("§3§l┌─§b§lElite Holograms §3§l──────┐"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh create <id> <text>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh createat <id> <x> <y> <z> [world] <text>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh createitem <id> <item> [text]"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh list"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh delete <id>"));
@@ -307,6 +361,7 @@ public class HologramsCommand {
         source.sendSystemMessage(Component.literal("§3│ §b/eh setline <id> <line> <text>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh removeline <id> <line>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh movehere <id>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh moveto <id> <x> <y> <z> [world]"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh near [page]"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh reload"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh teleport <id>"));
@@ -386,6 +441,10 @@ public class HologramsCommand {
                 return ((HologramsRemoveLineCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsMoveHereCommand) {
                 return ((HologramsMoveHereCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsMoveToCommand) {
+                return ((HologramsMoveToCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsCreateAtCommand) {
+                return ((HologramsCreateAtCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsTeleportCommand) {
                 return ((HologramsTeleportCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsCopyCommand) {
