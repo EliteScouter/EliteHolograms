@@ -5,6 +5,7 @@ import com.strictgaming.elite.holograms.neo21.hologram.implementation.NeoForgeHo
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.PlayerScoreEntry;
 import net.minecraft.world.scores.ScoreAccess;
 import net.minecraft.world.scores.Scoreboard;
 import net.neoforged.neoforge.server.ServerLifecycleHooks;
@@ -121,10 +122,17 @@ public class ScoreboardHologram extends NeoForgeHologram {
             return Collections.emptyList();
         }
 
-        // Try to enumerate all tracked entries for the objective (includes offline players)
-        Map<String, Integer> playerScores = collectScoresForObjective(scoreboard, objective);
+        // listPlayerScores returns ALL entries for the objective, including offline players
+        Collection<PlayerScoreEntry> entries = scoreboard.listPlayerScores(objective);
+        Map<String, Integer> playerScores = new HashMap<>();
+        for (PlayerScoreEntry entry : entries) {
+            String owner = entry.owner();
+            if (owner != null && !owner.isEmpty() && !entry.isHidden()) {
+                playerScores.put(owner, entry.value());
+            }
+        }
 
-        // Fallback: include online players (ensures at least some data if reflection fails)
+        // Fallback: online players only if listPlayerScores is empty (e.g. objective has no data yet)
         if (playerScores.isEmpty()) {
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                 if (player == null) continue;
@@ -142,146 +150,6 @@ public class ScoreboardHologram extends NeoForgeHologram {
                 .limit(topCount)
                 .map(e -> new ScoreEntry(e.getKey(), e.getValue()))
                 .collect(Collectors.toList());
-    }
-
-    /**
-     * Attempts to list all scoreboard entries for an objective, including offline holders, using
-     * reflection for cross-mapping compatibility in 1.21.1.
-     */
-    private Map<String, Integer> collectScoresForObjective(Scoreboard scoreboard, Objective objective) {
-        Map<String, Integer> result = new HashMap<>();
-        try {
-            // Try Scoreboard#getPlayerScores(Objective) first (older API)
-            try {
-                java.lang.reflect.Method m = Scoreboard.class.getMethod("getPlayerScores", Objective.class);
-                Object collection = m.invoke(scoreboard, objective);
-                if (collection instanceof java.util.Collection<?> col) {
-                    for (Object scoreObj : col) {
-                        if (scoreObj == null) continue;
-                        // Try getOwner()/getScore() (older API)
-                        String name = null;
-                        Integer value = null;
-                        try {
-                            java.lang.reflect.Method getOwner = scoreObj.getClass().getMethod("getOwner");
-                            Object owner = getOwner.invoke(scoreObj);
-                            if (owner instanceof String s) name = s;
-                        } catch (NoSuchMethodException ignored) {
-                            try {
-                                java.lang.reflect.Method owner = scoreObj.getClass().getMethod("owner");
-                                Object holder = owner.invoke(scoreObj);
-                                if (holder != null) {
-                                    try {
-                                        java.lang.reflect.Method getName = holder.getClass().getMethod("getScoreboardName");
-                                        Object n = getName.invoke(holder);
-                                        if (n instanceof String s) name = s;
-                                    } catch (NoSuchMethodException nsme) {
-                                        // attempt getName().getString()
-                                        try {
-                                            java.lang.reflect.Method getName = holder.getClass().getMethod("getName");
-                                            Object comp = getName.invoke(holder);
-                                            if (comp != null) {
-                                                java.lang.reflect.Method getString = comp.getClass().getMethod("getString");
-                                                Object n = getString.invoke(comp);
-                                                if (n instanceof String s) name = s;
-                                            }
-                                        } catch (Throwable ignored2) {}
-                                    }
-                                }
-                            } catch (Throwable ignored2) {}
-                        }
-                        try {
-                            java.lang.reflect.Method getScore = scoreObj.getClass().getMethod("getScore");
-                            Object v = getScore.invoke(scoreObj);
-                            if (v instanceof Integer i) value = i;
-                        } catch (NoSuchMethodException ignored) {
-                            try {
-                                java.lang.reflect.Method valueM = scoreObj.getClass().getMethod("value");
-                                Object v = valueM.invoke(scoreObj);
-                                if (v instanceof Integer i) value = i;
-                            } catch (Throwable ignored2) {}
-                        }
-                        if (name != null && value != null) {
-                            result.put(name, value);
-                        }
-                    }
-                }
-                if (!result.isEmpty()) return result;
-            } catch (NoSuchMethodException ignored) {
-                // Continue to next strategy
-            }
-
-            // Try Scoreboard#getTrackedPlayers() returning a collection of identifiers
-            java.lang.reflect.Method getTracked;
-            try {
-                getTracked = Scoreboard.class.getMethod("getTrackedPlayers");
-            } catch (NoSuchMethodException nsme) {
-                // Some mappings use getTrackedPlayersForObjective(Objective)
-                try {
-                    getTracked = Scoreboard.class.getMethod("getTrackedPlayersForObjective", Objective.class);
-                    Object collection = getTracked.invoke(scoreboard, objective);
-                    fillScoresFromTrackedCollection(scoreboard, objective, collection, result);
-                    return result;
-                } catch (NoSuchMethodException nsme2) {
-                    return result;
-                }
-            }
-            Object collection = getTracked.invoke(scoreboard);
-            fillScoresFromTrackedCollection(scoreboard, objective, collection, result);
-        } catch (Throwable ignored) {}
-        return result;
-    }
-
-    private void fillScoresFromTrackedCollection(Scoreboard scoreboard, Objective objective, Object collection, Map<String, Integer> out) {
-        if (!(collection instanceof java.util.Collection<?> col)) return;
-        for (Object entry : col) {
-            if (entry == null) continue;
-            String name = null;
-            Object holder = null;
-            try {
-                if (entry instanceof String s) {
-                    name = s;
-                    // Attempt getOrCreatePlayerScore(String, Objective)
-                    try {
-                        java.lang.reflect.Method getOrCreate = Scoreboard.class.getMethod("getOrCreatePlayerScore", String.class, Objective.class);
-                        Object sc = getOrCreate.invoke(scoreboard, name, objective);
-                        Integer val = extractScoreValue(sc);
-                        if (val != null) out.put(name, val);
-                        continue;
-                    } catch (NoSuchMethodException ignored) {}
-                }
-                // If not String, assume ScoreHolder-like
-                holder = entry;
-                // Try to get name
-                try {
-                    java.lang.reflect.Method getName = holder.getClass().getMethod("getScoreboardName");
-                    Object n = getName.invoke(holder);
-                    if (n instanceof String s2) name = s2;
-                } catch (NoSuchMethodException ignored) {}
-                // getOrCreatePlayerScore(ScoreHolder, Objective)
-                try {
-                    java.lang.reflect.Method getOrCreate = Scoreboard.class.getMethod("getOrCreatePlayerScore", holder.getClass(), Objective.class);
-                    Object sc = getOrCreate.invoke(scoreboard, holder, objective);
-                    Integer val = extractScoreValue(sc);
-                    if (name != null && val != null) out.put(name, val);
-                } catch (NoSuchMethodException ignored) {}
-            } catch (Throwable ignored) {}
-        }
-    }
-
-    private Integer extractScoreValue(Object scoreAccessLike) {
-        if (scoreAccessLike == null) return null;
-        try {
-            java.lang.reflect.Method get = scoreAccessLike.getClass().getMethod("get");
-            Object v = get.invoke(scoreAccessLike);
-            if (v instanceof Integer i) return i;
-        } catch (NoSuchMethodException ignored) {
-            try {
-                java.lang.reflect.Method value = scoreAccessLike.getClass().getMethod("value");
-                Object v = value.invoke(scoreAccessLike);
-                if (v instanceof Integer i) return i;
-            } catch (Throwable ignored2) {}
-        } catch (Throwable ignored) {}
-        return null;
     }
 
     private void applyLines(List<ScoreEntry> top) {
