@@ -54,6 +54,10 @@ public class NeoForgeHologram implements Hologram {
     private final List<UUID> nearbyPlayers = Collections.synchronizedList(new ArrayList<>());
     private boolean spawned = false;
     
+    // Placeholder refresh: update static lines every 20 ticks (1 second)
+    private static final int PLACEHOLDER_REFRESH_INTERVAL = 20;
+    private int placeholderTickCounter = 0;
+    
     public static class AnimatedLineData {
         public final List<String> frames;
         public final int interval;
@@ -172,6 +176,14 @@ public class NeoForgeHologram implements Hologram {
     
     public List<Object> getLinesContent() {
         return new ArrayList<>(linesContent);
+    }
+
+    /**
+     * Returns a direct reference to the internal lines content list.
+     * For use by subclasses that need to modify content without copying.
+     */
+    protected List<Object> getLinesContentInternal() {
+        return linesContent;
     }
     
     public void setLinesContent(List<Object> content) {
@@ -384,14 +396,30 @@ public class NeoForgeHologram implements Hologram {
     }
     
     public void tick() {
+        // Tick animated lines
         for (HologramLine line : hologramLines) {
             if (line instanceof AnimatedHologramLine animated) {
                 if (animated.tick()) {
-                     // Update for nearby players
                      for (UUID uuid : nearbyPlayers) {
                          ServerPlayer p = getPlayerByUUID(uuid);
                          if (p != null) animated.updateForPlayer(p, false);
                      }
+                }
+            }
+        }
+        
+        // Periodically refresh static lines so placeholders like %players%, %tps% stay current
+        placeholderTickCounter++;
+        if (placeholderTickCounter >= PLACEHOLDER_REFRESH_INTERVAL) {
+            placeholderTickCounter = 0;
+            for (HologramLine line : hologramLines) {
+                if (!(line instanceof AnimatedHologramLine)) {
+                    for (UUID uuid : new ArrayList<>(nearbyPlayers)) {
+                        ServerPlayer p = getPlayerByUUID(uuid);
+                        if (p != null) {
+                            line.updateForPlayer(p, false);
+                        }
+                    }
                 }
             }
         }
@@ -474,5 +502,14 @@ public class NeoForgeHologram implements Hologram {
         contentUpdater.run();
         rebuildHologramLines();
         saveToConfig();
+    }
+
+    /**
+     * Updates hologram content and rebuilds lines without triggering a config save.
+     * Used by ScoreboardHologram for ephemeral display updates that don't need persistence.
+     */
+    protected void updateHologramContentNoSave(Runnable contentUpdater) {
+        contentUpdater.run();
+        rebuildHologramLines();
     }
 }

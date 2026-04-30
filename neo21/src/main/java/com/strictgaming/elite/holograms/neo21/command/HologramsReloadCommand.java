@@ -60,16 +60,11 @@ public class HologramsReloadCommand implements HologramsCommand.SubCommand {
 
         isReloading = true;
         try {
-            // Ensure any pending saves are completed before reloading
-            HologramManager.save();
+            // Save synchronously before reloading to avoid race condition
+            // where async save runs after the map is cleared, writing 0 holograms
+            HologramManager.saveSync();
 
-            // Clear and reload all holograms
-            // Need to get the actual internal map reference to properly clear it
-            var hologramsMap = HologramManager.getHologramsInternal();
-            hologramsMap.values().forEach(hologram -> hologram.despawn());
-            hologramsMap.clear();
-
-            // Reload from config
+            // Reload from config (load() handles despawn + clear internally)
             HologramManager.load();
 
             source.sendSuccess(() -> Component.literal("Holograms reloaded successfully!"), false);

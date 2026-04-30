@@ -174,8 +174,12 @@ public class ScoreboardHologram extends NeoForgeHologram {
             }
         }
 
-        // Update all lines in one operation
-        setLines(newLines);
+        // Update display without saving — scoreboard lines are computed, not user content.
+        // The scoreboard config is saved separately by HologramManager.
+        updateHologramContentNoSave(() -> {
+            getLinesContentInternal().clear();
+            getLinesContentInternal().addAll(newLines);
+        });
     }
 
     private boolean scoresEqual(List<ScoreEntry> a, List<ScoreEntry> b) {
