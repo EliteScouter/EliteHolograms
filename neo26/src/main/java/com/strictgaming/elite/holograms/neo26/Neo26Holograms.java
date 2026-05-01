@@ -1,33 +1,33 @@
-package com.strictgaming.elite.holograms.neo21;
+package com.strictgaming.elite.holograms.neo26;
 
 import com.strictgaming.elite.holograms.api.hologram.HologramBuilder;
 import com.strictgaming.elite.holograms.api.manager.HologramFactory;
 import com.strictgaming.elite.holograms.api.manager.PlatformHologramManager;
-import com.strictgaming.elite.holograms.neo21.command.CommandFactory;
-import com.strictgaming.elite.holograms.neo21.command.HologramsAnimateLineCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsCreateCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsCreateItemCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsDeleteCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsListCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsMoveHereCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsMoveToCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsCreateAtCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsReloadCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsTeleportCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsAddLineCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsSetLineCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsRemoveLineCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsNearCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsInfoCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsCopyCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsInsertLineCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsCreateScoreboardCommand;
-import com.strictgaming.elite.holograms.neo21.command.HologramsMoveVerticalCommand;
-import com.strictgaming.elite.holograms.neo21.config.HologramsConfig;
-import com.strictgaming.elite.holograms.neo21.hologram.HologramManager;
-import com.strictgaming.elite.holograms.neo21.hologram.manager.NeoForgeHologramFactory;
-import com.strictgaming.elite.holograms.neo21.hologram.manager.NeoForgeHologramManager;
+import com.strictgaming.elite.holograms.neo26.command.CommandFactory;
+import com.strictgaming.elite.holograms.neo26.command.HologramsAnimateLineCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsCreateCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsCreateItemCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsDeleteCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsListCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsMoveHereCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsMoveToCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsCreateAtCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsReloadCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsTeleportCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsAddLineCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsSetLineCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsRemoveLineCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsNearCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsInfoCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsCopyCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsInsertLineCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsCreateScoreboardCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsMoveVerticalCommand;
+import com.strictgaming.elite.holograms.neo26.config.HologramsConfig;
+import com.strictgaming.elite.holograms.neo26.hologram.HologramManager;
+import com.strictgaming.elite.holograms.neo26.hologram.manager.NeoForgeHologramFactory;
+import com.strictgaming.elite.holograms.neo26.hologram.manager.NeoForgeHologramManager;
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
 
 import org.slf4j.Logger;
@@ -39,6 +39,7 @@ import net.minecraft.network.chat.Component;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
@@ -52,14 +53,14 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import java.io.IOException;
 
-@Mod(Neo21Holograms.MOD_ID)
-public class Neo21Holograms implements PlatformHologramManager {
+@Mod(Neo26Holograms.MOD_ID)
+public class Neo26Holograms implements PlatformHologramManager {
 
     public static final String MOD_ID = "eliteholograms";
-    public static final String VERSION = "1.21.1-1.0.9";
+    public static final String VERSION = "26.1.2-1.0.0";
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    private static Neo21Holograms instance;
+    private static Neo26Holograms instance;
 
     private CommandFactory commandFactory = new CommandFactory();
     private HologramsConfig config;
@@ -89,9 +90,9 @@ public class Neo21Holograms implements PlatformHologramManager {
     private HologramsCreateScoreboardCommand createScoreboardCommand;
     private HologramsMoveVerticalCommand moveVerticalCommand;
 
-    public Neo21Holograms(IEventBus modEventBus) {
+    public Neo26Holograms(IEventBus modEventBus, ModContainer modContainer) {
         instance = this;
-        LOGGER.info("Initializing Elite Holograms mod for Minecraft 1.21.1");
+        LOGGER.info("Initializing Elite Holograms mod for Minecraft 26.1");
         
         NeoForge.EVENT_BUS.register(this);
         modEventBus.addListener(this::commonSetup);
@@ -167,57 +168,6 @@ public class Neo21Holograms implements PlatformHologramManager {
         LOGGER.info("Registering Elite Holograms commands");
         mainCommand.register(event.getDispatcher());
         
-        // The register() method is part of SubCommand interface which these classes implement.
-        // However, SubCommand interface is defined inside HologramsCommand, so let's check if the compiler sees it correctly.
-        // The error "cannot find symbol method register" suggests that createItemCommand variable type doesn't have a register method.
-        // SubCommand interface DOES NOT have a register method in the previous code!
-        // The previous commands implemented it manually or it was missing from interface.
-        // Let's check HologramsCommand.SubCommand interface. It has execute() and getArguments().
-        // It does NOT have register().
-        
-        // The other commands likely have a register() method implemented directly in their class, NOT via interface.
-        // We need to add register() method to HologramsCreateItemCommand and HologramsAnimateLineCommand.
-        // OR use the existing registration pattern if one exists.
-        // Looking at HologramsCreateCommand (impl SubCommand), it has a register() method.
-        // But the variable type in Neo21Holograms is the class type, not interface.
-        // So we just need to add the register() method to the new command classes.
-        
-        // For now, I'll comment out the direct registration lines that are failing since they are also registered via mainCommand.
-        // Actually, the pattern is to register aliases or top-level shortcuts if desired.
-        // If we want /eh createitem, we need to register it.
-        // I will fix the command classes to include register() method in a separate step.
-        
-        // Wait, I can just use the main command registration which registers subcommands.
-        // The lines failing are:
-        // createItemCommand.register(event.getDispatcher());
-        // animateLineCommand.register(event.getDispatcher());
-        
-        // This implies I expected them to be top-level commands or have aliases?
-        // If I want /createitem to work directly (which is unusual for subcommands), I'd need register().
-        // But standard usage is /eh createitem.
-        // The mainCommand.register() call handles /eh <subcommand>.
-        // So these direct register calls might be redundant or for aliases like /createitem directly?
-        // The other commands like createCommand have register() called.
-        
-        // Let's look at createCommand.register(). It registers "eliteholograms" -> "create" AND "eh" -> "create".
-        // It effectively registers the subcommand structure again? That seems redundant if mainCommand does it.
-        // OR maybe mainCommand ONLY registers the main "eh" and "eliteholograms" literals, and subcommands attach to it?
-        // Let's check HologramsCommand.register().
-        // It builds the tree: literal("eh").then(literal("create")...)
-        // So mainCommand.register() does EVERYTHING.
-        
-        // So why are we calling register() on individual commands? 
-        // Maybe to register stand-alone aliases?
-        // If I remove these calls, the subcommands are still registered via mainCommand.
-        // Let's try removing them to fix compilation first.
-        
-        // createItemCommand.register(event.getDispatcher());
-        // listCommand.register(event.getDispatcher()); // This one works? means ListCommand has register()
-        
-        // OK, I will comment them out for now.
-        // createItemCommand.register(event.getDispatcher());
-        // animateLineCommand.register(event.getDispatcher());
-        
         createCommand.register(event.getDispatcher());
         listCommand.register(event.getDispatcher());
         deleteCommand.register(event.getDispatcher());
@@ -253,7 +203,7 @@ public class Neo21Holograms implements PlatformHologramManager {
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
         LOGGER.info("Server started - loading holograms");
-        com.strictgaming.elite.holograms.neo21.util.UtilPlaceholder.setServerStartTime();
+        com.strictgaming.elite.holograms.neo26.util.UtilPlaceholder.setServerStartTime();
         this.checkForPlaceholders();
         try {
             HologramManager.load();
@@ -283,7 +233,6 @@ public class Neo21Holograms implements PlatformHologramManager {
                 Thread saveThread = new Thread(() -> {
                     try {
                         HologramManager.saveSync();
-                        // HologramManager.saveScoreboardHologramsSync(); // Already called in saveSync()
                         LOGGER.info("Holograms saved successfully during shutdown");
                     } catch (Exception e) {
                         LOGGER.error("Error saving holograms during shutdown", e);
@@ -349,7 +298,7 @@ public class Neo21Holograms implements PlatformHologramManager {
         }
     }
 
-    public static Neo21Holograms getInstance() {
+    public static Neo26Holograms getInstance() {
         return instance;
     }
 
