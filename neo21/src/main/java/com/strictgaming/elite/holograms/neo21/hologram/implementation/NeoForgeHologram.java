@@ -5,12 +5,14 @@ import com.strictgaming.elite.holograms.neo21.Neo21Holograms;
 import com.strictgaming.elite.holograms.neo21.hologram.HologramManager;
 import com.strictgaming.elite.holograms.neo21.hologram.entity.AnimatedHologramLine;
 import com.strictgaming.elite.holograms.neo21.hologram.entity.HologramLine;
+import com.strictgaming.elite.holograms.neo21.util.UtilBacklight;
 import com.strictgaming.elite.holograms.neo21.util.UtilChatColour;
 import com.strictgaming.elite.holograms.neo21.util.UtilPlaceholder;
 
 import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.Level;
@@ -53,6 +55,11 @@ public class NeoForgeHologram implements Hologram {
     
     private final List<UUID> nearbyPlayers = Collections.synchronizedList(new ArrayList<>());
     private boolean spawned = false;
+
+    // Backlight state - places invisible minecraft:light blocks at the hologram
+    private boolean backlightEnabled = false;
+    private int backlightLevel = UtilBacklight.DEFAULT_LEVEL;
+    private List<BlockPos> backlightPositions = new ArrayList<>();
     
     // Placeholder refresh: update static lines every 20 ticks (1 second)
     private static final int PLACEHOLDER_REFRESH_INTERVAL = 20;
@@ -291,6 +298,9 @@ public class NeoForgeHologram implements Hologram {
             nearbyPlayers.clear();
         }
 
+        // Remove backlight from old position before moving
+        clearBacklight();
+
         this.world = world;
         this.x = x;
         this.y = y;
@@ -321,6 +331,8 @@ public class NeoForgeHologram implements Hologram {
                 });
             }
         }
+        // Re-apply backlight at the new location
+        applyBacklight();
         saveToConfig();
     }
     
@@ -336,6 +348,7 @@ public class NeoForgeHologram implements Hologram {
                 }
             });
         }
+        applyBacklight();
         LOGGER.debug("Hologram {} marked as spawned/active.", id);
     }
 
@@ -349,6 +362,7 @@ public class NeoForgeHologram implements Hologram {
                 despawnForPlayer(player);
             }
         });
+        clearBacklight();
         LOGGER.debug("Hologram {} marked as despawned/inactive.", id);
     }
     
@@ -453,6 +467,7 @@ public class NeoForgeHologram implements Hologram {
     @Override
     public void delete() {
         LOGGER.info("Deleting hologram: {}", id);
+        clearBacklight();
         despawn();
         HologramManager.removeHologram(this.id);
     }
@@ -511,5 +526,91 @@ public class NeoForgeHologram implements Hologram {
     protected void updateHologramContentNoSave(Runnable contentUpdater) {
         contentUpdater.run();
         rebuildHologramLines();
+    }
+
+    // === Backlight API ===
+
+    /**
+     * @return whether this hologram has a backlight (light block) applied at its position.
+     */
+    public boolean isBacklightEnabled() {
+        return backlightEnabled;
+    }
+
+    /**
+     * @return the configured backlight emission level (0-15).
+     */
+    public int getBacklightLevel() {
+        return backlightLevel;
+    }
+
+    /**
+     * Enable or disable the backlight for this hologram. When enabled, an
+     * invisible {@code minecraft:light} block is placed at the hologram's
+     * anchor block, lighting up the area without showing any block.
+     *
+     * @param enabled whether the backlight should be on
+     * @param level   light emission level 0-15 (only used when enabling)
+     */
+    public void setBacklight(boolean enabled, int level) {
+        this.backlightLevel = UtilBacklight.clampLevel(level);
+        if (this.backlightEnabled && !enabled) {
+            clearBacklight();
+            this.backlightEnabled = false;
+        } else if (enabled) {
+            // Re-place even if already enabled so a level change takes effect immediately
+            this.backlightEnabled = true;
+            clearBacklight();
+            applyBacklight();
+        }
+        saveToConfig();
+    }
+
+    /**
+     * Restores backlight state from config without saving. Used during load.
+     */
+    public void restoreBacklightState(boolean enabled, int level) {
+        this.backlightEnabled = enabled;
+        this.backlightLevel = UtilBacklight.clampLevel(level);
+    }
+
+    /**
+     * Places the backlight in the world if enabled and the hologram is in a
+     * loaded world. The backlight is a vertical column of invisible light
+     * blocks that starts on the ground directly below the hologram and rises
+     * {@code backlightLevel} blocks straight up, so the light reads as a beam
+     * behind the hologram rather than a patch spread across the floor.
+     */
+    private void applyBacklight() {
+        if (!backlightEnabled) {
+            return;
+        }
+        ServerLevel level = getServerLevel();
+        if (level == null) {
+            return;
+        }
+
+        // The column spans from the ground beneath the lowest line up through
+        // the top line, so every row of a tall hologram (e.g. a Top-10
+        // scoreboard) sits inside the lit column.
+        int lineCount = linesContent.isEmpty() ? 1 : linesContent.size();
+        double topY = this.y;
+        double bottomY = this.y - ((lineCount - 1) * LINE_SPACING);
+
+        this.backlightPositions = UtilBacklight.placeColumn(level, this.x, bottomY, topY, this.z, backlightLevel);
+    }
+
+    /**
+     * Removes the backlight blocks from the world if any are currently placed.
+     */
+    private void clearBacklight() {
+        if (backlightPositions == null || backlightPositions.isEmpty()) {
+            return;
+        }
+        ServerLevel level = getServerLevel();
+        if (level != null) {
+            UtilBacklight.removeLights(level, backlightPositions);
+        }
+        this.backlightPositions = new ArrayList<>();
     }
 }

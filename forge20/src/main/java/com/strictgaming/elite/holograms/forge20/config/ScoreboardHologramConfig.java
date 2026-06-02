@@ -56,7 +56,17 @@ public class ScoreboardHologramConfig {
                 data.x = location[0];
                 data.y = location[1];
                 data.z = location[2];
-                
+
+                // Preserve the theme name and the resolved format settings
+                data.theme = hologram.getThemeName();
+                data.headerFormat = hologram.getHeaderFormat();
+                data.playerFormat = hologram.getPlayerFormat();
+                data.emptyFormat = hologram.getEmptyFormat();
+
+                // Preserve backlight state so it survives reload/restart
+                data.backlightEnabled = hologram.isBacklightEnabled();
+                data.backlightLevel = hologram.getBacklightLevel();
+
                 configData.add(data);
             }
             
@@ -109,9 +119,17 @@ public class ScoreboardHologramConfig {
         public double y;
         public double z;
         
+        // Name of the theme this board was created with (null/empty = use stored raw formats).
+        // When set, the theme is re-resolved on load so edits to scoreboard_themes.json apply.
+        public String theme;
+
         // Optional custom formats (can be null for defaults)
         public String headerFormat;
         public String playerFormat;
         public String emptyFormat;
+
+        // Backlight state (vertical light column) so it persists across reload/restart
+        public boolean backlightEnabled;
+        public int backlightLevel;
     }
 }

@@ -55,6 +55,21 @@ public class HologramsCreateScoreboardCommand implements Command<CommandSourceSt
             } catch (IllegalArgumentException ignored) {
                 updateInterval = 30; // Use default (30 seconds)
             }
+
+            // Optional theme; defaults to the configured default theme when omitted.
+            String theme = null;
+            try {
+                theme = StringArgumentType.getString(context, "theme");
+            } catch (IllegalArgumentException ignored) {
+                theme = null;
+            }
+            if (theme == null || theme.trim().isEmpty()) {
+                theme = com.strictgaming.elite.holograms.forge.config.ScoreboardThemeManager.getDefaultThemeName();
+            }
+            if (com.strictgaming.elite.holograms.forge.config.ScoreboardThemeManager.getTheme(theme) == null) {
+                source.sendFailure(Component.literal("§cUnknown theme '" + theme + "'. Check config/eliteholograms/scoreboard_themes.json"));
+                return 0;
+            }
             
             // Validate arguments
             if (id.trim().isEmpty()) {
@@ -93,9 +108,7 @@ public class HologramsCreateScoreboardCommand implements Command<CommandSourceSt
                 objective,
                 topCount,
                 updateInterval,
-                null, // Use default header format
-                null, // Use default player format
-                null  // Use default empty format
+                theme
             );
             
             // Force initial update
@@ -107,10 +120,11 @@ public class HologramsCreateScoreboardCommand implements Command<CommandSourceSt
             // Create final copies for lambda
             final int finalTopCount = topCount;
             final int finalUpdateInterval = updateInterval;
+            final String finalTheme = theme;
             
             source.sendSuccess(Component.literal(
                 "§aCreated scoreboard hologram '" + id + "' for objective '" + objective + 
-                "' showing top " + finalTopCount + " players (updates every " + finalUpdateInterval + "s)"
+                "' showing top " + finalTopCount + " players (updates every " + finalUpdateInterval + "s, theme '" + finalTheme + "')"
             ), false);
             
             return 1;

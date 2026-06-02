@@ -3,9 +3,11 @@ package com.strictgaming.elite.holograms.forge20.hologram;
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
 import com.strictgaming.elite.holograms.forge20.hologram.entity.AnimatedHologramLine;
 import com.strictgaming.elite.holograms.forge20.hologram.entity.HologramLine;
+import com.strictgaming.elite.holograms.forge20.util.UtilBacklight;
 import com.strictgaming.elite.holograms.forge20.util.UtilConcurrency;
 import com.strictgaming.elite.holograms.forge20.util.UtilWorld;
 import com.google.common.collect.Lists;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.level.Level;
@@ -32,6 +34,11 @@ public class ForgeHologram implements Hologram {
     private transient final List<HologramLine> lines;
     private transient final List<UUID> nearbyPlayers;
     private transient long tickCount = 0;
+
+    // Backlight state - places invisible minecraft:light blocks at the hologram
+    private boolean backlightEnabled = false;
+    private int backlightLevel = UtilBacklight.DEFAULT_LEVEL;
+    private transient List<BlockPos> backlightPositions = new ArrayList<>();
 
     public ForgeHologram(String id, Level world, Vec3 position, int range, boolean save, String... lines) {
         this.id = id;
@@ -145,9 +152,15 @@ public class ForgeHologram implements Hologram {
             return;
         }
 
+        // Remove backlight from old position
+        clearBacklight();
+
         // Update position
         this.position = new Vec3(x, y, z);
         this.repositionLines();
+
+        // Re-apply backlight at new position
+        applyBacklight();
 
         // Force refresh of visibility to show updated position
         this.refreshVisibility();
@@ -239,6 +252,9 @@ public class ForgeHologram implements Hologram {
 
     @Override
     public void delete() {
+        // Remove backlight first while we still have a valid world reference
+        clearBacklight();
+
         // First remove from manager
         HologramManager.removeHologram(this);
 
@@ -254,8 +270,8 @@ public class ForgeHologram implements Hologram {
      * This is called after loading from storage to ensure entities are initialized
      */
     public void spawn() {
-        // Base implementation does nothing - subclasses can override
-        // This is mainly for ItemHologram to initialize its item stand
+        // Apply backlight if enabled (also handles re-apply after reload)
+        applyBacklight();
     }
 
     @Override
@@ -266,6 +282,8 @@ public class ForgeHologram implements Hologram {
         }
         // Clear nearby players list since no one is seeing the hologram anymore
         this.nearbyPlayers.clear();
+        // Remove the world-side light block too
+        clearBacklight();
     }
 
     private void despawnLine(HologramLine line) {
@@ -487,7 +505,76 @@ public class ForgeHologram implements Hologram {
      * @param world The new world
      * @param position The new position
      */
+    // === Backlight API ===
+
+    /**
+     * @return whether this hologram has a backlight (light block) applied at its position.
+     */
+    public boolean isBacklightEnabled() {
+        return backlightEnabled;
+    }
+
+    /**
+     * @return the configured backlight emission level (0-15).
+     */
+    public int getBacklightLevel() {
+        return backlightLevel;
+    }
+
+    /**
+     * Enable or disable the backlight for this hologram. When enabled, an
+     * invisible {@code minecraft:light} block is placed at the hologram's
+     * anchor block, lighting up the area without showing any block.
+     */
+    public void setBacklight(boolean enabled, int level) {
+        this.backlightLevel = UtilBacklight.clampLevel(level);
+        if (this.backlightEnabled && !enabled) {
+            clearBacklight();
+            this.backlightEnabled = false;
+        } else if (enabled) {
+            this.backlightEnabled = true;
+            clearBacklight();
+            applyBacklight();
+        }
+        HologramManager.save();
+    }
+
+    /**
+     * Restores backlight state from config without saving. Used during load.
+     */
+    public void restoreBacklightState(boolean enabled, int level) {
+        this.backlightEnabled = enabled;
+        this.backlightLevel = UtilBacklight.clampLevel(level);
+    }
+
+    private void applyBacklight() {
+        if (!backlightEnabled || this.world == null || this.position == null) {
+            return;
+        }
+
+        // The column spans from the ground beneath the lowest line up through
+        // the top line, so every row of a tall hologram (e.g. a Top-10
+        // scoreboard) sits inside the lit column.
+        int lineCount = this.lines.isEmpty() ? 1 : this.lines.size();
+        double topY = this.position.y;
+        double bottomY = this.position.y - ((lineCount - 1) * HOLOGRAM_LINE_GAP);
+
+        this.backlightPositions = UtilBacklight.placeColumn(this.world, this.position.x, bottomY,
+                topY, this.position.z, backlightLevel);
+    }
+
+    private void clearBacklight() {
+        if (backlightPositions == null || backlightPositions.isEmpty() || this.world == null) {
+            return;
+        }
+        UtilBacklight.removeLights(this.world, backlightPositions);
+        this.backlightPositions = new ArrayList<>();
+    }
+
     public void teleport(Level world, Vec3 position) {
+        // Remove backlight from old position/world
+        clearBacklight();
+
         // Update the world and position
         this.world = world;
         this.position = position;
@@ -499,6 +586,9 @@ public class ForgeHologram implements Hologram {
         
         // Reposition lines in the new location
         this.repositionLines();
+
+        // Re-apply backlight at the new location
+        applyBacklight();
 
         // Force refresh of visibility
         this.refreshVisibility();

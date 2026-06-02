@@ -29,6 +29,7 @@ public class UtilPermissions {
     public static final String ADMIN = "eliteholograms.admin";
     public static final String INFO = "eliteholograms.info";
     public static final String NEAR = "eliteholograms.near";
+    public static final String BACKLIGHT = "eliteholograms.backlight";
 
     /**
      * Check if a player has permission for a specific action

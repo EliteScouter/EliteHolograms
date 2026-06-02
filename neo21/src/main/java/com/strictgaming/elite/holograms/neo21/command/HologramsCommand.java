@@ -115,10 +115,14 @@ public class HologramsCommand {
                 return UtilPermissions.TELEPORT;
             case "info":
                 return UtilPermissions.INFO;
+            case "backlight":
+                return UtilPermissions.BACKLIGHT;
             case "copy":
                 return UtilPermissions.CREATE; // Copy requires create permission
             case "createscoreboard":
                 return UtilPermissions.CREATE; // Scoreboard creation requires create permission
+            case "settheme":
+                return UtilPermissions.CREATE; // Restyling a scoreboard requires create permission
             case "reload":
                 return UtilPermissions.ADMIN;
             default:
@@ -139,7 +143,8 @@ public class HologramsCommand {
         source.sendSuccess(() -> Component.literal("§3│ §b/eh create <id> <text>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh createat <id> <x> <y> <z> [text]"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh createitem <id> <item> [text]"), false);
-        source.sendSuccess(() -> Component.literal("§3│ §b/eh createscoreboard <id> <objective> [top] [interval]"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh createscoreboard <id> <objective> [top] [interval] [theme]"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh settheme <id> <theme>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh list"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh delete <id>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh addline <id> <text>"), false);
@@ -155,6 +160,7 @@ public class HologramsCommand {
         source.sendSuccess(() -> Component.literal("§3│ §b/eh insertline <id> <line> <text>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh info <id>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh movevertical <id> <up|down> <amount> or <amount>"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh backlight <id> <on|off|toggle> [level 0-15]"), false);
         source.sendSuccess(() -> Component.literal("§3§l└─────────────────┘"), false);
         
         return 1;

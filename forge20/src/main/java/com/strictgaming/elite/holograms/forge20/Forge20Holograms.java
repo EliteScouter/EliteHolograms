@@ -7,6 +7,7 @@ import com.strictgaming.elite.holograms.forge20.command.CommandFactory;
 import com.strictgaming.elite.holograms.forge20.command.HologramsCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsCreateCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsCreateScoreboardCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsSetThemeCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsListCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsDeleteCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsReloadCommand;
@@ -24,6 +25,7 @@ import com.strictgaming.elite.holograms.forge20.command.HologramsNearCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsMoveVerticalCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsCreateItemCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsAnimateLineCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsBacklightCommand;
 import com.strictgaming.elite.holograms.forge20.config.HologramsConfig;
 import com.strictgaming.elite.holograms.forge20.hologram.ForgeHologram;
 import com.strictgaming.elite.holograms.forge20.hologram.HologramManager;
@@ -185,6 +187,7 @@ public class Forge20Holograms implements PlatformHologramManager {
         HologramsCommand command = new HologramsCommand();
         HologramsCreateCommand createCommand = new HologramsCreateCommand();
         HologramsCreateScoreboardCommand createScoreboardCommand = new HologramsCreateScoreboardCommand();
+        HologramsSetThemeCommand setThemeCommand = new HologramsSetThemeCommand();
         HologramsListCommand listCommand = new HologramsListCommand();
         HologramsDeleteCommand deleteCommand = new HologramsDeleteCommand();
         HologramsReloadCommand reloadCommand = new HologramsReloadCommand();
@@ -202,10 +205,12 @@ public class Forge20Holograms implements PlatformHologramManager {
         HologramsMoveVerticalCommand moveVerticalCommand = new HologramsMoveVerticalCommand();
         HologramsCreateItemCommand createItemCommand = new HologramsCreateItemCommand();
         HologramsAnimateLineCommand animateLineCommand = new HologramsAnimateLineCommand();
+        HologramsBacklightCommand backlightCommand = new HologramsBacklightCommand();
         
         // Register commands with main command handler
         command.registerSubCommand("create", createCommand);
         command.registerSubCommand("createscoreboard", createScoreboardCommand);
+        command.registerSubCommand("settheme", setThemeCommand);
         command.registerSubCommand("createitem", createItemCommand);
         command.registerSubCommand("list", listCommand);
         command.registerSubCommand("delete", deleteCommand);
@@ -223,6 +228,7 @@ public class Forge20Holograms implements PlatformHologramManager {
         command.registerSubCommand("info", infoCommand);
         command.registerSubCommand("near", nearCommand);
         command.registerSubCommand("movevertical", moveVerticalCommand);
+        command.registerSubCommand("backlight", backlightCommand);
         
         // Register main command with command dispatcher
         command.register(event.getDispatcher());

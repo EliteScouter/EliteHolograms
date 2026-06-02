@@ -44,6 +44,7 @@ public class HologramManager {
                     configDir.mkdirs();
                 }
                 scoreboardConfig = new ScoreboardHologramConfig(configDir);
+                com.strictgaming.elite.holograms.neo26.config.ScoreboardThemeManager.init(configDir);
                 initialized = true;
                 LOGGER.info("Scoreboard hologram config initialized");
             } catch (Exception e) {
@@ -257,6 +258,8 @@ public class HologramManager {
     private static void loadScoreboardHolograms() {
         try {
             if (scoreboardConfig == null) return;
+            // Refresh themes from disk first so reload picks up edits without a reboot.
+            com.strictgaming.elite.holograms.neo26.config.ScoreboardThemeManager.reload();
             var list = scoreboardConfig.load();
             LOGGER.debug("Loading {} scoreboard hologram configurations from config", list.size());
             for (var data : list) {
@@ -275,10 +278,15 @@ public class HologramManager {
                             data.objectiveName,
                             data.topCount,
                             data.updateInterval,
+                            data.theme,
                             data.headerFormat,
                             data.playerFormat,
                             data.emptyFormat
                     );
+                    // Restore persisted backlight state before spawn so spawn() re-applies the light column
+                    if (data.backlightEnabled) {
+                        holo.restoreBacklightState(true, data.backlightLevel);
+                    }
                     holo.spawn();
                     holo.forceUpdate();
                     addHologram(holo);

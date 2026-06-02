@@ -23,6 +23,7 @@ import com.strictgaming.elite.holograms.forge.command.HologramsReloadCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsInfoCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsAnimateLineCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsCreateItemCommand;
+import com.strictgaming.elite.holograms.forge.command.HologramsBacklightCommand;
 import com.strictgaming.elite.holograms.forge.config.HologramsConfig;
 import com.strictgaming.elite.holograms.forge.hologram.HologramManager;
 import com.strictgaming.elite.holograms.forge.hologram.manager.ForgeHologramManager;
@@ -185,6 +186,9 @@ public class ForgeHolograms {
         LOGGER.info("Registering HologramsCreateScoreboardCommand");
         HologramsCreateScoreboardCommand createScoreboardCommand = new HologramsCreateScoreboardCommand();
         command.registerSubCommand("createscoreboard", createScoreboardCommand);
+
+        LOGGER.info("Registering HologramsSetThemeCommand");
+        command.registerSubCommand("settheme", new com.strictgaming.elite.holograms.forge.command.HologramsSetThemeCommand());
         
         // Register the near command explicitly
         LOGGER.info("Registering HologramsNearCommand");
@@ -234,6 +238,9 @@ public class ForgeHolograms {
         
         LOGGER.info("Registering HologramsCreateItemCommand");
         command.registerSubCommand("createitem", new HologramsCreateItemCommand());
+
+        LOGGER.info("Registering HologramsBacklightCommand");
+        command.registerSubCommand("backlight", new HologramsBacklightCommand());
         
         LOGGER.info("Registering main command dispatcher");
         this.commandFactory.registerCommand(event.getDispatcher(), command);

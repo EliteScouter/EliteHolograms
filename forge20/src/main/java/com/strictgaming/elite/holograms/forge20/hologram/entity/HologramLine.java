@@ -16,8 +16,6 @@ import net.minecraft.world.phys.Vec3;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.lang.reflect.Field;
-
 /**
  * Manages a single line in a hologram
  */
@@ -46,20 +44,16 @@ public class HologramLine {
             this.armorStand.setCustomNameVisible(true);
             this.armorStand.setInvulnerable(true);
             
-            // Don't use potentially private methods
-            // this.armorStand.setSmall(true); // This is private in 1.20
-            // this.armorStand.setNoBasePlate(true); // Might also be private
-            // this.armorStand.setShowArms(false); // Might also be private
-            
-            // Try setting marker flag via reflection as it's safer
-            try {
-                Field markerField = ArmorStand.class.getDeclaredField("marker");
-                markerField.setAccessible(true);
-                markerField.set(this.armorStand, true);
-            } catch (Exception e) {
-                LOGGER.debug("Failed to set marker flag via reflection - this is normal", e);
-            }
-            
+            // NOTE: We deliberately do NOT set the armor stand's "marker" flag here.
+            // A previous version tried to do this via reflection on a field named
+            // "marker", which does not exist in the 1.20.1 mappings (the flag lives in
+            // DATA_CLIENT_FLAGS). That reflection failed on every line creation and,
+            // with debug logging on, flooded the console with NoSuchFieldException
+            // stack traces - especially for scoreboard holograms, which rebuild every
+            // line on each refresh. Enabling marker would also drop the rendered name
+            // by roughly the armor stand's height, breaking the existing line spacing,
+            // so it is intentionally left off.
+
             // Set minimal size bounding box
             try {
                 this.armorStand.setBoundingBox(this.armorStand.getBoundingBox().inflate(-0.99, -0.99, -0.99));

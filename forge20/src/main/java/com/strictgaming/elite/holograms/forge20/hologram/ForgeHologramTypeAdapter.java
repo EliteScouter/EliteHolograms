@@ -3,6 +3,7 @@ package com.strictgaming.elite.holograms.forge20.hologram;
 import com.strictgaming.elite.holograms.forge20.hologram.entity.AnimatedHologramLine;
 import com.strictgaming.elite.holograms.forge20.hologram.entity.HologramLine;
 import com.strictgaming.elite.holograms.forge20.util.UtilWorld;
+import com.strictgaming.elite.holograms.forge20.util.UtilBacklight;
 import com.google.common.collect.Lists;
 import com.google.gson.*;
 import net.minecraft.world.level.Level;
@@ -45,6 +46,10 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
 
         object.add("lines", lines);
         object.addProperty("range", hologram.getRange());
+
+        // Backlight state
+        object.addProperty("backlightEnabled", hologram.isBacklightEnabled());
+        object.addProperty("backlightLevel", hologram.getBacklightLevel());
 
         // Include hologram type metadata for specialized holograms
         if (hologram instanceof ItemHologram) {
@@ -108,6 +113,11 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
                 // Create the hologram base first (without lines)
                 hologram = new ForgeHologram(id, world, new Vec3(x, y, z), range, false);
             }
+
+            // Restore backlight state (does not place block yet - spawn() will do that)
+            boolean backlightEnabled = object.has("backlightEnabled") && object.get("backlightEnabled").getAsBoolean();
+            int backlightLevel = object.has("backlightLevel") ? object.get("backlightLevel").getAsInt() : UtilBacklight.DEFAULT_LEVEL;
+            hologram.restoreBacklightState(backlightEnabled, backlightLevel);
             
             // Process lines manually to handle animations
             JsonArray lines = object.getAsJsonArray("lines");

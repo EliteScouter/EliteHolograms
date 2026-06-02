@@ -38,6 +38,38 @@ public class HologramsCommand {
         }
         return builder.buildFuture();
     };
+
+    // Suggests objectives currently registered on the server scoreboard
+    private static final SuggestionProvider<CommandSourceStack> OBJECTIVE_SUGGESTIONS = (context, builder) -> {
+        try {
+            var server = context.getSource().getServer();
+            if (server != null) {
+                for (net.minecraft.world.scores.Objective objective : server.getScoreboard().getObjectives()) {
+                    builder.suggest(objective.getName());
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return builder.buildFuture();
+    };
+
+    // Suggests the configured scoreboard theme names
+    private static final SuggestionProvider<CommandSourceStack> THEME_SUGGESTIONS = (context, builder) -> {
+        for (String name : com.strictgaming.elite.holograms.forge.config.ScoreboardThemeManager.getThemeNames()) {
+            builder.suggest(name);
+        }
+        return builder.buildFuture();
+    };
+
+    // Suggests the IDs of existing scoreboard holograms
+    private static final SuggestionProvider<CommandSourceStack> SCOREBOARD_ID_SUGGESTIONS = (context, builder) -> {
+        for (Hologram hologram : HologramManager.getAllHolograms()) {
+            if (hologram instanceof com.strictgaming.elite.holograms.forge.hologram.ScoreboardHologram) {
+                builder.suggest(hologram.getId());
+            }
+        }
+        return builder.buildFuture();
+    };
     
     /**
      * Register the command with the dispatcher
@@ -100,6 +132,7 @@ public class HologramsCommand {
                 .requires(UtilPermissions::canCreate)
                 .then(Commands.argument("id", StringArgumentType.word())
                 .then(Commands.argument("objective", StringArgumentType.word())
+                .suggests(OBJECTIVE_SUGGESTIONS)
                 .executes(ctx -> {
                     String[] args = new String[] {
                         StringArgumentType.getString(ctx, "id"),
@@ -125,8 +158,35 @@ public class HologramsCommand {
                         String.valueOf(com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "updateInterval"))
                     };
                     return executeSubCommand(ctx, "createscoreboard", args);
-                }))))) ;
-                
+                })
+                .then(Commands.argument("theme", StringArgumentType.word())
+                .suggests(THEME_SUGGESTIONS)
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "objective"),
+                        String.valueOf(com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "topCount")),
+                        String.valueOf(com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "updateInterval")),
+                        StringArgumentType.getString(ctx, "theme")
+                    };
+                    return executeSubCommand(ctx, "createscoreboard", args);
+                })))))) ;
+
+        // settheme command - restyle an existing scoreboard hologram
+        LiteralArgumentBuilder<CommandSourceStack> setThemeCommand = Commands.literal("settheme")
+                .requires(UtilPermissions::canCreate)
+                .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(SCOREBOARD_ID_SUGGESTIONS)
+                .then(Commands.argument("theme", StringArgumentType.word())
+                .suggests(THEME_SUGGESTIONS)
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "theme")
+                    };
+                    return executeSubCommand(ctx, "settheme", args);
+                })));
+
         LiteralArgumentBuilder<CommandSourceStack> deleteCommand = Commands.literal("delete")
                 .requires(UtilPermissions::canDelete)
                 .then(Commands.argument("id", StringArgumentType.word())
@@ -359,10 +419,34 @@ public class HologramsCommand {
                     return executeSubCommand(ctx, "createitem", args);
                 }))));
                 
+        // Backlight command - toggles invisible minecraft:light block at hologram position
+        LiteralArgumentBuilder<CommandSourceStack> backlightCommand = Commands.literal("backlight")
+                .requires(src -> UtilPermissions.hasPermission(src, UtilPermissions.BACKLIGHT))
+                .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                .then(Commands.literal("on")
+                    .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
+                        StringArgumentType.getString(ctx, "id"), "on"
+                    }))
+                    .then(Commands.argument("level", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, 15))
+                        .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
+                            StringArgumentType.getString(ctx, "id"), "on",
+                            String.valueOf(com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "level"))
+                        }))))
+                .then(Commands.literal("off")
+                    .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
+                        StringArgumentType.getString(ctx, "id"), "off"
+                    })))
+                .then(Commands.literal("toggle")
+                    .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
+                        StringArgumentType.getString(ctx, "id"), "toggle"
+                    }))));
+
         command.then(createCommand);
         command.then(createAtCommand);
         command.then(deleteCommand);
         command.then(createScoreboardCommand);
+        command.then(setThemeCommand);
         command.then(addLineCommand);
         command.then(setLineCommand);
         command.then(removeLineCommand);
@@ -378,6 +462,7 @@ public class HologramsCommand {
         command.then(reloadCommand);
         command.then(animateLineCommand);
         command.then(createItemCommand);
+        command.then(backlightCommand);
         
         dispatcher.register(command);
         
@@ -396,7 +481,8 @@ public class HologramsCommand {
         source.sendSystemMessage(UtilChatColour.parse("&3&l┌─&b&lElite Holograms &3&l──────┐"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh create <id> <text>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh createat <id> <x> <y> <z> [world] <text>"));
-        source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh createscoreboard <id> <objective> [top] [interval]"));
+        source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh createscoreboard <id> <objective> [top] [interval] [theme]"));
+        source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh settheme <id> <theme>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh list"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh delete <id>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh addline <id> <text>"));
@@ -413,6 +499,7 @@ public class HologramsCommand {
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh movevertical <id> <up|down> <amount>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh animateline <id> <line> <sec> <frame1>|<frame2>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh createitem <id> <item> [text...]"));
+        source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh backlight <id> <on|off|toggle> [level 0-15]"));
         source.sendSystemMessage(UtilChatColour.parse("&3&l└─────────────────┘"));
         return 1;
     }
@@ -490,6 +577,9 @@ public class HologramsCommand {
             // Special handling for commands that use executeCommand method
             if (subCommand instanceof HologramsCreateScoreboardCommand) {
                 return ((HologramsCreateScoreboardCommand) subCommand).run(context);
+            }
+            if (subCommand instanceof HologramsSetThemeCommand) {
+                return ((HologramsSetThemeCommand) subCommand).executeCommand(context, args);
             }
             if (subCommand instanceof HologramsCreateCommand) {
                 return ((HologramsCreateCommand) subCommand).executeCommand(context, args);
@@ -578,6 +668,7 @@ public class HologramsCommand {
                     Commands.argument("id", StringArgumentType.word())
                         .then(
                             Commands.argument("objective", StringArgumentType.word())
+                                .suggests(OBJECTIVE_SUGGESTIONS)
                                 .executes(ctx -> {
                                     String[] args = new String[] {
                                         StringArgumentType.getString(ctx, "id"),
@@ -606,11 +697,41 @@ public class HologramsCommand {
                                                     };
                                                     return executeSubCommand(ctx, "createscoreboard", args);
                                                 })
+                                                .then(
+                                                    Commands.argument("theme", StringArgumentType.word())
+                                                        .suggests(THEME_SUGGESTIONS)
+                                                        .executes(ctx -> {
+                                                            String[] args = new String[] {
+                                                                StringArgumentType.getString(ctx, "id"),
+                                                                StringArgumentType.getString(ctx, "objective"),
+                                                                String.valueOf(com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "topCount")),
+                                                                String.valueOf(com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "updateInterval")),
+                                                                StringArgumentType.getString(ctx, "theme")
+                                                            };
+                                                            return executeSubCommand(ctx, "createscoreboard", args);
+                                                        })
+                                                )
                                         )
                                 )
                         )
                 )
         );
+
+        // settheme alias - restyle an existing scoreboard hologram
+        aliasCommand.then(
+            Commands.literal("settheme")
+                .requires(UtilPermissions::canCreate)
+                .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(SCOREBOARD_ID_SUGGESTIONS)
+                .then(Commands.argument("theme", StringArgumentType.word())
+                .suggests(THEME_SUGGESTIONS)
+                .executes(ctx -> {
+                    String[] args = new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "theme")
+                    };
+                    return executeSubCommand(ctx, "settheme", args);
+                }))));
 
         // movevertical alias with suggestions and up/down
         aliasCommand.then(Commands.literal("movevertical")
@@ -859,7 +980,30 @@ public class HologramsCommand {
                     };
                     return executeSubCommand(ctx, "info", args);
                 })));
-                
+
+        // Backlight command (alias)
+        aliasCommand.then(Commands.literal("backlight")
+                .requires(src -> UtilPermissions.hasPermission(src, UtilPermissions.BACKLIGHT))
+                .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                .then(Commands.literal("on")
+                    .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
+                        StringArgumentType.getString(ctx, "id"), "on"
+                    }))
+                    .then(Commands.argument("level", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, 15))
+                        .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
+                            StringArgumentType.getString(ctx, "id"), "on",
+                            String.valueOf(com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "level"))
+                        }))))
+                .then(Commands.literal("off")
+                    .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
+                        StringArgumentType.getString(ctx, "id"), "off"
+                    })))
+                .then(Commands.literal("toggle")
+                    .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
+                        StringArgumentType.getString(ctx, "id"), "toggle"
+                    })))));
+
         dispatcher.register(aliasCommand);
     }
     

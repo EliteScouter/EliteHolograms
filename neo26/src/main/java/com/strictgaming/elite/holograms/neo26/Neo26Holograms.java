@@ -5,6 +5,7 @@ import com.strictgaming.elite.holograms.api.manager.HologramFactory;
 import com.strictgaming.elite.holograms.api.manager.PlatformHologramManager;
 import com.strictgaming.elite.holograms.neo26.command.CommandFactory;
 import com.strictgaming.elite.holograms.neo26.command.HologramsAnimateLineCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsBacklightCommand;
 import com.strictgaming.elite.holograms.neo26.command.HologramsCommand;
 import com.strictgaming.elite.holograms.neo26.command.HologramsCreateCommand;
 import com.strictgaming.elite.holograms.neo26.command.HologramsCreateItemCommand;
@@ -23,6 +24,7 @@ import com.strictgaming.elite.holograms.neo26.command.HologramsInfoCommand;
 import com.strictgaming.elite.holograms.neo26.command.HologramsCopyCommand;
 import com.strictgaming.elite.holograms.neo26.command.HologramsInsertLineCommand;
 import com.strictgaming.elite.holograms.neo26.command.HologramsCreateScoreboardCommand;
+import com.strictgaming.elite.holograms.neo26.command.HologramsSetThemeCommand;
 import com.strictgaming.elite.holograms.neo26.command.HologramsMoveVerticalCommand;
 import com.strictgaming.elite.holograms.neo26.config.HologramsConfig;
 import com.strictgaming.elite.holograms.neo26.hologram.HologramManager;
@@ -88,7 +90,9 @@ public class Neo26Holograms implements PlatformHologramManager {
     private HologramsCopyCommand copyCommand;
     private HologramsInsertLineCommand insertLineCommand;
     private HologramsCreateScoreboardCommand createScoreboardCommand;
+    private HologramsSetThemeCommand setThemeCommand;
     private HologramsMoveVerticalCommand moveVerticalCommand;
+    private HologramsBacklightCommand backlightCommand;
 
     public Neo26Holograms(IEventBus modEventBus, ModContainer modContainer) {
         instance = this;
@@ -120,7 +124,9 @@ public class Neo26Holograms implements PlatformHologramManager {
         copyCommand = new HologramsCopyCommand();
         insertLineCommand = new HologramsInsertLineCommand();
         createScoreboardCommand = new HologramsCreateScoreboardCommand();
+        setThemeCommand = new HologramsSetThemeCommand();
         moveVerticalCommand = new HologramsMoveVerticalCommand();
+        backlightCommand = new HologramsBacklightCommand();
         
         // Set up subcommands
         mainCommand.registerSubCommand("create", createCommand);
@@ -141,7 +147,9 @@ public class Neo26Holograms implements PlatformHologramManager {
         mainCommand.registerSubCommand("copy", copyCommand);
         mainCommand.registerSubCommand("insertline", insertLineCommand);
         mainCommand.registerSubCommand("createscoreboard", createScoreboardCommand);
+        mainCommand.registerSubCommand("settheme", setThemeCommand);
         mainCommand.registerSubCommand("movevertical", moveVerticalCommand);
+        mainCommand.registerSubCommand("backlight", backlightCommand);
     }
     
     private void commonSetup(final FMLCommonSetupEvent event) {
@@ -184,7 +192,9 @@ public class Neo26Holograms implements PlatformHologramManager {
         copyCommand.register(event.getDispatcher());
         insertLineCommand.register(event.getDispatcher());
         createScoreboardCommand.register(event.getDispatcher());
+        setThemeCommand.register(event.getDispatcher());
         moveVerticalCommand.register(event.getDispatcher());
+        backlightCommand.register(event.getDispatcher());
         
         LOGGER.info("Commands registered successfully!");
     }

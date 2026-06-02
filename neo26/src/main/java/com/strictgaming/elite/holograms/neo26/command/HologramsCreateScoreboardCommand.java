@@ -6,20 +6,52 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 
+import com.strictgaming.elite.holograms.neo26.config.ScoreboardThemeManager;
 import com.strictgaming.elite.holograms.neo26.hologram.HologramManager;
 import com.strictgaming.elite.holograms.neo26.hologram.ScoreboardHologram;
 import com.strictgaming.elite.holograms.neo26.util.UtilPermissions;
 
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.scores.Objective;
+
+import java.util.concurrent.CompletableFuture;
 
 /**
- * /eh createscoreboard <id> <objective> [topCount 1-10] [interval 5-300]
+ * /eh createscoreboard <id> <objective> [topCount 1-10] [interval 5-300] [theme]
  */
 public class HologramsCreateScoreboardCommand implements HologramsCommand.SubCommand, Command<CommandSourceStack> {
+
+    /** Suggests the names of objectives currently registered on the server scoreboard. */
+    private static final SuggestionProvider<CommandSourceStack> SUGGEST_OBJECTIVES = (context, builder) ->
+            suggestObjectives(context, builder);
+
+    /** Suggests the configured scoreboard theme names. */
+    private static final SuggestionProvider<CommandSourceStack> SUGGEST_THEMES = (context, builder) ->
+            SharedSuggestionProvider.suggest(ScoreboardThemeManager.getThemeNames(), builder);
+
+    private static CompletableFuture<Suggestions> suggestObjectives(
+            CommandContext<CommandSourceStack> context, SuggestionsBuilder builder) {
+        try {
+            var server = context.getSource().getServer();
+            if (server != null) {
+                java.util.List<String> names = new java.util.ArrayList<>();
+                for (Objective objective : server.getScoreboard().getObjectives()) {
+                    names.add(objective.getName());
+                }
+                return SharedSuggestionProvider.suggest(names, builder);
+            }
+        } catch (Exception ignored) {
+        }
+        return builder.buildFuture();
+    }
 
     public void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(
@@ -28,11 +60,16 @@ public class HologramsCreateScoreboardCommand implements HologramsCommand.SubCom
                     .requires(source -> UtilPermissions.canCreate(source))
                     .then(Commands.argument("id", StringArgumentType.word())
                         .then(Commands.argument("objective", StringArgumentType.word())
+                            .suggests(SUGGEST_OBJECTIVES)
                             .executes(this::run)
                             .then(Commands.argument("topCount", IntegerArgumentType.integer(1, 10))
                                 .executes(this::run)
                                 .then(Commands.argument("updateInterval", IntegerArgumentType.integer(5, 300))
                                     .executes(this::run)
+                                    .then(Commands.argument("theme", StringArgumentType.word())
+                                        .suggests(SUGGEST_THEMES)
+                                        .executes(this::run)
+                                    )
                                 )
                             )
                         )
@@ -46,11 +83,16 @@ public class HologramsCreateScoreboardCommand implements HologramsCommand.SubCom
                     .requires(source -> UtilPermissions.canCreate(source))
                     .then(Commands.argument("id", StringArgumentType.word())
                         .then(Commands.argument("objective", StringArgumentType.word())
+                            .suggests(SUGGEST_OBJECTIVES)
                             .executes(this::run)
                             .then(Commands.argument("topCount", IntegerArgumentType.integer(1, 10))
                                 .executes(this::run)
                                 .then(Commands.argument("updateInterval", IntegerArgumentType.integer(5, 300))
                                     .executes(this::run)
+                                    .then(Commands.argument("theme", StringArgumentType.word())
+                                        .suggests(SUGGEST_THEMES)
+                                        .executes(this::run)
+                                    )
                                 )
                             )
                         )
@@ -79,6 +121,17 @@ public class HologramsCreateScoreboardCommand implements HologramsCommand.SubCom
             int updateInterval = 30;
             try { topCount = IntegerArgumentType.getInteger(context, "topCount"); } catch (IllegalArgumentException ignored) {}
             try { updateInterval = IntegerArgumentType.getInteger(context, "updateInterval"); } catch (IllegalArgumentException ignored) {}
+
+            String theme = null;
+            try { theme = StringArgumentType.getString(context, "theme"); } catch (IllegalArgumentException ignored) {}
+            // Default to the configured default theme so new boards pick up the styling out of the box.
+            if (theme == null || theme.trim().isEmpty()) {
+                theme = ScoreboardThemeManager.getDefaultThemeName();
+            }
+            if (ScoreboardThemeManager.getTheme(theme) == null) {
+                source.sendFailure(Component.literal("§cUnknown theme '" + theme + "'. Check config/eliteholograms/scoreboard_themes.json"));
+                return 0;
+            }
 
             if (id.trim().isEmpty()) {
                 source.sendFailure(Component.literal("§cHologram ID cannot be empty!"));
@@ -115,9 +168,7 @@ public class HologramsCreateScoreboardCommand implements HologramsCommand.SubCom
                     objective,
                     topCount,
                     updateInterval,
-                    null,
-                    null,
-                    null
+                    theme
             );
             holo.spawn();
             holo.forceUpdate();
@@ -126,9 +177,10 @@ public class HologramsCreateScoreboardCommand implements HologramsCommand.SubCom
 
             final int fc = topCount;
             final int fi = updateInterval;
+            final String ft = theme;
             source.sendSuccess(() -> Component.literal(
                 "§aCreated scoreboard hologram '" + id + "' for objective '" + objective +
-                "' showing top " + fc + " players (updates every " + fi + "s)"
+                "' showing top " + fc + " players (updates every " + fi + "s, theme '" + ft + "')"
             ), false);
             return 1;
         } catch (Exception e) {
@@ -147,7 +199,10 @@ public class HologramsCreateScoreboardCommand implements HologramsCommand.SubCom
         return Commands.literal("createscoreboard")
                 .then(Commands.argument("id", StringArgumentType.word())
                     .then(Commands.argument("objective", StringArgumentType.word())
+                        .suggests(SUGGEST_OBJECTIVES)
                         .then(Commands.argument("topCount", IntegerArgumentType.integer(1, 10))
-                            .then(Commands.argument("updateInterval", IntegerArgumentType.integer(5, 300))))));
+                            .then(Commands.argument("updateInterval", IntegerArgumentType.integer(5, 300))
+                                .then(Commands.argument("theme", StringArgumentType.word())
+                                    .suggests(SUGGEST_THEMES))))));
     }
 }

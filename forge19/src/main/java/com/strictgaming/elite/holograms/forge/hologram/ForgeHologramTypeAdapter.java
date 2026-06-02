@@ -3,6 +3,7 @@ package com.strictgaming.elite.holograms.forge.hologram;
 import com.strictgaming.elite.holograms.forge.hologram.entity.AnimatedHologramLine;
 import com.strictgaming.elite.holograms.forge.hologram.entity.HologramLine;
 import com.strictgaming.elite.holograms.forge.util.UtilWorld;
+import com.strictgaming.elite.holograms.forge.util.UtilBacklight;
 import com.google.common.collect.Lists;
 import com.google.gson.*;
 import net.minecraft.world.level.Level;
@@ -56,6 +57,11 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
 
         object.add("lines", lines);
         object.addProperty("range", hologram.getRange());
+
+        // Backlight state
+        object.addProperty("backlightEnabled", hologram.isBacklightEnabled());
+        object.addProperty("backlightLevel", hologram.getBacklightLevel());
+
         return object;
     }
 
@@ -133,7 +139,12 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
                     }
                 }
             }
-            
+
+            // Restore backlight state (will be applied to the world after server load)
+            boolean backlightEnabled = object.has("backlightEnabled") && object.get("backlightEnabled").getAsBoolean();
+            int backlightLevel = object.has("backlightLevel") ? object.get("backlightLevel").getAsInt() : UtilBacklight.DEFAULT_LEVEL;
+            hologram.restoreBacklightState(backlightEnabled, backlightLevel);
+
             return hologram;
         } catch (Exception e) {
             System.out.println("[EliteHolograms] Error deserializing hologram: " + e.getMessage());

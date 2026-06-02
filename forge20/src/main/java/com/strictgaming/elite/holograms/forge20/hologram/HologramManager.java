@@ -59,6 +59,7 @@ public class HologramManager implements Runnable {
             configDir.mkdirs();
         }
         scoreboardConfig = new ScoreboardHologramConfig(configDir);
+        com.strictgaming.elite.holograms.forge20.config.ScoreboardThemeManager.init(configDir);
     }
     
     /**
@@ -250,6 +251,8 @@ public class HologramManager implements Runnable {
      * Load scoreboard holograms from separate config file
      */
     private static void loadScoreboardHolograms() {
+        // Refresh themes from disk first so reload picks up edits without a reboot.
+        com.strictgaming.elite.holograms.forge20.config.ScoreboardThemeManager.reload();
         List<ScoreboardHologramConfig.ScoreboardHologramData> configData = scoreboardConfig.load();
         
         for (ScoreboardHologramConfig.ScoreboardHologramData data : configData) {
@@ -276,6 +279,7 @@ public class HologramManager implements Runnable {
                     data.objectiveName,
                     data.topCount,
                     data.updateInterval,
+                    data.theme,
                     data.headerFormat,
                     data.playerFormat,
                     data.emptyFormat
@@ -283,7 +287,12 @@ public class HologramManager implements Runnable {
                 
                 // Force initial update
                 hologram.forceUpdate();
-                
+
+                // Re-apply persisted backlight (vertical light column) so it survives reload/restart
+                if (data.backlightEnabled) {
+                    hologram.setBacklight(true, data.backlightLevel);
+                }
+
                 LOGGER.info("Recreated scoreboard hologram '{}' for objective '{}'", data.id, data.objectiveName);
                 
             } catch (Exception e) {
@@ -444,18 +453,11 @@ public class HologramManager implements Runnable {
 
                     hologram.getNearbyPlayers().add(player.getUUID());
                 } else {
-                     // This else block was refreshing every tick, which is wasteful and might be causing flicker or issues
-                     // Forge19 does NOT update every tick unless it's an animated line.
-                     // We should only update if it's animated or if we need to force an update.
-                     
+                    // Player is already nearby - update non-animated lines so placeholders
+                    // like %players% and %maxplayers% stay current
                     for (HologramLine line : hologram.getLines()) {
-                        if (line != null && line instanceof AnimatedHologramLine) {
-                             // Only update animated lines here. 
-                             // Normal lines don't need constant packet spam.
-                             // The tick() method handles the actual animation logic.
-                             // But wait, the tick() method updates for all nearby players.
-                             // So we don't need to do ANYTHING here for already-nearby players
-                             // unless we are handling general periodic refreshes.
+                        if (line != null && !(line instanceof AnimatedHologramLine)) {
+                            UtilConcurrency.runSync(() -> line.updateForPlayer(player));
                         }
                     }
                 }

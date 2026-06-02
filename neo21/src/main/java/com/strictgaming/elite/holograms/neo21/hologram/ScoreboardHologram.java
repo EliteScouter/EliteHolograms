@@ -1,5 +1,7 @@
 package com.strictgaming.elite.holograms.neo21.hologram;
 
+import com.strictgaming.elite.holograms.neo21.config.ScoreboardTheme;
+import com.strictgaming.elite.holograms.neo21.config.ScoreboardThemeManager;
 import com.strictgaming.elite.holograms.neo21.hologram.implementation.NeoForgeHologram;
 
 import net.minecraft.server.MinecraftServer;
@@ -32,15 +34,20 @@ public class ScoreboardHologram extends NeoForgeHologram {
     private final String objectiveName;
     private final int topCount;
     private final int updateIntervalSeconds;
-    private final String headerFormat;
-    private final String playerFormat;
-    private final String emptyFormat;
+    private String themeName;
+    private String headerFormat;
+    private String playerFormat;
+    private String emptyFormat;
     private final boolean isTimeObjective;
     private final int range;
 
     private long lastUpdateMs = 0L;
     private List<ScoreEntry> lastScores = new ArrayList<>();
 
+    /**
+     * Theme-based constructor. The named theme is resolved from {@link ScoreboardThemeManager},
+     * so editing the theme in {@code scoreboard_themes.json} and reloading restyles the board.
+     */
     public ScoreboardHologram(
             String id,
             String worldName,
@@ -51,6 +58,29 @@ public class ScoreboardHologram extends NeoForgeHologram {
             String objectiveName,
             int topCount,
             int updateIntervalSeconds,
+            String themeName
+    ) {
+        this(id, worldName, x, y, z, range, objectiveName, topCount, updateIntervalSeconds,
+                themeName, null, null, null);
+    }
+
+    /**
+     * Full constructor. When {@code themeName} is set and resolves to a known theme, its format
+     * strings win. Otherwise the explicit header/player/empty formats are used, and any that are
+     * {@code null} fall back to the built-in defaults. This keeps configs saved before themes
+     * existed working unchanged.
+     */
+    public ScoreboardHologram(
+            String id,
+            String worldName,
+            double x,
+            double y,
+            double z,
+            int range,
+            String objectiveName,
+            int topCount,
+            int updateIntervalSeconds,
+            String themeName,
             String headerFormat,
             String playerFormat,
             String emptyFormat
@@ -61,11 +91,20 @@ public class ScoreboardHologram extends NeoForgeHologram {
         this.topCount = Math.max(1, Math.min(topCount, 10));
         this.updateIntervalSeconds = Math.max(5, updateIntervalSeconds);
         this.isTimeObjective = isTimeBasedObjective(objectiveName);
-        this.headerFormat = headerFormat != null ? headerFormat : "§6§l{objective} - Top {count}";
-        this.playerFormat = playerFormat != null ? playerFormat : (this.isTimeObjective
-                ? "§e{rank}. §f{player} §7- §a{time}"
-                : "§e{rank}. §f{player} §7- §a{score}");
-        this.emptyFormat = emptyFormat != null ? emptyFormat : "§7No data available";
+        this.themeName = themeName;
+
+        ScoreboardTheme theme = themeName != null ? ScoreboardThemeManager.getTheme(themeName) : null;
+        if (theme != null) {
+            this.headerFormat = theme.getHeader();
+            this.playerFormat = theme.playerFormatFor(this.isTimeObjective);
+            this.emptyFormat = theme.getEmpty();
+        } else {
+            this.headerFormat = headerFormat != null ? headerFormat : "§6§l{objective} - Top {count}";
+            this.playerFormat = playerFormat != null ? playerFormat : (this.isTimeObjective
+                    ? "§e{rank}. §f{player} §7- §a{time}"
+                    : "§e{rank}. §f{player} §7- §a{score}");
+            this.emptyFormat = emptyFormat != null ? emptyFormat : "§7No data available";
+        }
         this.range = range > 0 ? range : 32;
 
         // Initialize display immediately
@@ -83,6 +122,27 @@ public class ScoreboardHologram extends NeoForgeHologram {
     public void forceUpdate() {
         updateScoreboardDisplay();
         lastUpdateMs = System.currentTimeMillis();
+    }
+
+    /**
+     * Switches this board to a different theme at runtime and immediately re-renders.
+     *
+     * @param newThemeName the theme name to apply (resolved from {@link ScoreboardThemeManager})
+     * @return {@code true} if the theme existed and was applied, {@code false} otherwise
+     */
+    public boolean applyTheme(String newThemeName) {
+        ScoreboardTheme theme = newThemeName != null ? ScoreboardThemeManager.getTheme(newThemeName) : null;
+        if (theme == null) {
+            return false;
+        }
+        this.themeName = newThemeName;
+        this.headerFormat = theme.getHeader();
+        this.playerFormat = theme.playerFormatFor(this.isTimeObjective);
+        this.emptyFormat = theme.getEmpty();
+        // Clear the cached snapshot so the next render is forced even if scores are unchanged.
+        this.lastScores = new ArrayList<>();
+        forceUpdate();
+        return true;
     }
 
     @Override
@@ -229,6 +289,7 @@ public class ScoreboardHologram extends NeoForgeHologram {
     public double[] getLocation() { return new double[] { getX(), getY(), getZ() }; }
 
     // Getter methods for format fields
+    public String getThemeName() { return themeName; }
     public String getHeaderFormat() { return headerFormat; }
     public String getPlayerFormat() { return playerFormat; }
     public String getEmptyFormat() { return emptyFormat; }

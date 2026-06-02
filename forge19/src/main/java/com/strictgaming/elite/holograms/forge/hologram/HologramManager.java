@@ -64,6 +64,7 @@ public class HologramManager implements Runnable {
             configDir.mkdirs();
         }
         scoreboardConfig = new ScoreboardHologramConfig(configDir);
+        com.strictgaming.elite.holograms.forge.config.ScoreboardThemeManager.init(configDir);
     }
 
     public static void clear() {
@@ -101,7 +102,18 @@ public class HologramManager implements Runnable {
         }
         
         LOGGER.info("Successfully loaded " + HOLOGRAMS.size() + " holograms");
-        
+
+        // Re-apply backlights for any holograms that had them enabled
+        for (ForgeHologram hologram : HOLOGRAMS.values()) {
+            if (hologram != null && hologram.isBacklightEnabled()) {
+                try {
+                    hologram.applyBacklight();
+                } catch (Exception e) {
+                    LOGGER.error("Failed to re-apply backlight for hologram {}", hologram.getId(), e);
+                }
+            }
+        }
+
         // Load scoreboard holograms separately
         loadScoreboardHolograms();
     }
@@ -203,6 +215,8 @@ public class HologramManager implements Runnable {
      * Load scoreboard holograms from separate config file
      */
     private static void loadScoreboardHolograms() {
+        // Refresh themes from disk first so reload picks up edits without a reboot.
+        com.strictgaming.elite.holograms.forge.config.ScoreboardThemeManager.reload();
         List<ScoreboardHologramConfig.ScoreboardHologramData> configData = scoreboardConfig.load();
         
         for (ScoreboardHologramConfig.ScoreboardHologramData data : configData) {
@@ -229,6 +243,7 @@ public class HologramManager implements Runnable {
                     data.objectiveName,
                     data.topCount,
                     data.updateInterval,
+                    data.theme,
                     data.headerFormat,
                     data.playerFormat,
                     data.emptyFormat
@@ -236,7 +251,12 @@ public class HologramManager implements Runnable {
                 
                 // Force initial update
                 hologram.forceUpdate();
-                
+
+                // Re-apply persisted backlight (vertical light column) so it survives reload/restart
+                if (data.backlightEnabled) {
+                    hologram.setBacklight(true, data.backlightLevel);
+                }
+
                 LOGGER.info("Recreated scoreboard hologram '{}' for objective '{}'", data.id, data.objectiveName);
                 
             } catch (Exception e) {

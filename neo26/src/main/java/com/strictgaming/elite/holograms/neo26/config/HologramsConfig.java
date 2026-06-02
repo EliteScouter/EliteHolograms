@@ -131,7 +131,11 @@ public class HologramsConfig {
                 
                 // Restore complex content
                 hologram.setLinesContent(linesContent);
-                
+
+                // Restore backlight state (does not save)
+                hologram.restoreBacklightState(data.backlightEnabled,
+                        data.backlightLevel <= 0 ? com.strictgaming.elite.holograms.neo26.util.UtilBacklight.DEFAULT_LEVEL : data.backlightLevel);
+
                 // Don't spawn yet - let the HologramManager handle it
                 LOGGER.debug("Loaded hologram into manager: " + id);
                 HologramManager.addHologram(hologram);
@@ -169,6 +173,11 @@ public class HologramsConfig {
                 LOGGER.debug("Saving hologram {} as ItemHologram with item: {}", id, data.item);
             } else {
                 LOGGER.debug("Saving hologram {} as standard NeoForgeHologram", id);
+            }
+
+            if (hologram instanceof NeoForgeHologram nf) {
+                data.backlightEnabled = nf.isBacklightEnabled();
+                data.backlightLevel = nf.getBacklightLevel();
             }
             
             data.lines = new ArrayList<>();
@@ -213,5 +222,7 @@ public class HologramsConfig {
         double x, y, z;
         List<JsonElement> lines;
         String item;
+        boolean backlightEnabled = false;
+        int backlightLevel = com.strictgaming.elite.holograms.neo26.util.UtilBacklight.DEFAULT_LEVEL;
     }
 }

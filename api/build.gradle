@@ -12,7 +12,10 @@ forgeVersion = 'API'
 dependencies {
     shadow group: 'org.spongepowered', name: 'configurate-yaml', version: '4.0.0'
 
-    compileOnly group: 'com.github.EnvyWare.API', name: 'commons', version: '1.9.6'
+    // The api module's source does not import anything from com.envyful.api.commons.
+    // The dependency was previously declared compileOnly but blocked builds when the
+    // JitPack artifact was unavailable. It is intentionally not declared here.
+    // compileOnly group: 'com.github.EnvyWare.API', name: 'commons', version: '1.9.6'
 }
 
 shadowJar {

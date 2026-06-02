@@ -42,6 +42,38 @@ public class HologramsCommand {
         }
         return builder.buildFuture();
     };
+
+    // Suggests objectives currently registered on the server scoreboard
+    private static final SuggestionProvider<CommandSourceStack> OBJECTIVE_SUGGESTIONS = (context, builder) -> {
+        try {
+            var server = context.getSource().getServer();
+            if (server != null) {
+                for (net.minecraft.world.scores.Objective objective : server.getScoreboard().getObjectives()) {
+                    builder.suggest(objective.getName());
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return builder.buildFuture();
+    };
+
+    // Suggests the configured scoreboard theme names
+    private static final SuggestionProvider<CommandSourceStack> THEME_SUGGESTIONS = (context, builder) -> {
+        for (String name : com.strictgaming.elite.holograms.forge20.config.ScoreboardThemeManager.getThemeNames()) {
+            builder.suggest(name);
+        }
+        return builder.buildFuture();
+    };
+
+    // Suggests the IDs of existing scoreboard holograms
+    private static final SuggestionProvider<CommandSourceStack> SCOREBOARD_ID_SUGGESTIONS = (context, builder) -> {
+        for (Hologram hologram : HologramManager.getAllHolograms()) {
+            if (hologram instanceof com.strictgaming.elite.holograms.forge20.hologram.ScoreboardHologram) {
+                builder.suggest(hologram.getId());
+            }
+        }
+        return builder.buildFuture();
+    };
     
     /**
      * Register the command with the dispatcher
@@ -71,7 +103,7 @@ public class HologramsCommand {
             LiteralArgumentBuilder<CommandSourceStack> subCommand = Commands.literal(name);
             
             // Add permission requirements based on command type
-            if (name.equals("create") || name.equals("createat") || name.equals("createscoreboard") || name.equals("createitem")) {
+            if (name.equals("create") || name.equals("createat") || name.equals("createscoreboard") || name.equals("createitem") || name.equals("settheme")) {
                 subCommand.requires(UtilPermissions::canCreate);
             } else if (name.equals("delete")) {
                 subCommand.requires(UtilPermissions::canDelete);
@@ -88,6 +120,8 @@ public class HologramsCommand {
                 subCommand.requires(UtilPermissions::canEdit);
             } else if (name.equals("copy")) {
                 subCommand.requires(UtilPermissions::canCreate); // Copy requires create permission
+            } else if (name.equals("backlight")) {
+                subCommand.requires(src -> UtilPermissions.hasPermission(src, UtilPermissions.BACKLIGHT));
             } else if (name.equals("reload")) {
                 subCommand.requires(UtilPermissions::canAdmin);
             }
@@ -108,6 +142,7 @@ public class HologramsCommand {
                 subCommand
                     .then(Commands.argument("id", StringArgumentType.word())
                     .then(Commands.argument("objective", StringArgumentType.word())
+                    .suggests(OBJECTIVE_SUGGESTIONS)
                     .executes(ctx -> {
                         String[] args = new String[] {
                             StringArgumentType.getString(ctx, "id"),
@@ -133,7 +168,32 @@ public class HologramsCommand {
                             String.valueOf(IntegerArgumentType.getInteger(ctx, "updateInterval"))
                         };
                         return executeSubCommand(ctx, "createscoreboard", args);
-                    })))));
+                    })
+                    .then(Commands.argument("theme", StringArgumentType.word())
+                    .suggests(THEME_SUGGESTIONS)
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "objective"),
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "topCount")),
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "updateInterval")),
+                            StringArgumentType.getString(ctx, "theme")
+                        };
+                        return executeSubCommand(ctx, "createscoreboard", args);
+                    }))))));
+            } else if (name.equals("settheme")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(SCOREBOARD_ID_SUGGESTIONS)
+                    .then(Commands.argument("theme", StringArgumentType.word())
+                    .suggests(THEME_SUGGESTIONS)
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "theme")
+                        };
+                        return executeSubCommand(ctx, "settheme", args);
+                    })));
             } else if (name.equals("createitem")) {
                 subCommand
                     .then(Commands.argument("id", StringArgumentType.word())
@@ -337,6 +397,31 @@ public class HologramsCommand {
                     })));
             } else if (name.equals("reload")) {
                 subCommand.executes(ctx -> executeSubCommand(ctx, name, new String[0]));
+            } else if (name.equals("backlight")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.literal("on")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "on"
+                        }))
+                        .then(Commands.argument("level", IntegerArgumentType.integer(0, 15))
+                            .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                                StringArgumentType.getString(ctx, "id"), "on",
+                                String.valueOf(IntegerArgumentType.getInteger(ctx, "level"))
+                            })))
+                    )
+                    .then(Commands.literal("off")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "off"
+                        }))
+                    )
+                    .then(Commands.literal("toggle")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "toggle"
+                        }))
+                    )
+                );
             }
             
             command.then(subCommand);
@@ -355,6 +440,8 @@ public class HologramsCommand {
         source.sendSystemMessage(Component.literal("§3│ §b/eh create <id> <text>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh createat <id> <x> <y> <z> [world] <text>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh createitem <id> <item> [text]"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh createscoreboard <id> <objective> [top] [interval] [theme]"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh settheme <id> <theme>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh list"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh delete <id>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh addline <id> <text>"));
@@ -369,6 +456,7 @@ public class HologramsCommand {
         source.sendSystemMessage(Component.literal("§3│ §b/eh insertline <id> <line> <text>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh animateline <id> <line> <sec> <frames>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh info <id>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh backlight <id> <on|off|toggle> [level 0-15]"));
         source.sendSystemMessage(Component.literal("§3§l└─────────────────┘"));
         return 1;
     }
@@ -421,6 +509,8 @@ public class HologramsCommand {
                 return ((HologramsCreateCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsCreateScoreboardCommand) {
                 return ((HologramsCreateScoreboardCommand) subCommand).run(context);
+            } else if (subCommand instanceof HologramsSetThemeCommand) {
+                return ((HologramsSetThemeCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsCreateItemCommand) {
                 return ((HologramsCreateItemCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsAnimateLineCommand) {
@@ -453,6 +543,8 @@ public class HologramsCommand {
                 return ((HologramsInfoCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsNearCommand) {
                 return ((HologramsNearCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsBacklightCommand) {
+                return ((HologramsBacklightCommand) subCommand).executeCommand(context, args);
             }
             
             // If we don't have a handler for this command, show an error
