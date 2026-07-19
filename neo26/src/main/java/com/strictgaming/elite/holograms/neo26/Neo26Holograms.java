@@ -59,7 +59,7 @@ import java.io.IOException;
 public class Neo26Holograms implements PlatformHologramManager {
 
     public static final String MOD_ID = "eliteholograms";
-    public static final String VERSION = "26.1.2-1.0.0";
+    public static final String VERSION = "26.1.2-1.1.1";
     private static final Logger LOGGER = LogUtils.getLogger();
 
     private static Neo26Holograms instance;

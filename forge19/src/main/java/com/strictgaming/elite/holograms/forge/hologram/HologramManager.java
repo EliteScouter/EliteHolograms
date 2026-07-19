@@ -44,6 +44,10 @@ public class HologramManager implements Runnable {
     private static Thread managerThread;
     private static long lastScoreboardSave = 0;
     private static final long SCOREBOARD_SAVE_COOLDOWN = 5000; // 5 seconds cooldown
+    /** Serializes save/load so async saves cannot overwrite the file after clear/reload. */
+    private static final Object SAVE_LOAD_LOCK = new Object();
+    /** When true, save()/saveSync() are no-ops so deserialize-triggered saves cannot wipe the file. */
+    private static volatile boolean loading = false;
 
     private HologramManager() {
         // Private constructor for singleton
@@ -68,63 +72,113 @@ public class HologramManager implements Runnable {
     }
 
     public static void clear() {
-        for (ForgeHologram value : HOLOGRAMS.values()) {
-            value.despawn();
+        synchronized (SAVE_LOAD_LOCK) {
+            for (ForgeHologram value : HOLOGRAMS.values()) {
+                value.despawn();
+            }
+            HOLOGRAMS.clear();
         }
-        HOLOGRAMS.clear();
     }
 
     public static void load() throws IOException {
-        LOGGER.info("Loading holograms from storage...");
-        
-        // Save a snapshot of the currently loaded holograms
-        Map<String, ForgeHologram> existingHolograms = new HashMap<>(HOLOGRAMS);
-        
-        // Load from the saver
-        Map<String, Hologram> loadedHolograms = saver.load();
-        
-        if (loadedHolograms.isEmpty() && !existingHolograms.isEmpty()) {
-            LOGGER.info("No holograms loaded from file, but we have " + existingHolograms.size() + " in memory - preserving existing");
-            // If we have holograms in memory but none loaded from file, likely an error in loading
-            // Just write the existing ones to file again
-            save();
-            return;
-        }
-        
-        // Add any missing holograms to the HOLOGRAMS map
-        for (Map.Entry<String, Hologram> entry : loadedHolograms.entrySet()) {
-            if (entry.getValue() instanceof ForgeHologram && 
-                !HOLOGRAMS.containsKey(entry.getKey().toLowerCase())) {
-                
-                HOLOGRAMS.put(entry.getKey().toLowerCase(), (ForgeHologram) entry.getValue());
-                LOGGER.info("Added hologram from storage: " + entry.getKey());
-            }
-        }
-        
-        LOGGER.info("Successfully loaded " + HOLOGRAMS.size() + " holograms");
+        synchronized (SAVE_LOAD_LOCK) {
+            loading = true;
+            LOGGER.info("Loading holograms from storage...");
 
-        // Re-apply backlights for any holograms that had them enabled
-        for (ForgeHologram hologram : HOLOGRAMS.values()) {
-            if (hologram != null && hologram.isBacklightEnabled()) {
-                try {
-                    hologram.applyBacklight();
-                } catch (Exception e) {
-                    LOGGER.error("Failed to re-apply backlight for hologram {}", hologram.getId(), e);
+            try {
+                // Save a snapshot of the currently loaded holograms
+                Map<String, ForgeHologram> existingHolograms = new HashMap<>(HOLOGRAMS);
+
+                // Load from the saver (may construct holograms that call save() — suppressed while loading)
+                Map<String, Hologram> loadedHolograms = saver.load();
+
+                if (loadedHolograms.isEmpty() && !existingHolograms.isEmpty()) {
+                    LOGGER.info("No holograms loaded from file, but we have " + existingHolograms.size() + " in memory - preserving existing");
+                    loading = false;
+                    if (saver != null) {
+                        saver.save(Lists.newArrayList(existingHolograms.values()));
+                        forceSaveScoreboardHolograms();
+                    }
+                    return;
                 }
+
+                // Clear then re-add so memory matches the file (despawn first if server is up)
+                if (ServerLifecycleHooks.getCurrentServer() != null) {
+                    for (ForgeHologram h : HOLOGRAMS.values()) {
+                        h.despawn();
+                    }
+                }
+                HOLOGRAMS.clear();
+
+                for (Map.Entry<String, Hologram> entry : loadedHolograms.entrySet()) {
+                    if (entry.getValue() instanceof ForgeHologram) {
+                        HOLOGRAMS.put(entry.getKey().toLowerCase(), (ForgeHologram) entry.getValue());
+                        LOGGER.info("Added hologram from storage: " + entry.getKey());
+                    }
+                }
+
+                LOGGER.info("Successfully loaded " + HOLOGRAMS.size() + " holograms");
+
+                // Re-apply backlights for any holograms that had them enabled
+                for (ForgeHologram hologram : HOLOGRAMS.values()) {
+                    if (hologram != null && hologram.isBacklightEnabled()) {
+                        try {
+                            hologram.applyBacklight();
+                        } catch (Exception e) {
+                            LOGGER.error("Failed to re-apply backlight for hologram {}", hologram.getId(), e);
+                        }
+                    }
+                }
+
+                // Load scoreboard holograms separately
+                loadScoreboardHolograms();
+            } finally {
+                loading = false;
             }
         }
+    }
 
-        // Load scoreboard holograms separately
-        loadScoreboardHolograms();
+    /**
+     * Synchronous save under the save/load lock. Use before reload/shutdown so pending
+     * async saves cannot race with clear() and write an empty/partial file.
+     */
+    public static void saveSync() {
+        synchronized (SAVE_LOAD_LOCK) {
+            if (loading) {
+                LOGGER.debug("Skipping saveSync while holograms are loading");
+                return;
+            }
+            if (saver == null) {
+                LOGGER.warn("Saver is null, cannot save holograms");
+                return;
+            }
+            try {
+                List<Hologram> snapshot = Lists.newArrayList(HOLOGRAMS.values());
+                LOGGER.info("Saving {} holograms to storage (sync)", snapshot.size());
+                saver.save(snapshot);
+                forceSaveScoreboardHolograms();
+            } catch (Exception e) {
+                LOGGER.error("Failed to save holograms (sync)", e);
+            }
+        }
     }
 
     public static void save() {
+        if (loading) {
+            return;
+        }
         UtilConcurrency.runAsync(() -> {
-            // Save regular holograms
-            saver.save(Lists.newArrayList(HOLOGRAMS.values()));
-            
-            // Save scoreboard holograms separately
-            saveScoreboardHolograms();
+            synchronized (SAVE_LOAD_LOCK) {
+                if (loading || saver == null) {
+                    return;
+                }
+                try {
+                    saver.save(Lists.newArrayList(HOLOGRAMS.values()));
+                    saveScoreboardHolograms();
+                } catch (Exception e) {
+                    LOGGER.error("Failed to save holograms", e);
+                }
+            }
         });
     }
 
@@ -170,26 +224,33 @@ public class HologramManager implements Runnable {
     }
 
     /**
-     * Save scoreboard holograms to separate config file (async)
+     * Save scoreboard holograms to separate config file (rate-limited). Caller must hold SAVE_LOAD_LOCK.
      */
     private static void saveScoreboardHolograms() {
-        // Rate limit scoreboard saves to prevent spam
         long currentTime = System.currentTimeMillis();
         if (currentTime - lastScoreboardSave < SCOREBOARD_SAVE_COOLDOWN) {
-            return; // Skip save if too recent
+            return;
         }
-        
+        forceSaveScoreboardHolograms();
+    }
+
+    /**
+     * Force-save scoreboard holograms (no cooldown). Caller must hold SAVE_LOAD_LOCK.
+     */
+    public static void forceSaveScoreboardHolograms() {
+        if (scoreboardConfig == null) {
+            return;
+        }
         List<ScoreboardHologram> scoreboardHolograms = Lists.newArrayList();
-        
         for (ForgeHologram hologram : HOLOGRAMS.values()) {
             if (hologram instanceof ScoreboardHologram) {
                 scoreboardHolograms.add((ScoreboardHologram) hologram);
             }
         }
-        
         if (!scoreboardHolograms.isEmpty()) {
             scoreboardConfig.save(scoreboardHolograms);
-            lastScoreboardSave = currentTime;
+            lastScoreboardSave = System.currentTimeMillis();
+            LOGGER.debug("Saved {} scoreboard holograms", scoreboardHolograms.size());
         }
     }
     
@@ -197,17 +258,9 @@ public class HologramManager implements Runnable {
      * Save scoreboard holograms to separate config file (synchronous - for shutdown)
      */
     public static void saveScoreboardHologramsSync() {
-        List<ScoreboardHologram> scoreboardHolograms = Lists.newArrayList();
-        
-        for (ForgeHologram hologram : HOLOGRAMS.values()) {
-            if (hologram instanceof ScoreboardHologram) {
-                scoreboardHolograms.add((ScoreboardHologram) hologram);
-            }
-        }
-        
-        if (!scoreboardHolograms.isEmpty()) {
-            scoreboardConfig.save(scoreboardHolograms);
-            LOGGER.info("Saved {} scoreboard holograms during shutdown", scoreboardHolograms.size());
+        synchronized (SAVE_LOAD_LOCK) {
+            forceSaveScoreboardHolograms();
+            LOGGER.info("Saved scoreboard holograms during shutdown");
         }
     }
     

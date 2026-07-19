@@ -1,5 +1,15 @@
 # Changelog
 
+## All Editions - 1.1.1 - Hologram persistence race fixes - 2026-07-09
+
+### Fixed
+
+* **`/eh reload` and server restarts could wipe most or all holograms from disk** (Forge 1.19.2 & 1.20.1 primarily; NeoForge hardened further). Async saves read the live hologram map when the write actually ran, not when `save()` was called. Reloading cleared that map first, so a pending async save could write `[]` (or only a few holograms) to `holograms.json` and permanently delete the rest. All editions now serialize save/load with a shared lock, expose a synchronous `saveSync()` used by reload and shutdown, and suppress saves while a load is in progress
+* **Deserializing holograms during load queued dozens of async saves** - each `addLine()` / `addAnimatedLine()` call during JSON load triggered `HologramManager.save()`. Those tasks could run mid-load or after a clear and overwrite the config with a partial list. Saves are now no-ops while `loading` is true
+* **Forge 1.19.2 `/eh reload` cleared holograms without saving first** - unlike Forge 1.20.1, the 1.19 reload path despawned and cleared memory then reloaded from disk with no pre-save. If the file was already empty or stale from the race above, everything was lost. Reload now calls `saveSync()` before `load()`
+* **Shutdown could still lose holograms to a stale async write** - the server-stop path now saves synchronously under the lock *before* despawning holograms, instead of racing a background save thread against pending async writers
+* **Config writes are safer on disk** - hologram JSON is written to a `.tmp` file and then replaced, so a crash mid-write is less likely to leave an empty or truncated `holograms.json`
+
 ## All Editions - 1.1.0 - Scoreboard themes, backlights, tab-completion & live reload - 2026-06-01
 
 ### Added

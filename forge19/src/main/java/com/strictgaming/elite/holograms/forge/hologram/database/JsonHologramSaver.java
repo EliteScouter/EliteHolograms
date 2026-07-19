@@ -4,16 +4,11 @@ import com.strictgaming.elite.holograms.api.hologram.Hologram;
 import com.strictgaming.elite.holograms.api.manager.database.HologramSaver;
 import com.strictgaming.elite.holograms.forge.hologram.ForgeHologram;
 import com.strictgaming.elite.holograms.forge.hologram.ForgeHologramTypeAdapter;
-import com.strictgaming.elite.holograms.forge.hologram.HologramManager;
-import com.strictgaming.elite.holograms.forge.hologram.ItemHologram;
 import com.strictgaming.elite.holograms.forge.hologram.ScoreboardHologram;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -104,9 +99,7 @@ public class JsonHologramSaver implements HologramSaver {
                 }
                 
                 LOGGER.info("Loading hologram: {}", hologram.getId());
-                // Add to HologramManager directly
-                HologramManager.addHologram(hologram);
-                // Cast to Hologram for the return map
+                // Return only — HologramManager.load() owns map mutation after clear
                 holograms.put(hologram.getId().toLowerCase(), hologram);
             }
         } catch (Exception e) {
@@ -119,17 +112,21 @@ public class JsonHologramSaver implements HologramSaver {
 
     @Override
     public void save(List<Hologram> holograms) {
-        LOGGER.info("Saving {} holograms to file", holograms.size());
-        
+        if (holograms == null) {
+            LOGGER.warn("Refusing to save null hologram list");
+            return;
+        }
+
+        LOGGER.info("Saving {} holograms to file {}", holograms.size(), this.file.getAbsolutePath());
+
         try {
-            OutputStreamWriter jsonWriter = new OutputStreamWriter(new FileOutputStream(this.file), StandardCharsets.UTF_8);
             List<ForgeHologram> savedHolograms = Lists.newArrayList();
 
             for (Hologram hologram : holograms) {
                 if (!(hologram instanceof ForgeHologram)) {
                     continue;
                 }
-                
+
                 // Skip ScoreboardHologram instances - they cannot be serialized safely
                 if (hologram instanceof ScoreboardHologram) {
                     LOGGER.debug("Skipping ScoreboardHologram '{}' from save (not serializable)", hologram.getId());
@@ -139,10 +136,30 @@ public class JsonHologramSaver implements HologramSaver {
                 savedHolograms.add((ForgeHologram) hologram);
             }
 
-            LOGGER.info("Saving {} holograms to file", savedHolograms.size());
-            GSON.toJson(savedHolograms, FORGE_HOLOGRAM_LIST_TYPE, jsonWriter);
-            jsonWriter.flush();
-            jsonWriter.close();
+            // Write to a temp file then replace, so a crash mid-write cannot leave []
+            File tempFile = new File(this.file.getAbsolutePath() + ".tmp");
+            try (OutputStreamWriter jsonWriter = new OutputStreamWriter(
+                    new FileOutputStream(tempFile), StandardCharsets.UTF_8)) {
+                GSON.toJson(savedHolograms, FORGE_HOLOGRAM_LIST_TYPE, jsonWriter);
+                jsonWriter.flush();
+            }
+
+            if (this.file.exists() && !this.file.delete()) {
+                LOGGER.warn("Could not delete old hologram file before replace; writing in place");
+                try (OutputStreamWriter jsonWriter = new OutputStreamWriter(
+                        new FileOutputStream(this.file), StandardCharsets.UTF_8)) {
+                    GSON.toJson(savedHolograms, FORGE_HOLOGRAM_LIST_TYPE, jsonWriter);
+                    jsonWriter.flush();
+                }
+                //noinspection ResultOfMethodCallIgnored
+                tempFile.delete();
+            } else if (!tempFile.renameTo(this.file)) {
+                Files.copy(tempFile.toPath(), this.file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                //noinspection ResultOfMethodCallIgnored
+                tempFile.delete();
+            }
+
+            LOGGER.info("Saved {} holograms to file", savedHolograms.size());
         } catch (IOException e) {
             LOGGER.error("Error saving holograms: {}", e.getMessage());
             e.printStackTrace();

@@ -33,6 +33,8 @@ public class HologramManager {
     private static long lastScoreboardSave = 0L;
     private static final long SCOREBOARD_SAVE_COOLDOWN_MS = 5000L;
     private static final Object SAVE_LOAD_LOCK = new Object();
+    /** When true, async save() is a no-op so load-time mutations cannot queue stale writes. */
+    private static volatile boolean loading = false;
     
     public static void preInit() {
         LOGGER.info("Pre-initializing hologram manager");
@@ -55,28 +57,33 @@ public class HologramManager {
     
     public static void load() throws IOException {
         synchronized (SAVE_LOAD_LOCK) {
-            LOGGER.info("Loading holograms from config");
-            HologramsConfig config = Neo26Holograms.getInstance().getConfig();
+            loading = true;
+            try {
+                LOGGER.info("Loading holograms from config");
+                HologramsConfig config = Neo26Holograms.getInstance().getConfig();
 
-            if (config == null) {
-                LOGGER.warn("Config is null, cannot load holograms.");
-                return;
-            }
-
-            HOLOGRAMS.values().forEach(Hologram::despawn);
-            HOLOGRAMS.clear();
-
-            config.loadHologramsIntoManager();
-
-            // Spawn all loaded holograms now that they're registered
-            LOGGER.info("Spawning {} loaded holograms", HOLOGRAMS.size());
-            for (Hologram h : HOLOGRAMS.values()) {
-                if (!h.isSpawned()) {
-                    h.spawn();
+                if (config == null) {
+                    LOGGER.warn("Config is null, cannot load holograms.");
+                    return;
                 }
-            }
 
-            loadScoreboardHolograms();
+                HOLOGRAMS.values().forEach(Hologram::despawn);
+                HOLOGRAMS.clear();
+
+                config.loadHologramsIntoManager();
+
+                // Spawn all loaded holograms now that they're registered
+                LOGGER.info("Spawning {} loaded holograms", HOLOGRAMS.size());
+                for (Hologram h : HOLOGRAMS.values()) {
+                    if (!h.isSpawned()) {
+                        h.spawn();
+                    }
+                }
+
+                loadScoreboardHolograms();
+            } finally {
+                loading = false;
+            }
         }
     }
     
@@ -131,9 +138,15 @@ public class HologramManager {
     }
     
     public static void save() throws IOException {
+        if (loading) {
+            return;
+        }
         // Ensure save runs async to avoid blocking server thread
         CompletableFuture.runAsync(() -> {
             synchronized (SAVE_LOAD_LOCK) {
+                if (loading) {
+                    return;
+                }
                 try {
                     HologramsConfig config = Neo26Holograms.getInstance().getConfig();
                     if (config != null) {

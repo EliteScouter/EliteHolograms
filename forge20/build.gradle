@@ -5,7 +5,8 @@ buildscript {
         maven { url = 'https://plugins.gradle.org/m2/' }
     }
     dependencies {
-        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '5.1.+'
+        // Pin version — dynamic 5.1.+ can hang forever resolving maven metadata
+        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '5.1.77'
     }
 }
 
@@ -14,7 +15,7 @@ apply plugin: 'java'
 apply plugin: 'maven-publish'
 
 group = 'com.strictgaming.elite.holograms'
-version = '1.20.1-1.1.0'
+version = '1.20.1-1.1.1'
 archivesBaseName = 'EliteHolograms'
 
 // Java version compatibility

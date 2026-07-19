@@ -44,15 +44,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import com.google.common.collect.Lists;
-
 import java.io.IOException;
 
 @Mod(Forge20Holograms.MOD_ID)
 public class Forge20Holograms implements PlatformHologramManager {
 
     public static final String MOD_ID = "eliteholograms";
-    public static final String VERSION = "1.20.1-1.0.7";
+    public static final String VERSION = "1.20.1-1.1.1";
     private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
 
     private static Forge20Holograms instance;
@@ -129,10 +127,18 @@ public class Forge20Holograms implements PlatformHologramManager {
     public void onServerStopping(ServerStoppingEvent event) {
         LOGGER.info("Server stopping - shutting down hologram manager");
         
-        // First shutdown the background thread to prevent interference
+        // Stop the background thread first so it cannot mutate state during save
         HologramManager.shutdown();
-        
-        // Then despawn all holograms to ensure they're properly cleaned up
+
+        // Save BEFORE despawn so we never risk writing after a clear/despawn race
+        try {
+            LOGGER.info("Saving all holograms before shutdown...");
+            HologramManager.saveSync();
+            LOGGER.info("All holograms saved successfully during shutdown");
+        } catch (Exception e) {
+            LOGGER.error("Error saving holograms during shutdown", e);
+        }
+
         for (Hologram hologram : HologramManager.getAllHolograms()) {
             try {
                 LOGGER.debug("Despawning hologram {} during server shutdown", hologram.getId());
@@ -140,35 +146,6 @@ public class Forge20Holograms implements PlatformHologramManager {
             } catch (Exception e) {
                 LOGGER.error("Error despawning hologram {} during shutdown: {}", hologram.getId(), e.getMessage());
             }
-        }
-        
-        // Finally save all hologram data synchronously to prevent hanging
-        // Save all holograms before shutdown with timeout protection
-        try {
-            LOGGER.info("Saving all holograms before shutdown...");
-            
-            // Use a separate thread with timeout to prevent hanging during save
-            Thread saveThread = new Thread(() -> {
-                try {
-                    HologramManager.getSaver().save(Lists.newArrayList(HologramManager.getAllHolograms()));
-                    HologramManager.saveScoreboardHologramsSync();
-                } catch (Exception e) {
-                    LOGGER.error("Error in save thread during shutdown", e);
-                }
-            });
-            
-            saveThread.start();
-            saveThread.join(5000); // Wait max 5 seconds for save to complete
-            
-            if (saveThread.isAlive()) {
-                LOGGER.warn("Save operation timed out during shutdown - forcing thread termination");
-                saveThread.interrupt();
-            } else {
-                LOGGER.info("All holograms saved successfully during shutdown");
-            }
-            
-        } catch (Exception e) {
-            LOGGER.error("Error saving holograms during shutdown", e);
         }
     }
 
