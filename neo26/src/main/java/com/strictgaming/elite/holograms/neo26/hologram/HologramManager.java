@@ -294,7 +294,10 @@ public class HologramManager {
                             data.theme,
                             data.headerFormat,
                             data.playerFormat,
-                            data.emptyFormat
+                            data.emptyFormat,
+                            HologramDisplayType.fromStringOrDefault(data.displayType, HologramDisplayType.FACING),
+                            data.yaw,
+                            data.pitch
                     );
                     // Restore persisted backlight state before spawn so spawn() re-applies the light column
                     if (data.backlightEnabled) {

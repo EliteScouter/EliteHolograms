@@ -1,5 +1,31 @@
 # Changelog
 
+## All Editions - 1.2.0 - Fixed holograms - 2026-08-17
+
+### Added
+
+* **Fixed holograms** (NeoForge 1.21.1, NeoForge 26.1 & Forge 1.20.1) - holograms can now be anchored to a rotation instead of always turning to face the viewer. A *facing* hologram is the classic armor stand nameplate that spins to follow each player; a *fixed* hologram is a `text_display` entity locked to a yaw and pitch, so it reads like a sign hung on a wall and looks the same to everyone. Facing remains the default, and every hologram created before this update stays facing
+* **`fixed|facing` on every create command** - `/eh create fixed <id> <text>`, `/eh createat fixed <id> <x> <y> <z> [text]`, `/eh createitem fixed <id> <item> [text]` and `/eh createscoreboard fixed <id> <objective> [top] [interval] [theme]`. The keyword is optional and goes immediately after the subcommand; leaving it out creates a facing hologram exactly as before. A new fixed hologram is automatically oriented to face whoever created it
+* **`/eh convert <id> fixed|face`** - switches an existing hologram between the two display types in place, keeping its lines, animations, item, backlight and position. Converting to fixed points the hologram at whoever ran the command, unless a rotation was already set with `/eh setrotation`
+* **`/eh setrotation <id> <yaw> [pitch]`** - sets the orientation of a fixed hologram. Yaw follows the in-game convention (0 south, 90 west, 180 north, 270 east) and pitch tilts it between -90 and 90. The rotation is stored even on facing holograms, so it applies the moment you convert one to fixed
+* **`/eh info <id>` now reports the display type**, and the rotation when the hologram is fixed
+* Both new commands use the existing **`eliteholograms.edit`** permission, and tab-complete hologram IDs and display types
+
+### Changed
+
+* **Backlights now stay centred on the hologram.** Light blocks can only sit on whole block cells, so a hologram near a block edge used to be lit noticeably off to one side. The column is now widened onto the neighbouring cell on any axis where the hologram sits within a quarter block of an edge, which caps the offset at a quarter block instead of half. A backlight therefore places up to four columns instead of one, and each column finds its own ground level so widened backlights still sit correctly on uneven terrain
+* `/eh create <id> <text>` treats a first argument of `fixed` or `facing` as the display type keyword. If you have a hologram whose ID is literally `fixed` or `facing`, or command blocks that create one, use `/eh create facing fixed <text>` to get the old behaviour
+
+### Fixed
+
+* **Hologram lines could show each other's text.** Armor stand lines, item stands and text display lines each allocated network entity IDs from their own counter, and those counters were seeded with the same starting value, so different entities could be handed the same ID. The client then applied one line's data to another, showing duplicated or wrong text. All hologram entities now draw from a single shared counter
+* **Animated holograms could throw a `ConcurrentModificationException`** (NeoForge editions) when a player walked into range during the same tick that an animated line advanced a frame
+* **`/eh convert` and `/eh setrotation` ignored `eliteholograms.edit`** on the NeoForge editions, requiring operator level 2 regardless of the permission node
+
+### Notes
+
+* **Forge 1.19.2 does not support fixed holograms.** The feature is built on `text_display` entities, which Minecraft did not add until 1.19.4, so there is no way to provide it on 1.19.2. The 1.19.2 edition still receives the entity ID and backlight fixes above, and its `/eh create` syntax is unchanged
+
 ## All Editions - 1.1.1 - Hologram persistence race fixes - 2026-07-09
 
 ### Fixed

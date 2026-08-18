@@ -2,7 +2,10 @@ package com.strictgaming.elite.holograms.forge20.hologram;
 
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
 import com.strictgaming.elite.holograms.forge20.hologram.entity.AnimatedHologramLine;
+import com.strictgaming.elite.holograms.forge20.hologram.entity.AnimatedTextDisplayHologramLine;
 import com.strictgaming.elite.holograms.forge20.hologram.entity.HologramLine;
+import com.strictgaming.elite.holograms.forge20.hologram.entity.HologramLineRenderer;
+import com.strictgaming.elite.holograms.forge20.hologram.entity.TextDisplayHologramLine;
 import com.strictgaming.elite.holograms.forge20.util.UtilBacklight;
 import com.strictgaming.elite.holograms.forge20.util.UtilConcurrency;
 import com.strictgaming.elite.holograms.forge20.util.UtilWorld;
@@ -31,9 +34,14 @@ public class ForgeHologram implements Hologram {
     private transient Level world;
     private transient Vec3 position;
     private int range;
-    private transient final List<HologramLine> lines;
+    private transient final List<HologramLineRenderer> lines;
     private transient final List<UUID> nearbyPlayers;
     private transient long tickCount = 0;
+
+    // How the lines are rendered, and the orientation used when that is FIXED
+    private HologramDisplayType displayType = HologramDisplayType.FACING;
+    private float yaw = 0.0F;
+    private float pitch = 0.0F;
 
     // Backlight state - places invisible minecraft:light blocks at the hologram
     private boolean backlightEnabled = false;
@@ -41,10 +49,18 @@ public class ForgeHologram implements Hologram {
     private transient List<BlockPos> backlightPositions = new ArrayList<>();
 
     public ForgeHologram(String id, Level world, Vec3 position, int range, boolean save, String... lines) {
+        this(id, world, position, range, save, HologramDisplayType.FACING, 0.0F, 0.0F, lines);
+    }
+
+    public ForgeHologram(String id, Level world, Vec3 position, int range, boolean save,
+                         HologramDisplayType displayType, float yaw, float pitch, String... lines) {
         this.id = id;
         this.world = world;
         this.position = position;
         this.range = range;
+        this.displayType = displayType == null ? HologramDisplayType.FACING : displayType;
+        this.yaw = normaliseYaw(yaw);
+        this.pitch = clampPitch(pitch);
         this.lines = Lists.newArrayList();
         this.nearbyPlayers = Lists.newArrayList();
 
@@ -66,20 +82,89 @@ public class ForgeHologram implements Hologram {
     public void tick() {
         tickCount++;
         
-        for (HologramLine line : lines) {
-            if (line instanceof AnimatedHologramLine) {
-                AnimatedHologramLine animatedLine = (AnimatedHologramLine) line;
-                if (animatedLine.tick(tickCount)) {
-                    // Frame changed, update for all nearby players
-                    for (UUID playerUUID : nearbyPlayers) {
-                        ServerPlayer player = UtilConcurrency.getPlayer(playerUUID);
-                        if (player != null) {
-                            animatedLine.updateForPlayer(player);
-                        }
+        for (HologramLineRenderer line : lines) {
+            if (line.isAnimated() && line.tickAnimation(tickCount)) {
+                // Frame changed, update for all nearby players
+                for (UUID playerUUID : nearbyPlayers) {
+                    ServerPlayer player = UtilConcurrency.getPlayer(playerUUID);
+                    if (player != null) {
+                        line.updateForPlayer(player);
                     }
                 }
             }
         }
+    }
+
+    /**
+     * Builds a single line entity for this hologram's display type.
+     *
+     * @param lineY the Y coordinate of this line's slot
+     * @param text  the line text
+     * @return the line renderer
+     */
+    private HologramLineRenderer createLine(double lineY, String text) {
+        HologramLineRenderer line;
+
+        if (this.displayType == HologramDisplayType.FIXED) {
+            line = new TextDisplayHologramLine(this.world, this.position.x, lineY, this.position.z,
+                    this.yaw, this.pitch);
+        } else {
+            ArmorStand armorStand = new ArmorStand(this.world, this.position.x, lineY, this.position.z);
+            line = new HologramLine(armorStand);
+        }
+
+        line.setText(text);
+        return line;
+    }
+
+    /**
+     * Builds a single animated line entity for this hologram's display type.
+     *
+     * @param lineY         the Y coordinate of this line's slot
+     * @param frames        the text frames to cycle through
+     * @param intervalTicks ticks between frame changes
+     * @return the line renderer
+     */
+    private HologramLineRenderer createAnimatedLine(double lineY, List<String> frames, int intervalTicks) {
+        if (this.displayType == HologramDisplayType.FIXED) {
+            return new AnimatedTextDisplayHologramLine(this.world, this.position.x, lineY, this.position.z,
+                    this.yaw, this.pitch, frames, intervalTicks);
+        }
+
+        ArmorStand armorStand = new ArmorStand(this.world, this.position.x, lineY, this.position.z);
+        return new AnimatedHologramLine(armorStand, frames, intervalTicks);
+    }
+
+    /**
+     * @return the Y coordinate for the line sitting at {@code index}
+     */
+    private double lineY(int index) {
+        return this.position.y - (index * HOLOGRAM_LINE_GAP);
+    }
+
+    /**
+     * @return the online players currently seeing this hologram
+     */
+    private List<ServerPlayer> currentViewers() {
+        List<ServerPlayer> viewers = new ArrayList<>();
+
+        for (UUID uuid : this.nearbyPlayers) {
+            ServerPlayer player = UtilConcurrency.getPlayer(uuid);
+            if (player != null) {
+                viewers.add(player);
+            }
+        }
+
+        return viewers;
+    }
+
+    private static float normaliseYaw(float yaw) {
+        float wrapped = yaw % 360.0F;
+        return wrapped < 0.0F ? wrapped + 360.0F : wrapped;
+    }
+
+    private static float clampPitch(float pitch) {
+        return Math.max(-90.0F, Math.min(90.0F, pitch));
     }
 
     @Override
@@ -105,19 +190,8 @@ public class ForgeHologram implements Hologram {
             return;
         }
 
-        double y = this.position.y;
-
-        if (!this.lines.isEmpty()) {
-            y -= this.lines.size() * HOLOGRAM_LINE_GAP;
-        }
-
-        // Create a new ArmorStand for the line
-        ArmorStand armorStand = new ArmorStand(this.world,
-                this.position.x, y, this.position.z);
-        
-        // Create a hologram line and set its text
-        HologramLine line = new HologramLine(armorStand);
-        line.setText(text);
+        // Create a hologram line for the current display type and set its text
+        HologramLineRenderer line = createLine(lineY(this.lines.size()), text);
 
         // Add to our list 
         this.lines.add(line);
@@ -175,7 +249,7 @@ public class ForgeHologram implements Hologram {
             return;
         }
 
-        HologramLine line = this.lines.get(lineNumber);
+        HologramLineRenderer line = this.lines.get(lineNumber);
         line.setText(text);
 
         // Update for all nearby players
@@ -201,13 +275,8 @@ public class ForgeHologram implements Hologram {
             return;
         }
 
-        double y = this.position.y - (lineNumber * HOLOGRAM_LINE_GAP);
-
         // Create a new line
-        ArmorStand armorStand = new ArmorStand(this.world,
-                this.position.x, y, this.position.z);
-        HologramLine line = new HologramLine(armorStand);
-        line.setText(text);
+        HologramLineRenderer line = createLine(lineY(lineNumber), text);
 
         // Insert the line at the correct position
         this.lines.add(lineNumber, line);
@@ -223,7 +292,7 @@ public class ForgeHologram implements Hologram {
                 line.spawnForPlayer(player);
                 
                 // Update positions for all lines
-                for (HologramLine existingLine : this.lines) {
+                for (HologramLineRenderer existingLine : this.lines) {
                     existingLine.sendTeleportPacket(player);
                 }
             }
@@ -240,7 +309,7 @@ public class ForgeHologram implements Hologram {
         }
 
         // Get the line and despawn it
-        HologramLine line = this.lines.remove(lineNumber);
+        HologramLineRenderer line = this.lines.remove(lineNumber);
         this.despawnLine(line);
 
         // Reposition remaining lines
@@ -277,7 +346,7 @@ public class ForgeHologram implements Hologram {
     @Override
     public void despawn() {
         // Despawn visual entities but keep line data
-        for (HologramLine line : this.lines) {
+        for (HologramLineRenderer line : this.lines) {
             this.despawnLine(line);
         }
         // Clear nearby players list since no one is seeing the hologram anymore
@@ -286,7 +355,7 @@ public class ForgeHologram implements Hologram {
         clearBacklight();
     }
 
-    private void despawnLine(HologramLine line) {
+    private void despawnLine(HologramLineRenderer line) {
         if (line == null) {
             return;
         }
@@ -331,20 +400,24 @@ public class ForgeHologram implements Hologram {
         // Clear any auto-added lines
         newHologram.lines.clear();
         
-        // Get all lines' text and add them in the same order
+        // Carry the display type and orientation over to the copy
+        newHologram.restoreDisplayState(this.displayType, this.yaw, this.pitch);
+
+        // Get all lines' content and add them in the same order
         for (int i = 0; i < this.lines.size(); i++) {
-            HologramLine line = this.lines.get(i);
-            String lineText = line.getText();
-            LOGGER.debug("Copying line {}: '{}'", i, lineText);
-            
-            // Create a new line at the same position
-            double lineY = newHologram.position.y - (i * HOLOGRAM_LINE_GAP);
-            ArmorStand armorStand = new ArmorStand(newHologram.world,
-                    newHologram.position.x, lineY, newHologram.position.z);
-            
-            HologramLine newLine = new HologramLine(armorStand);
-            newLine.setText(lineText);
-            
+            HologramLineRenderer line = this.lines.get(i);
+            List<String> frames = line.getFrames();
+
+            HologramLineRenderer newLine;
+            if (frames != null) {
+                LOGGER.debug("Copying animated line {} ({} frames)", i, frames.size());
+                newLine = newHologram.createAnimatedLine(newHologram.lineY(i), frames, line.getIntervalTicks());
+            } else {
+                String lineText = line.getText();
+                LOGGER.debug("Copying line {}: '{}'", i, lineText);
+                newLine = newHologram.createLine(newHologram.lineY(i), lineText);
+            }
+
             // Add to the new hologram
             newHologram.lines.add(newLine);
         }
@@ -365,8 +438,8 @@ public class ForgeHologram implements Hologram {
     private void repositionLines() {
         // Place lines from top to bottom with consistent spacing
         for (int i = 0; i < this.lines.size(); i++) {
-            HologramLine line = this.lines.get(i);
-            double lineY = this.position.y - (i * HOLOGRAM_LINE_GAP);
+            HologramLineRenderer line = this.lines.get(i);
+            double lineY = lineY(i);
             
             // Set position for the line
             line.setPosition(this.position.x, lineY, this.position.z);
@@ -383,21 +456,8 @@ public class ForgeHologram implements Hologram {
      * @param intervalSeconds Seconds between frame changes
      */
     public void addAnimatedLine(List<String> frames, int intervalSeconds) {
-        double y = this.position.y;
-        if (!this.lines.isEmpty()) {
-            y -= this.lines.size() * HOLOGRAM_LINE_GAP;
-        }
-
-        // Create ArmorStand
-        ArmorStand armorStand = new ArmorStand(this.world,
-                this.position.x, y, this.position.z);
-                
-        // Create AnimatedHologramLine
-        AnimatedHologramLine animatedLine = new AnimatedHologramLine(
-            armorStand,
-            frames,
-            intervalSeconds * 20 // Convert seconds to ticks
-        );
+        // Convert seconds to ticks
+        HologramLineRenderer animatedLine = createAnimatedLine(lineY(this.lines.size()), frames, intervalSeconds * 20);
 
         this.lines.add(animatedLine);
         this.repositionLines();
@@ -425,25 +485,13 @@ public class ForgeHologram implements Hologram {
         }
         
         int index = lineIndex - 1;
-        HologramLine oldLine = this.lines.get(index);
+        HologramLineRenderer oldLine = this.lines.get(index);
         
         // Despawn old line for all nearby players
         this.despawnLine(oldLine);
         
-        // Create new animated line at same position
-        // We reuse the position calculation but need a new ArmorStand instance
-        // effectively, or just construct it using current position of old line?
-        // The old line has an ArmorStand. We can get its position.
-        
-        double y = this.position.y - (index * HOLOGRAM_LINE_GAP);
-        ArmorStand armorStand = new ArmorStand(this.world,
-                this.position.x, y, this.position.z);
-        
-        AnimatedHologramLine newLine = new AnimatedHologramLine(
-            armorStand,
-            frames,
-            intervalSeconds * 20 // Convert seconds to ticks
-        );
+        // Replace it with an animated line in the same slot. Convert seconds to ticks.
+        HologramLineRenderer newLine = createAnimatedLine(lineY(index), frames, intervalSeconds * 20);
         
         this.lines.set(index, newLine);
         
@@ -458,8 +506,116 @@ public class ForgeHologram implements Hologram {
         HologramManager.save();
     }
 
-    public List<HologramLine> getLines() {
+    public List<HologramLineRenderer> getLines() {
         return this.lines;
+    }
+
+    /**
+     * @return how this hologram's lines are rendered
+     */
+    public HologramDisplayType getDisplayType() {
+        return this.displayType;
+    }
+
+    /**
+     * @return the yaw applied to the lines when the display type is fixed
+     */
+    public float getYaw() {
+        return this.yaw;
+    }
+
+    /**
+     * @return the pitch applied to the lines when the display type is fixed
+     */
+    public float getPitch() {
+        return this.pitch;
+    }
+
+    /**
+     * Restores display settings without saving. Used while loading from storage, and it must be
+     * called before any lines are added so they are built as the right entity type.
+     *
+     * @param displayType the persisted display type
+     * @param yaw         the persisted yaw
+     * @param pitch       the persisted pitch
+     */
+    public void restoreDisplayState(HologramDisplayType displayType, float yaw, float pitch) {
+        this.displayType = displayType == null ? HologramDisplayType.FACING : displayType;
+        this.yaw = normaliseYaw(yaw);
+        this.pitch = clampPitch(pitch);
+    }
+
+    /**
+     * Sets the orientation used by fixed holograms. Stored regardless of the current display
+     * type so switching to fixed later keeps the rotation.
+     *
+     * @param yaw   rotation around the Y axis in degrees
+     * @param pitch rotation around the X axis in degrees
+     */
+    public void setRotation(float yaw, float pitch) {
+        this.yaw = normaliseYaw(yaw);
+        this.pitch = clampPitch(pitch);
+
+        for (HologramLineRenderer line : this.lines) {
+            line.setRotation(this.yaw, this.pitch);
+        }
+
+        // Teleport packets carry rotation, so this is enough to push the change.
+        for (ServerPlayer player : currentViewers()) {
+            for (HologramLineRenderer line : this.lines) {
+                line.sendTeleportPacket(player);
+            }
+        }
+
+        HologramManager.save();
+    }
+
+    /**
+     * Switches how this hologram renders. The line entities are a different entity type per
+     * display type, so every line is rebuilt and respawned for anyone currently watching.
+     *
+     * @param displayType the display type to use
+     */
+    public void setDisplayType(HologramDisplayType displayType) {
+        if (displayType == null || displayType == this.displayType) {
+            return;
+        }
+
+        List<ServerPlayer> viewers = currentViewers();
+
+        // Snapshot the content before the old line entities go away.
+        List<String> texts = new ArrayList<>();
+        List<List<String>> frames = new ArrayList<>();
+        List<Integer> intervals = new ArrayList<>();
+
+        for (HologramLineRenderer line : this.lines) {
+            texts.add(line.getText());
+            frames.add(line.getFrames());
+            intervals.add(line.getIntervalTicks());
+
+            for (ServerPlayer player : viewers) {
+                line.despawnForPlayer(player);
+            }
+        }
+
+        this.displayType = displayType;
+        this.lines.clear();
+
+        for (int i = 0; i < texts.size(); i++) {
+            List<String> lineFrames = frames.get(i);
+            this.lines.add(lineFrames != null
+                    ? createAnimatedLine(lineY(i), lineFrames, intervals.get(i))
+                    : createLine(lineY(i), texts.get(i)));
+        }
+
+        for (HologramLineRenderer line : this.lines) {
+            for (ServerPlayer player : viewers) {
+                line.spawnForPlayer(player);
+                line.updateForPlayer(player);
+            }
+        }
+
+        HologramManager.save();
     }
 
     public List<UUID> getNearbyPlayers() {
@@ -580,7 +736,7 @@ public class ForgeHologram implements Hologram {
         this.position = position;
 
         // Update all lines' world and position
-        for (HologramLine line : this.lines) {
+        for (HologramLineRenderer line : this.lines) {
             line.setWorld(world);
         }
         

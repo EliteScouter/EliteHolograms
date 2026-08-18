@@ -25,14 +25,24 @@ import java.util.UUID;
 public class ItemHologram extends ForgeHologram {
     
     private static final double ITEM_TEXT_GAP = 0.8; // Gap between item and first text line
-    private static int entityIdCounter = -5000;
     
     private final String itemId;
     private transient ArmorStand itemStand;
     private transient ItemStack itemStack;
     
     public ItemHologram(String id, Level world, Vec3 position, int range, String itemId, String... lines) {
-        super(id, world, position, range, false); // Don't save in parent constructor
+        this(id, world, position, range, itemId, HologramDisplayType.FACING, 0.0F, 0.0F, lines);
+    }
+
+    /**
+     * Creates an item hologram with an explicit display type and orientation.
+     *
+     * <p>Only the text lines honour the display type. The floating item itself is an armor stand
+     * head slot, so it renders the same either way.
+     */
+    public ItemHologram(String id, Level world, Vec3 position, int range, String itemId,
+                        HologramDisplayType displayType, float yaw, float pitch, String... lines) {
+        super(id, world, position, range, false, displayType, yaw, pitch); // Don't save in parent constructor
         
         this.itemId = itemId;
         // Don't init item stand yet - world might not be fully ready during deserialization
@@ -59,7 +69,7 @@ public class ItemHologram extends ForgeHologram {
         this.itemStand.setNoGravity(true);
         this.itemStand.setCustomNameVisible(false);
         this.itemStand.setBoundingBox(this.itemStand.getBoundingBox().inflate(-0.95, -0.95, -0.95));
-        this.itemStand.setId(getNextEntityId());
+        this.itemStand.setId(com.strictgaming.elite.holograms.forge20.hologram.entity.HologramEntityIds.next());
         
         // Set the item in the armor stand's head slot for better visibility
         this.itemStand.setItemSlot(EquipmentSlot.HEAD, itemStack);
@@ -208,8 +218,5 @@ public class ItemHologram extends ForgeHologram {
         super.despawn();
     }
     
-    private static synchronized int getNextEntityId() {
-        return entityIdCounter--;
-    }
 }
 

@@ -20,7 +20,6 @@ group = mod_group_id
 
 repositories {
     mavenLocal()
-    maven { url = 'https://oss.sonatype.org/content/repositories/snapshots' }
 }
 
 base {

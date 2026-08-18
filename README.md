@@ -62,7 +62,7 @@ These show different information for each player viewing the hologram:
 
 | Command                     | Description                                  | Permission Node Suffix |
 | --------------------------- | -------------------------------------------- | ---------------------- |
-| `/eh create <id> <text...>` | Create a new hologram at your location       | `.create`              |
+| `/eh create [fixed\|facing] <id> <text...>` | Create a new hologram at your location | `.create`   |
 | `/eh list [page]`           | List all holograms on the server             | `.list`                |
 | `/eh delete <id>`           | Delete a hologram                            | `.delete`              |
 | `/eh addline <id> <text...>`| Add a line to a hologram                     | `.edit`                |
@@ -76,9 +76,54 @@ These show different information for each player viewing the hologram:
 | `/eh copy <source_id> <new_id>`| Copy an existing hologram to a new one    | `.create` (as it creates) |
 | `/eh info <id>`             | Display information about a hologram         | `.info`                |
 | `/eh movevertical <id> <up\|down> <amount>` | Move a hologram up or down by the specified amount (e.g., 1.5) | `.edit` |
-| `/eh createscoreboard <id> <objective> [topCount] [updateInterval]` | Create a scoreboard-based hologram showing the top X players for an objective, refreshing every N seconds | `.create` |
+| `/eh createat [fixed\|facing] <id> <x> <y> <z> [text...]` | Create a hologram at explicit coordinates | `.create` |
+| `/eh createitem [fixed\|facing] <id> <item> [text...]` | Create a hologram with a floating item above it | `.create` |
+| `/eh createscoreboard [fixed\|facing] <id> <objective> [topCount] [updateInterval] [theme]` | Create a scoreboard-based hologram showing the top X players for an objective, refreshing every N seconds | `.create` |
+| `/eh settheme <id> <theme>`  | Restyle an existing scoreboard hologram      | `.create`              |
+| `/eh convert <id> fixed\|face` | Switch a hologram between fixed and player-facing | `.edit`          |
+| `/eh setrotation <id> <yaw> [pitch]` | Set the orientation of a fixed hologram | `.edit`             |
+| `/eh backlight <id> <on\|off\|toggle> [level 0-15]` | Light a hologram with a column of invisible light blocks | `.backlight` |
 
 All commands support **tab completion** for hologram IDs and relevant parameters. The base permission is `eliteholograms`. For example, to use `/eh create`, a player would need `eliteholograms.create`.
+
+### Fixed vs. Player-Facing Holograms
+
+Holograms come in two display types:
+
+* **`facing`** (the default) - the classic look. The text always turns to face each player, so it
+  reads correctly from any angle.
+* **`fixed`** - the text is anchored to a yaw and pitch and stays put, like a sign hung on a wall.
+  Everyone sees it from the same angle, which is what you want for holograms mounted flat against
+  a build, a shop wall, or a portal frame.
+
+Pick the type when you create the hologram:
+
+```
+/eh create fixed shop_sign &6Welcome to the Shop!
+```
+
+A new fixed hologram is automatically turned to face you. To aim it yourself, or to tilt it:
+
+```
+/eh setrotation shop_sign 90
+/eh setrotation shop_sign 90 -15
+```
+
+Yaw follows the in-game convention - `0` faces south, `90` west, `180` north, `270` east. Pitch
+runs from `-90` (tilted up) to `90` (tilted down); leave it out to keep the hologram level.
+
+Already have a hologram you want to pin down? Convert it in place - lines, animations, items and
+backlights all carry over:
+
+```
+/eh convert shop_sign fixed
+/eh convert shop_sign face
+```
+
+`/eh info <id>` shows a hologram's current display type and rotation.
+
+> **Forge 1.19.2:** fixed holograms are not available. They are built on `text_display` entities,
+> which Minecraft added in 1.19.4, so the 1.19.2 edition supports player-facing holograms only.
 
 ### Scoreboard Holograms
 

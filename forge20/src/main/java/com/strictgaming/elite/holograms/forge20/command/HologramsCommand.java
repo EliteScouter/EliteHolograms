@@ -1,6 +1,7 @@
 package com.strictgaming.elite.holograms.forge20.command;
 
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
+import com.strictgaming.elite.holograms.forge20.hologram.HologramDisplayType;
 import com.strictgaming.elite.holograms.forge20.hologram.HologramManager;
 import com.strictgaming.elite.holograms.forge20.util.UtilChatColour;
 import com.strictgaming.elite.holograms.forge20.util.UtilPermissions;
@@ -122,12 +123,26 @@ public class HologramsCommand {
                 subCommand.requires(UtilPermissions::canCreate); // Copy requires create permission
             } else if (name.equals("backlight")) {
                 subCommand.requires(src -> UtilPermissions.hasPermission(src, UtilPermissions.BACKLIGHT));
+            } else if (name.equals("setrotation") || name.equals("convert")) {
+                subCommand.requires(UtilPermissions::canEdit);
             } else if (name.equals("reload")) {
                 subCommand.requires(UtilPermissions::canAdmin);
             }
             
             // Add appropriate arguments based on command name
             if (name.equals("create")) {
+                // Explicit display type first. Brigadier matches literals before arguments, so
+                // these take precedence over the bare <id> form without shadowing it.
+                for (HologramDisplayType type : HologramDisplayType.values()) {
+                    subCommand.then(Commands.literal(type.getSerializedName())
+                        .then(Commands.argument("id", StringArgumentType.word())
+                        .then(Commands.argument("text", StringArgumentType.greedyString())
+                        .executes(ctx -> executeSubCommand(ctx, "create", new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "text")
+                        }, type)))));
+                }
+
                 subCommand
                     .then(Commands.argument("id", StringArgumentType.word())
                     .then(Commands.argument("text", StringArgumentType.greedyString())
@@ -139,6 +154,23 @@ public class HologramsCommand {
                         return executeSubCommand(ctx, "create", args);
                     })));
             } else if (name.equals("createscoreboard")) {
+                // Explicit display type: /eh createscoreboard fixed|facing <id> <objective> ...
+                for (HologramDisplayType type : HologramDisplayType.values()) {
+                    subCommand.then(Commands.literal(type.getSerializedName())
+                        .then(Commands.argument("id", StringArgumentType.word())
+                        .then(Commands.argument("objective", StringArgumentType.word())
+                        .suggests(OBJECTIVE_SUGGESTIONS)
+                        .executes(ctx -> executeSubCommand(ctx, "createscoreboard", new String[0], type))
+                        .then(Commands.argument("topCount", IntegerArgumentType.integer(1, 10))
+                        .executes(ctx -> executeSubCommand(ctx, "createscoreboard", new String[0], type))
+                        .then(Commands.argument("updateInterval", IntegerArgumentType.integer(5, 300))
+                        .executes(ctx -> executeSubCommand(ctx, "createscoreboard", new String[0], type))
+                        .then(Commands.argument("theme", StringArgumentType.word())
+                        .suggests(THEME_SUGGESTIONS)
+                        .executes(ctx -> executeSubCommand(ctx, "createscoreboard", new String[0], type))))))));
+                }
+
+                // Bare form, no display type: /eh createscoreboard <id> <objective> ...
                 subCommand
                     .then(Commands.argument("id", StringArgumentType.word())
                     .then(Commands.argument("objective", StringArgumentType.word())
@@ -195,6 +227,23 @@ public class HologramsCommand {
                         return executeSubCommand(ctx, "settheme", args);
                     })));
             } else if (name.equals("createitem")) {
+                // Explicit display type: /eh createitem fixed|facing <id> <item> [text]
+                for (HologramDisplayType type : HologramDisplayType.values()) {
+                    subCommand.then(Commands.literal(type.getSerializedName())
+                        .then(Commands.argument("id", StringArgumentType.word())
+                        .then(Commands.argument("item", StringArgumentType.word())
+                        .executes(ctx -> executeSubCommand(ctx, "createitem", new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "item")
+                        }, type))
+                        .then(Commands.argument("text", StringArgumentType.greedyString())
+                        .executes(ctx -> executeSubCommand(ctx, "createitem", new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "item"),
+                            StringArgumentType.getString(ctx, "text")
+                        }, type))))));
+                }
+
                 subCommand
                     .then(Commands.argument("id", StringArgumentType.word())
                     .then(Commands.argument("item", StringArgumentType.word())
@@ -358,6 +407,29 @@ public class HologramsCommand {
                         return executeSubCommand(ctx, name, args);
                     }))))));
             } else if (name.equals("createat")) {
+                // Explicit display type: /eh createat fixed|facing <id> <x> <y> <z> [text]
+                for (HologramDisplayType type : HologramDisplayType.values()) {
+                    subCommand.then(Commands.literal(type.getSerializedName())
+                        .then(Commands.argument("id", StringArgumentType.word())
+                        .then(Commands.argument("x", StringArgumentType.word())
+                        .then(Commands.argument("y", StringArgumentType.word())
+                        .then(Commands.argument("z", StringArgumentType.word())
+                        .executes(ctx -> executeSubCommand(ctx, "createat", new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "x"),
+                            StringArgumentType.getString(ctx, "y"),
+                            StringArgumentType.getString(ctx, "z")
+                        }, type))
+                        .then(Commands.argument("text", StringArgumentType.greedyString())
+                        .executes(ctx -> executeSubCommand(ctx, "createat", new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "x"),
+                            StringArgumentType.getString(ctx, "y"),
+                            StringArgumentType.getString(ctx, "z"),
+                            StringArgumentType.getString(ctx, "text")
+                        }, type))))))));
+                }
+
                 subCommand
                     .then(Commands.argument("id", StringArgumentType.word())
                     .then(Commands.argument("x", StringArgumentType.word())
@@ -383,6 +455,37 @@ public class HologramsCommand {
                         };
                         return executeSubCommand(ctx, name, args);
                     }))))));
+            } else if (name.equals("setrotation")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.argument("yaw", StringArgumentType.word())
+                    .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "yaw")
+                    }))
+                    .then(Commands.argument("pitch", StringArgumentType.word())
+                    .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "yaw"),
+                        StringArgumentType.getString(ctx, "pitch")
+                    })))));
+            } else if (name.equals("convert")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.literal("fixed")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "fixed"
+                        })))
+                    .then(Commands.literal("face")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "face"
+                        })))
+                    .then(Commands.literal("facing")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "facing"
+                        }))));
             } else if (name.equals("copy")) {
                 subCommand
                     .then(Commands.argument("target", StringArgumentType.word())
@@ -457,6 +560,9 @@ public class HologramsCommand {
         source.sendSystemMessage(Component.literal("§3│ §b/eh animateline <id> <line> <sec> <frames>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh info <id>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh backlight <id> <on|off|toggle> [level 0-15]"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh setrotation <id> <yaw> [pitch]"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh convert <id> fixed|face"));
+        source.sendSystemMessage(Component.literal("§3│ §7fixed|facing works on every create command"));
         source.sendSystemMessage(Component.literal("§3§l└─────────────────┘"));
         return 1;
     }
@@ -472,6 +578,38 @@ public class HologramsCommand {
      * Execute a subcommand
      */
     private int executeSubCommand(CommandContext<CommandSourceStack> context, String name, String[] args) {
+        return executeSubCommand(context, name, args, null);
+    }
+
+    /**
+     * Executes a subcommand, optionally forcing a display type.
+     *
+     * <p>Only the create commands understand a display type. When {@code displayType} is null the
+     * command's own default (player-facing) applies, which is what every other subcommand and the
+     * bare {@code /eh create <id> <text>} form use.
+     */
+    private int executeSubCommand(CommandContext<CommandSourceStack> context, String name, String[] args,
+                                  HologramDisplayType displayType) {
+        if (displayType != null) {
+            Object typed = subCommands.get(name.toLowerCase().trim());
+
+            try {
+                if (typed instanceof HologramsCreateCommand) {
+                    return ((HologramsCreateCommand) typed).executeCommand(context, args, displayType);
+                } else if (typed instanceof HologramsCreateAtCommand) {
+                    return ((HologramsCreateAtCommand) typed).executeCommand(context, args, displayType);
+                } else if (typed instanceof HologramsCreateItemCommand) {
+                    return ((HologramsCreateItemCommand) typed).executeCommand(context, args, displayType);
+                } else if (typed instanceof HologramsCreateScoreboardCommand) {
+                    return ((HologramsCreateScoreboardCommand) typed).run(context, displayType);
+                }
+            } catch (Exception e) {
+                LOGGER.error("Error executing command: {}", name, e);
+                context.getSource().sendSystemMessage(Component.literal("§c§l(!) §cAn error occurred while executing the command."));
+                return 0;
+            }
+        }
+
         LOGGER.debug("Looking for command: {}", name);
         
         if (LOGGER.isDebugEnabled()) {
@@ -545,6 +683,10 @@ public class HologramsCommand {
                 return ((HologramsNearCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsBacklightCommand) {
                 return ((HologramsBacklightCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsSetRotationCommand) {
+                return ((HologramsSetRotationCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsConvertCommand) {
+                return ((HologramsConvertCommand) subCommand).executeCommand(context, args);
             }
             
             // If we don't have a handler for this command, show an error

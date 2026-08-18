@@ -21,21 +21,30 @@ import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.UUID;
 
 public class ItemHologram extends NeoForgeHologram {
     
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final double ITEM_TEXT_GAP = 0.8; 
-    private static final AtomicInteger NEXT_ENTITY_ID = new AtomicInteger(-2000000000);
     
     private final String itemId;
     private ArmorStand itemStand;
     private ItemStack itemStack;
     
     public ItemHologram(String id, String world, double x, double y, double z, String itemId, List<String> lines) {
-        super(id, world, x, y, z, lines);
+        this(id, world, x, y, z, itemId, lines, HologramDisplayType.FACING, 0.0F, 0.0F);
+    }
+
+    /**
+     * Creates an item hologram with an explicit display type and orientation.
+     *
+     * <p>Only the text lines honour the display type. The floating item itself is an armor stand
+     * head slot, so it renders the same either way.
+     */
+    public ItemHologram(String id, String world, double x, double y, double z, String itemId,
+                        List<String> lines, HologramDisplayType displayType, float yaw, float pitch) {
+        super(id, world, x, y, z, lines, displayType, yaw, pitch);
         this.itemId = itemId;
         // Don't init yet - constructor is called during load, before server level is available
         LOGGER.debug("ItemHologram {} created, will initialize item stand on spawn.", id);
@@ -52,7 +61,7 @@ public class ItemHologram extends NeoForgeHologram {
         
         // Create the item display armor stand ABOVE the text lines
         this.itemStand = new ArmorStand(level, getX(), getY() + ITEM_TEXT_GAP, getZ());
-        this.itemStand.setId(NEXT_ENTITY_ID.getAndIncrement());
+        this.itemStand.setId(com.strictgaming.elite.holograms.neo21.hologram.entity.HologramEntityIds.next());
         
         this.itemStand.setInvisible(true);
         this.itemStand.setNoGravity(true);

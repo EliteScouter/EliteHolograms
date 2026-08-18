@@ -63,6 +63,10 @@ public class ScoreboardHologramConfig {
                 // Preserve backlight state so it survives reload/restart
                 d.backlightEnabled = holo.isBacklightEnabled();
                 d.backlightLevel = holo.getBacklightLevel();
+                // Preserve the display type and orientation
+                d.displayType = holo.getDisplayType().getSerializedName();
+                d.yaw = holo.getYaw();
+                d.pitch = holo.getPitch();
                 configData.add(d);
             }
 
@@ -127,5 +131,11 @@ public class ScoreboardHologramConfig {
         // Backlight state (vertical light column) so it persists across reload/restart
         public boolean backlightEnabled;
         public int backlightLevel;
+
+        // How the board renders, and its orientation when fixed. Null/0 for boards saved
+        // before fixed holograms existed, which read back as player-facing.
+        public String displayType;
+        public float yaw;
+        public float pitch;
     }
 }

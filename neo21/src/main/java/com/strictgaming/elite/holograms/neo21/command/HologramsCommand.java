@@ -106,6 +106,8 @@ public class HologramsCommand {
             case "movehere":
             case "insertline":
             case "movevertical":
+            case "setrotation":
+            case "convert":
                 return UtilPermissions.EDIT;
             case "list":
                 return UtilPermissions.LIST;
@@ -141,9 +143,11 @@ public class HologramsCommand {
         
         source.sendSuccess(() -> Component.literal("§3§l┌─§b§lElite Holograms §3§l──────┐"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh create <id> <text>"), false);
-        source.sendSuccess(() -> Component.literal("§3│ §b/eh createat <id> <x> <y> <z> [text]"), false);
-        source.sendSuccess(() -> Component.literal("§3│ §b/eh createitem <id> <item> [text]"), false);
-        source.sendSuccess(() -> Component.literal("§3│ §b/eh createscoreboard <id> <objective> [top] [interval] [theme]"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh create fixed|facing <id> <text>"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh createat [fixed|facing] <id> <x> <y> <z> [text]"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh createitem [fixed|facing] <id> <item> [text]"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh createscoreboard [fixed|facing] <id> <objective> [top] [interval] [theme]"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §7fixed|facing works on every create command"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh settheme <id> <theme>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh list"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh delete <id>"), false);
@@ -161,6 +165,8 @@ public class HologramsCommand {
         source.sendSuccess(() -> Component.literal("§3│ §b/eh info <id>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh movevertical <id> <up|down> <amount> or <amount>"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh backlight <id> <on|off|toggle> [level 0-15]"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh setrotation <id> <yaw> [pitch]"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh convert <id> fixed|face"), false);
         source.sendSuccess(() -> Component.literal("§3§l└─────────────────┘"), false);
         
         return 1;

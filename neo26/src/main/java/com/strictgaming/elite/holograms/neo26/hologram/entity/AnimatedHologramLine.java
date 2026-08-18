@@ -19,6 +19,16 @@ public class AnimatedHologramLine extends HologramLine {
         this.intervalTicks = intervalTicks;
     }
 
+    @Override
+    public boolean isAnimated() {
+        return true;
+    }
+
+    @Override
+    public boolean tickAnimation() {
+        return this.tick();
+    }
+
     /**
      * Ticks the animation
      * @return true if the frame changed
@@ -65,3 +75,4 @@ public class AnimatedHologramLine extends HologramLine {
         return intervalTicks;
     }
 }
+

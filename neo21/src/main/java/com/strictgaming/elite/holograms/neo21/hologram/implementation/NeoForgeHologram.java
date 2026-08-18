@@ -2,9 +2,14 @@ package com.strictgaming.elite.holograms.neo21.hologram.implementation;
 
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
 import com.strictgaming.elite.holograms.neo21.Neo21Holograms;
+import com.strictgaming.elite.holograms.neo21.hologram.HologramDisplayType;
 import com.strictgaming.elite.holograms.neo21.hologram.HologramManager;
 import com.strictgaming.elite.holograms.neo21.hologram.entity.AnimatedHologramLine;
+import com.strictgaming.elite.holograms.neo21.hologram.entity.AnimatedTextDisplayHologramLine;
+import com.strictgaming.elite.holograms.neo21.hologram.entity.HologramEntityIds;
 import com.strictgaming.elite.holograms.neo21.hologram.entity.HologramLine;
+import com.strictgaming.elite.holograms.neo21.hologram.entity.HologramLineRenderer;
+import com.strictgaming.elite.holograms.neo21.hologram.entity.TextDisplayHologramLine;
 import com.strictgaming.elite.holograms.neo21.util.UtilBacklight;
 import com.strictgaming.elite.holograms.neo21.util.UtilChatColour;
 import com.strictgaming.elite.holograms.neo21.util.UtilPlaceholder;
@@ -39,19 +44,23 @@ public class NeoForgeHologram implements Hologram {
     
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final double LINE_SPACING = 0.25;
-    private static int nextEntityId = -2000000000; 
     
     private final String id;
     private String world;
     private double x;
     private double y;
     private double z;
+
+    // How the lines are rendered, and the orientation used when that is FIXED
+    private HologramDisplayType displayType = HologramDisplayType.FACING;
+    private float yaw = 0.0F;
+    private float pitch = 0.0F;
     
     // Content of lines: String or AnimatedLineData
     private List<Object> linesContent = new ArrayList<>();
     
     // Live entities
-    private final List<HologramLine> hologramLines = new ArrayList<>();
+    private final List<HologramLineRenderer> hologramLines = new ArrayList<>();
     
     private final List<UUID> nearbyPlayers = Collections.synchronizedList(new ArrayList<>());
     private boolean spawned = false;
@@ -75,11 +84,19 @@ public class NeoForgeHologram implements Hologram {
     }
     
     public NeoForgeHologram(String id, String world, double x, double y, double z, List<String> lines) {
+        this(id, world, x, y, z, lines, HologramDisplayType.FACING, 0.0F, 0.0F);
+    }
+
+    public NeoForgeHologram(String id, String world, double x, double y, double z, List<String> lines,
+                            HologramDisplayType displayType, float yaw, float pitch) {
         this.id = id;
         this.world = world;
         this.x = x;
         this.y = y;
         this.z = z;
+        this.displayType = displayType == null ? HologramDisplayType.FACING : displayType;
+        this.yaw = normaliseYaw(yaw);
+        this.pitch = clampPitch(pitch);
         if (lines != null) {
             this.linesContent.addAll(lines);
         }
@@ -109,27 +126,7 @@ public class NeoForgeHologram implements Hologram {
 
         double currentY = this.y;
         for (Object content : this.linesContent) {
-            HologramLine line;
-            if (content instanceof AnimatedLineData) {
-                AnimatedLineData data = (AnimatedLineData) content;
-                // Create ArmorStand manually to pass to AnimatedHologramLine
-                // We need a helper since HologramLine usually creates it
-                // Actually, AnimatedHologramLine extends HologramLine, so we can just instantiate it
-                // But AnimatedHologramLine constructor takes ArmorStand.
-                // We should change AnimatedHologramLine to take Level, x,y,z like HologramLine?
-                // Or create ArmorStand here.
-                ArmorStand as = new ArmorStand(level, this.x, currentY, this.z);
-                as.setId(getNextEntityId());
-                configureArmorStand(as);
-                // Set initial name
-                String initialText = data.frames.isEmpty() ? "" : data.frames.get(0);
-                as.setCustomName(UtilChatColour.parse(UtilPlaceholder.replacePlaceholders(initialText, null)));
-                
-                line = new AnimatedHologramLine(as, data.frames, data.interval * 20); // interval is seconds usually, convert to ticks
-            } else {
-                String text = (content != null) ? content.toString() : "";
-                line = new HologramLine(level, this.x, currentY, this.z, text);
-            }
+            HologramLineRenderer line = createLine(level, content, currentY);
             
             hologramLines.add(line);
             currentY -= LINE_SPACING;
@@ -145,6 +142,44 @@ public class NeoForgeHologram implements Hologram {
         }
     }
     
+    /**
+     * Builds a single line entity for this hologram's display type.
+     *
+     * @param level    the level the line lives in
+     * @param content  either a plain String or {@link AnimatedLineData}
+     * @param lineY    the Y coordinate of this line's slot
+     * @return the line renderer
+     */
+    private HologramLineRenderer createLine(ServerLevel level, Object content, double lineY) {
+        boolean fixed = this.displayType == HologramDisplayType.FIXED;
+
+        if (content instanceof AnimatedLineData data) {
+            // Stored in seconds, ticked in ticks.
+            int intervalTicks = data.interval * 20;
+
+            if (fixed) {
+                return new AnimatedTextDisplayHologramLine(level, this.x, lineY, this.z,
+                        this.yaw, this.pitch, data.frames, intervalTicks);
+            }
+
+            ArmorStand armorStand = new ArmorStand(level, this.x, lineY, this.z);
+            armorStand.setId(HologramEntityIds.next());
+            configureArmorStand(armorStand);
+            String initialText = data.frames.isEmpty() ? "" : data.frames.get(0);
+            armorStand.setCustomName(UtilChatColour.parse(UtilPlaceholder.replacePlaceholders(initialText, null)));
+
+            return new AnimatedHologramLine(armorStand, data.frames, intervalTicks);
+        }
+
+        String text = (content != null) ? content.toString() : "";
+
+        if (fixed) {
+            return new TextDisplayHologramLine(level, this.x, lineY, this.z, this.yaw, this.pitch, text);
+        }
+
+        return new HologramLine(level, this.x, lineY, this.z, text);
+    }
+
     private void configureArmorStand(ArmorStand armorStand) {
         armorStand.setInvisible(true);
         armorStand.setNoGravity(true);
@@ -155,8 +190,13 @@ public class NeoForgeHologram implements Hologram {
         armorStand.addTag("spectral_vision_unaffected");
     }
 
-    private static synchronized int getNextEntityId() {
-        return nextEntityId++;
+    private static float normaliseYaw(float yaw) {
+        float wrapped = yaw % 360.0F;
+        return wrapped < 0.0F ? wrapped + 360.0F : wrapped;
+    }
+
+    private static float clampPitch(float pitch) {
+        return Math.max(-90.0F, Math.min(90.0F, pitch));
     }
 
     @Override
@@ -307,7 +347,7 @@ public class NeoForgeHologram implements Hologram {
         this.z = z;
 
         double currentY = this.y;
-        for (HologramLine line : hologramLines) {
+        for (HologramLineRenderer line : hologramLines) {
             line.setPosition(this.x, currentY, this.z);
             currentY -= LINE_SPACING;
         }
@@ -336,6 +376,82 @@ public class NeoForgeHologram implements Hologram {
         saveToConfig();
     }
     
+    /**
+     * @return how this hologram's lines are rendered
+     */
+    public HologramDisplayType getDisplayType() {
+        return this.displayType;
+    }
+
+    /**
+     * @return the yaw applied to the lines when the display type is fixed
+     */
+    public float getYaw() {
+        return this.yaw;
+    }
+
+    /**
+     * @return the pitch applied to the lines when the display type is fixed
+     */
+    public float getPitch() {
+        return this.pitch;
+    }
+
+    /**
+     * Switches how this hologram renders. The line entities are a different entity type per
+     * display type, so this respawns them for anyone currently watching.
+     *
+     * @param displayType the display type to use
+     */
+    public void setDisplayType(HologramDisplayType displayType) {
+        if (displayType == null || displayType == this.displayType) {
+            return;
+        }
+
+        updateHologramContent(() -> this.displayType = displayType);
+    }
+
+    /**
+     * Sets the orientation used by fixed holograms. Stored regardless of the current display
+     * type so switching to fixed later keeps the rotation.
+     *
+     * @param yaw   rotation around the Y axis in degrees
+     * @param pitch rotation around the X axis in degrees
+     */
+    public void setRotation(float yaw, float pitch) {
+        this.yaw = normaliseYaw(yaw);
+        this.pitch = clampPitch(pitch);
+
+        for (HologramLineRenderer line : hologramLines) {
+            line.setRotation(this.yaw, this.pitch);
+        }
+
+        if (spawned) {
+            // Teleport packets carry rotation, so this is enough to push the change.
+            for (UUID uuid : new ArrayList<>(nearbyPlayers)) {
+                ServerPlayer player = getPlayerByUUID(uuid);
+                if (player != null) {
+                    hologramLines.forEach(line -> line.sendTeleportPacket(player));
+                }
+            }
+        }
+
+        saveToConfig();
+    }
+
+    /**
+     * Restores display settings from config without triggering a save.
+     *
+     * @param displayType the persisted display type
+     * @param yaw         the persisted yaw
+     * @param pitch       the persisted pitch
+     */
+    public void restoreDisplayState(HologramDisplayType displayType, float yaw, float pitch) {
+        this.displayType = displayType == null ? HologramDisplayType.FACING : displayType;
+        this.yaw = normaliseYaw(yaw);
+        this.pitch = clampPitch(pitch);
+    }
+
     @Override
     public void spawn() {
         if (this.spawned) return;
@@ -403,7 +519,7 @@ public class NeoForgeHologram implements Hologram {
         // For static lines with placeholders, we can update here.
         
         hologramLines.forEach(line -> {
-            if (!(line instanceof AnimatedHologramLine)) { // Don't spam animated lines here, tick handles them
+            if (!line.isAnimated()) { // Don't spam animated lines here, tick handles them
                 line.updateForPlayer(player, false);
             }
         });
@@ -411,13 +527,13 @@ public class NeoForgeHologram implements Hologram {
     
     public void tick() {
         // Tick animated lines
-        for (HologramLine line : hologramLines) {
-            if (line instanceof AnimatedHologramLine animated) {
-                if (animated.tick()) {
-                     for (UUID uuid : nearbyPlayers) {
-                         ServerPlayer p = getPlayerByUUID(uuid);
-                         if (p != null) animated.updateForPlayer(p, false);
-                     }
+        for (HologramLineRenderer line : hologramLines) {
+            if (line.isAnimated() && line.tickAnimation()) {
+                // Copied because nearbyPlayers is mutated as players walk in and out of range,
+                // and iterating a synchronizedList directly is not safe against that.
+                for (UUID uuid : new ArrayList<>(nearbyPlayers)) {
+                    ServerPlayer p = getPlayerByUUID(uuid);
+                    if (p != null) line.updateForPlayer(p, false);
                 }
             }
         }
@@ -426,8 +542,8 @@ public class NeoForgeHologram implements Hologram {
         placeholderTickCounter++;
         if (placeholderTickCounter >= PLACEHOLDER_REFRESH_INTERVAL) {
             placeholderTickCounter = 0;
-            for (HologramLine line : hologramLines) {
-                if (!(line instanceof AnimatedHologramLine)) {
+            for (HologramLineRenderer line : hologramLines) {
+                if (!line.isAnimated()) {
                     for (UUID uuid : new ArrayList<>(nearbyPlayers)) {
                         ServerPlayer p = getPlayerByUUID(uuid);
                         if (p != null) {

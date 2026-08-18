@@ -24,7 +24,6 @@ import java.util.UUID;
 public class ItemHologram extends ForgeHologram {
     
     private static final double ITEM_TEXT_GAP = 0.8; // Gap between item and first text line
-    private static int entityIdCounter = -5000;
     
     private final String itemId;
     private transient ArmorStand itemStand;
@@ -183,8 +182,8 @@ public class ItemHologram extends ForgeHologram {
         super.despawn();
     }
     
-    private static synchronized int getNextEntityId() {
-        return entityIdCounter--;
+    private static int getNextEntityId() {
+        return com.strictgaming.elite.holograms.forge.hologram.entity.HologramEntityIds.next();
     }
 }
 

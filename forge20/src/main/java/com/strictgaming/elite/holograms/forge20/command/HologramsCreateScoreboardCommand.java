@@ -4,6 +4,7 @@ import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.strictgaming.elite.holograms.forge20.hologram.HologramDisplayType;
 import com.strictgaming.elite.holograms.forge20.hologram.HologramManager;
 import com.strictgaming.elite.holograms.forge20.hologram.ScoreboardHologram;
 import com.strictgaming.elite.holograms.forge20.util.UtilPermissions;
@@ -19,6 +20,13 @@ public class HologramsCreateScoreboardCommand implements Command<CommandSourceSt
 
     @Override
     public int run(CommandContext<CommandSourceStack> context) {
+        return run(context, HologramDisplayType.FACING);
+    }
+
+    /**
+     * Runs the command with an explicit display type.
+     */
+    public int run(CommandContext<CommandSourceStack> context, HologramDisplayType displayType) {
         CommandSourceStack source = context.getSource();
         
         // Check permissions
@@ -99,6 +107,9 @@ public class HologramsCreateScoreboardCommand implements Command<CommandSourceSt
                 return 0;
             }
             
+            // A fixed board keeps whatever rotation it is given, so start it facing the creator.
+            float yaw = displayType == HologramDisplayType.FIXED ? player.getYRot() - 180.0F : 0.0F;
+            
             // Create the scoreboard hologram
             ScoreboardHologram hologram = new ScoreboardHologram(
                 id,
@@ -108,7 +119,10 @@ public class HologramsCreateScoreboardCommand implements Command<CommandSourceSt
                 objective,
                 topCount,
                 updateInterval,
-                theme
+                theme,
+                displayType,
+                yaw,
+                0.0F
             );
             
             // Force initial update
@@ -122,8 +136,10 @@ public class HologramsCreateScoreboardCommand implements Command<CommandSourceSt
             final int finalUpdateInterval = updateInterval;
             final String finalTheme = theme;
             
+            final String finalDisplayType = displayType.getSerializedName();
+            
             source.sendSuccess(() -> Component.literal(
-                "§aCreated scoreboard hologram '" + id + "' for objective '" + objective + 
+                "§aCreated " + finalDisplayType + " scoreboard hologram '" + id + "' for objective '" + objective + 
                 "' showing top " + finalTopCount + " players (updates every " + finalUpdateInterval + "s, theme '" + finalTheme + "')"
             ), false);
             

@@ -5,8 +5,7 @@ import com.strictgaming.elite.holograms.api.manager.database.HologramSaver;
 import com.strictgaming.elite.holograms.forge20.Forge20Holograms;
 import com.strictgaming.elite.holograms.forge20.config.ScoreboardHologramConfig;
 import com.strictgaming.elite.holograms.forge20.hologram.database.JsonHologramSaver;
-import com.strictgaming.elite.holograms.forge20.hologram.entity.HologramLine;
-import com.strictgaming.elite.holograms.forge20.hologram.entity.AnimatedHologramLine;
+import com.strictgaming.elite.holograms.forge20.hologram.entity.HologramLineRenderer;
 import com.strictgaming.elite.holograms.forge20.hologram.ScoreboardHologram;
 import com.strictgaming.elite.holograms.forge20.util.UtilConcurrency;
 import com.strictgaming.elite.holograms.forge20.util.UtilPlayer;
@@ -329,7 +328,10 @@ public class HologramManager implements Runnable {
                     data.theme,
                     data.headerFormat,
                     data.playerFormat,
-                    data.emptyFormat
+                    data.emptyFormat,
+                    HologramDisplayType.fromStringOrDefault(data.displayType, HologramDisplayType.FACING),
+                    data.yaw,
+                    data.pitch
                 );
                 
                 // Force initial update
@@ -455,7 +457,7 @@ public class HologramManager implements Runnable {
                             UtilConcurrency.runSync(() -> ((ItemHologram) hologram).despawnItemFor(player));
                         }
                         
-                        for (HologramLine line : hologram.getLines()) {
+                        for (HologramLineRenderer line : hologram.getLines()) {
                             if (line != null) { // Check if line is not null
                                 UtilConcurrency.runSync(() -> line.despawnForPlayer(player));
                             }
@@ -474,7 +476,7 @@ public class HologramManager implements Runnable {
                             UtilConcurrency.runSync(() -> ((ItemHologram) hologram).despawnItemFor(player));
                         }
                         
-                        for (HologramLine line : hologram.getLines()) {
+                        for (HologramLineRenderer line : hologram.getLines()) {
                             if (line != null) { // Check if line is not null
                                 UtilConcurrency.runSync(() -> line.despawnForPlayer(player));
                             }
@@ -490,7 +492,7 @@ public class HologramManager implements Runnable {
                         UtilConcurrency.runSync(() -> ((ItemHologram) hologram).spawnItemFor(player));
                     }
                     
-                    for (HologramLine line : hologram.getLines()) {
+                    for (HologramLineRenderer line : hologram.getLines()) {
                         if (line != null) { // Check if line is not null
                             UtilConcurrency.runSync(() -> {
                                 line.spawnForPlayer(player);
@@ -502,8 +504,8 @@ public class HologramManager implements Runnable {
                 } else {
                     // Player is already nearby - update non-animated lines so placeholders
                     // like %players% and %maxplayers% stay current
-                    for (HologramLine line : hologram.getLines()) {
-                        if (line != null && !(line instanceof AnimatedHologramLine)) {
+                    for (HologramLineRenderer line : hologram.getLines()) {
+                        if (line != null && !line.isAnimated()) {
                             UtilConcurrency.runSync(() -> line.updateForPlayer(player));
                         }
                     }

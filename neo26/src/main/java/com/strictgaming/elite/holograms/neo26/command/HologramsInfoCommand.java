@@ -12,11 +12,11 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
+import net.minecraft.server.permissions.Permissions;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.permissions.Permissions;
 
 import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
@@ -86,6 +86,17 @@ public class HologramsInfoCommand implements HologramsCommand.SubCommand {
         source.sendSuccess(() -> UtilChatColour.parse("&3│ &bLocation: &f" + String.format("%.2f, %.2f, %.2f", 
                 hologram.getX(), hologram.getY(), hologram.getZ())), false);
         source.sendSuccess(() -> UtilChatColour.parse("&3│ &bLines: &f" + lines.size()), false);
+
+        if (hologram instanceof com.strictgaming.elite.holograms.neo26.hologram.implementation.NeoForgeHologram nf) {
+            source.sendSuccess(() -> UtilChatColour.parse("&3│ &bDisplay: &f"
+                    + nf.getDisplayType().getSerializedName()), false);
+
+            if (nf.getDisplayType()
+                    == com.strictgaming.elite.holograms.neo26.hologram.HologramDisplayType.FIXED) {
+                source.sendSuccess(() -> UtilChatColour.parse("&3│ &bRotation: &f"
+                        + String.format("yaw %.1f, pitch %.1f", nf.getYaw(), nf.getPitch())), false);
+            }
+        }
         
         if (!lines.isEmpty()) {
             source.sendSuccess(() -> UtilChatColour.parse("&3│"), false);

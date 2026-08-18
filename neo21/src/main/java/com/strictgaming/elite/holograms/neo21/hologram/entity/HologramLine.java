@@ -15,18 +15,20 @@ import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
-public class HologramLine {
-    private static final AtomicInteger NEXT_ENTITY_ID = new AtomicInteger(-2000000000);
-    
+/**
+ * A hologram line rendered as the nameplate of an invisible armor stand. The client always
+ * turns a nameplate towards the viewer, which is the {@code facing} display type.
+ */
+public class HologramLine implements HologramLineRenderer {
+
     protected final ArmorStand armorStand;
     protected String rawText;
 
     public HologramLine(ServerLevel level, double x, double y, double z, String rawText) {
         this.rawText = rawText;
         this.armorStand = new ArmorStand(level, x, y, z);
-        this.armorStand.setId(NEXT_ENTITY_ID.getAndIncrement());
+        this.armorStand.setId(HologramEntityIds.next());
         configureArmorStand();
         // Set initial name with server-side placeholders resolved, player-side raw
         this.armorStand.setCustomName(UtilChatColour.parse(UtilPlaceholder.replacePlaceholders(rawText, null)));
@@ -36,7 +38,7 @@ public class HologramLine {
         this.armorStand = armorStand;
         this.rawText = rawText;
         if (this.armorStand.getId() == 0) { 
-             this.armorStand.setId(NEXT_ENTITY_ID.getAndIncrement());
+             this.armorStand.setId(HologramEntityIds.next());
         }
         configureArmorStand();
         this.armorStand.setCustomName(UtilChatColour.parse(UtilPlaceholder.replacePlaceholders(rawText, null)));
@@ -52,6 +54,7 @@ public class HologramLine {
         armorStand.addTag("spectral_vision_unaffected");
     }
 
+    @Override
     public void spawnToPlayer(ServerPlayer player) {
         if (player == null || player.connection == null) return;
         
@@ -76,6 +79,7 @@ public class HologramLine {
         updateForPlayer(player, false);
     }
 
+    @Override
     public void updateForPlayer(ServerPlayer player, boolean isInitialSpawn) {
         if (player == null || player.connection == null) return;
 
@@ -103,15 +107,18 @@ public class HologramLine {
         }
     }
 
+    @Override
     public void despawnFromPlayer(ServerPlayer player) {
         if (player == null || player.connection == null) return;
         player.connection.send(new ClientboundRemoveEntitiesPacket(armorStand.getId()));
     }
     
+    @Override
     public void setPosition(double x, double y, double z) {
         armorStand.setPos(x,y,z);
     }
     
+    @Override
     public void sendTeleportPacket(ServerPlayer player) {
         if (player == null || player.connection == null) return;
         player.connection.send(new ClientboundTeleportEntityPacket(this.armorStand));
@@ -123,6 +130,7 @@ public class HologramLine {
         playersToRefreshFor.forEach(p -> this.updateForPlayer(p, false));
     }
     
+    @Override
     public String getText() {
         return rawText;
     }

@@ -19,8 +19,6 @@ import net.minecraft.network.chat.Component;
  */
 public class HologramLine {
 
-    private static int ENTITY_ID = -1000; // Start with a negative ID to avoid conflicts with actual entities
-
     private final ArmorStand armorStand;
     private String text;
 
@@ -34,7 +32,7 @@ public class HologramLine {
         this.armorStand.setNoGravity(true);
         this.armorStand.setCustomNameVisible(true);
         this.armorStand.setBoundingBox(this.armorStand.getBoundingBox().inflate(-0.95, -0.95, -0.95));
-        this.armorStand.setId(ENTITY_ID--); // Assign a unique entity ID
+        this.armorStand.setId(HologramEntityIds.next()); // Assign a unique entity ID
     }
 
     public void setText(String text) {

@@ -3,6 +3,7 @@ package com.strictgaming.elite.holograms.neo26.command;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
+import com.strictgaming.elite.holograms.neo26.hologram.HologramDisplayType;
 import com.strictgaming.elite.holograms.neo26.hologram.HologramManager;
 import com.strictgaming.elite.holograms.neo26.hologram.ItemHologram;
 
@@ -19,6 +20,10 @@ public class HologramsCreateItemCommand implements HologramsCommand.SubCommand {
 
     @Override
     public int execute(CommandContext<CommandSourceStack> context) {
+        return create(context, HologramDisplayType.FACING);
+    }
+
+    private int create(CommandContext<CommandSourceStack> context, HologramDisplayType displayType) {
         CommandSourceStack source = context.getSource();
         try {
             String id = StringArgumentType.getString(context, "id");
@@ -43,13 +48,17 @@ public class HologramsCreateItemCommand implements HologramsCommand.SubCommand {
 
             List<String> lines = text != null ? Arrays.asList(text.split("\\|")) : Collections.emptyList();
 
+            // A fixed hologram keeps whatever rotation it is given, so start it facing the creator.
+            float yaw = displayType == HologramDisplayType.FIXED ? player.getYRot() - 180.0F : 0.0F;
+
             ItemHologram hologram = new ItemHologram(
                 id, worldName, pos.x, pos.y, pos.z, itemId, 
-                lines
+                lines, displayType, yaw, 0.0F
             );
             hologram.spawn();
 
-            source.sendSuccess(() -> Component.literal("§aCreated item hologram with ID: " + id), true);
+            source.sendSuccess(() -> Component.literal("§aCreated " + displayType.getSerializedName()
+                    + " item hologram with ID: " + id), true);
             return 1;
         } catch (Exception e) {
             source.sendFailure(Component.literal("§cError creating hologram: " + e.getMessage()));
@@ -61,10 +70,21 @@ public class HologramsCreateItemCommand implements HologramsCommand.SubCommand {
     @Override
     public LiteralArgumentBuilder<CommandSourceStack> getArguments() {
         return Commands.literal("createitem")
-                .then(Commands.argument("id", StringArgumentType.word())
-                    .then(Commands.argument("item", StringArgumentType.string())
+                // Explicit display type; literals match before the bare <id> argument.
+                .then(Commands.literal("facing").then(itemArguments(HologramDisplayType.FACING)))
+                .then(Commands.literal("fixed").then(itemArguments(HologramDisplayType.FIXED)))
+                .then(itemArguments(HologramDisplayType.FACING));
+    }
+
+    /**
+     * Builds the {@code <id> <item> [text]} chain for a given display type.
+     */
+    private com.mojang.brigadier.builder.RequiredArgumentBuilder<CommandSourceStack, String> itemArguments(
+            HologramDisplayType displayType) {
+        return Commands.argument("id", StringArgumentType.word())
+                .then(Commands.argument("item", StringArgumentType.string())
+                        .executes(context -> create(context, displayType))
                         .then(Commands.argument("text", StringArgumentType.greedyString())
-                             .executes(this::execute))
-                        .executes(this::execute)));
+                                .executes(context -> create(context, displayType))));
     }
 }

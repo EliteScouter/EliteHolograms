@@ -61,6 +61,18 @@ public class HologramsInfoCommand implements Command<CommandSourceStack> {
             player.sendSystemMessage(Component.literal("§3│ §bLocation: §f" + 
                 String.format("%.2f, %.2f, %.2f", location[0], location[1], location[2])));
             player.sendSystemMessage(Component.literal("§3│ §bLines: §f" + lineCount));
+
+            if (hologram instanceof com.strictgaming.elite.holograms.forge20.hologram.ForgeHologram infoHologram) {
+                player.sendSystemMessage(Component.literal("§3│ §bDisplay: §f"
+                        + infoHologram.getDisplayType().getSerializedName()));
+
+                if (infoHologram.getDisplayType()
+                        == com.strictgaming.elite.holograms.forge20.hologram.HologramDisplayType.FIXED) {
+                    player.sendSystemMessage(Component.literal("§3│ §bRotation: §f"
+                            + String.format("yaw %.1f, pitch %.1f",
+                                    infoHologram.getYaw(), infoHologram.getPitch())));
+                }
+            }
             
             // Display line content if available
             if (hologram instanceof ForgeHologram) {

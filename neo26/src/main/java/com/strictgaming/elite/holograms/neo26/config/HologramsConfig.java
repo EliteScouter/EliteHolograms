@@ -129,6 +129,14 @@ public class HologramsConfig {
                     );
                 }
                 
+                // Restore the display type before the content, since setLinesContent rebuilds
+                // the line entities and needs to know which kind to build.
+                hologram.restoreDisplayState(
+                        com.strictgaming.elite.holograms.neo26.hologram.HologramDisplayType.fromStringOrDefault(
+                                data.displayType,
+                                com.strictgaming.elite.holograms.neo26.hologram.HologramDisplayType.FACING),
+                        data.yaw, data.pitch);
+
                 // Restore complex content
                 hologram.setLinesContent(linesContent);
 
@@ -178,6 +186,9 @@ public class HologramsConfig {
             if (hologram instanceof NeoForgeHologram nf) {
                 data.backlightEnabled = nf.isBacklightEnabled();
                 data.backlightLevel = nf.getBacklightLevel();
+                data.displayType = nf.getDisplayType().getSerializedName();
+                data.yaw = nf.getYaw();
+                data.pitch = nf.getPitch();
             }
             
             data.lines = new ArrayList<>();
@@ -224,5 +235,12 @@ public class HologramsConfig {
         String item;
         boolean backlightEnabled = false;
         int backlightLevel = com.strictgaming.elite.holograms.neo26.util.UtilBacklight.DEFAULT_LEVEL;
+        /**
+         * Absent for holograms saved before fixed holograms existed, which is why it falls back
+         * to facing on load.
+         */
+        String displayType;
+        float yaw = 0.0F;
+        float pitch = 0.0F;
     }
 }
