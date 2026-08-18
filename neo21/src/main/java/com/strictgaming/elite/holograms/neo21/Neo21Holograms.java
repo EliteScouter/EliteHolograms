@@ -26,6 +26,8 @@ import com.strictgaming.elite.holograms.neo21.command.HologramsInsertLineCommand
 import com.strictgaming.elite.holograms.neo21.command.HologramsCreateScoreboardCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsSetThemeCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsMoveVerticalCommand;
+import com.strictgaming.elite.holograms.neo21.command.HologramsSetRotationCommand;
+import com.strictgaming.elite.holograms.neo21.command.HologramsConvertCommand;
 import com.strictgaming.elite.holograms.neo21.config.HologramsConfig;
 import com.strictgaming.elite.holograms.neo21.hologram.HologramManager;
 import com.strictgaming.elite.holograms.neo21.hologram.manager.NeoForgeHologramFactory;
@@ -92,6 +94,8 @@ public class Neo21Holograms implements PlatformHologramManager {
     private HologramsSetThemeCommand setThemeCommand;
     private HologramsMoveVerticalCommand moveVerticalCommand;
     private HologramsBacklightCommand backlightCommand;
+    private HologramsSetRotationCommand setRotationCommand;
+    private HologramsConvertCommand convertCommand;
 
     public Neo21Holograms(IEventBus modEventBus) {
         instance = this;
@@ -126,6 +130,8 @@ public class Neo21Holograms implements PlatformHologramManager {
         setThemeCommand = new HologramsSetThemeCommand();
         moveVerticalCommand = new HologramsMoveVerticalCommand();
         backlightCommand = new HologramsBacklightCommand();
+        setRotationCommand = new HologramsSetRotationCommand();
+        convertCommand = new HologramsConvertCommand();
         
         // Set up subcommands
         mainCommand.registerSubCommand("create", createCommand);
@@ -149,6 +155,8 @@ public class Neo21Holograms implements PlatformHologramManager {
         mainCommand.registerSubCommand("settheme", setThemeCommand);
         mainCommand.registerSubCommand("movevertical", moveVerticalCommand);
         mainCommand.registerSubCommand("backlight", backlightCommand);
+        mainCommand.registerSubCommand("setrotation", setRotationCommand);
+        mainCommand.registerSubCommand("convert", convertCommand);
     }
     
     private void commonSetup(final FMLCommonSetupEvent event) {
@@ -245,6 +253,8 @@ public class Neo21Holograms implements PlatformHologramManager {
         setThemeCommand.register(event.getDispatcher());
         moveVerticalCommand.register(event.getDispatcher());
         backlightCommand.register(event.getDispatcher());
+        setRotationCommand.register(event.getDispatcher());
+        convertCommand.register(event.getDispatcher());
         
         LOGGER.info("Commands registered successfully!");
     }
@@ -273,62 +283,40 @@ public class Neo21Holograms implements PlatformHologramManager {
         }
     }
 
+    /**
+     * Despawns holograms and writes the config on the way down.
+     *
+     * <p>This deliberately runs inline on the server thread. Despawning removes real
+     * {@code minecraft:light} blocks from the world and sends packets to still-connected
+     * players, neither of which is safe off the server thread, and {@link ServerStoppingEvent}
+     * fires before the world is saved - so the work has to complete here or the light blocks
+     * leak into the save file.
+     *
+     * <p>An earlier version handed this to two nested worker threads with join timeouts. Those
+     * threads were non-daemon and were only ever interrupted, which does nothing to a thread
+     * blocked inside a block write, so they could outlive the event and keep touching the world
+     * while Minecraft was already saving and unloading chunks.
+     */
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
-        LOGGER.info("Server stopping - preparing to save holograms with timeout protection");
-        
-        Thread shutdownThread = new Thread(() -> {
+        LOGGER.info("Server stopping - despawning holograms and saving");
+
+        for (Hologram hologram : HologramManager.getHolograms().values()) {
             try {
-                HologramManager.getHolograms().values().forEach(hologram -> {
-                    try {
-                        if (hologram.isSpawned()) {
-                            LOGGER.debug("Despawning hologram {} during server shutdown", hologram.getId());
-                            hologram.despawn();
-                        }
-                    } catch (Exception e) {
-                        LOGGER.error("Error despawning hologram {} during shutdown: {}", hologram.getId(), e.getMessage());
-                    }
-                });
-                
-                Thread saveThread = new Thread(() -> {
-                    try {
-                        HologramManager.saveSync();
-                        // HologramManager.saveScoreboardHologramsSync(); // Already called in saveSync()
-                        LOGGER.info("Holograms saved successfully during shutdown");
-                    } catch (Exception e) {
-                        LOGGER.error("Error saving holograms during shutdown", e);
-                    }
-                }, "EliteHolograms-Save");
-                
-                saveThread.start();
-                
-                try {
-                    saveThread.join(5000);
-                    if (saveThread.isAlive()) {
-                        LOGGER.warn("Save operation timed out during shutdown, forcing interruption");
-                        saveThread.interrupt();
-                    }
-                } catch (InterruptedException e) {
-                    LOGGER.warn("Shutdown save interrupted");
-                    Thread.currentThread().interrupt();
+                if (hologram.isSpawned()) {
+                    LOGGER.debug("Despawning hologram {} during server shutdown", hologram.getId());
+                    hologram.despawn();
                 }
-                
             } catch (Exception e) {
-                LOGGER.error("Error during shutdown operations", e);
+                LOGGER.error("Error despawning hologram {} during shutdown: {}", hologram.getId(), e.getMessage());
             }
-        }, "EliteHolograms-Shutdown");
-        
-        shutdownThread.start();
-        
+        }
+
         try {
-            shutdownThread.join(2000);
-            if (shutdownThread.isAlive()) {
-                LOGGER.warn("Shutdown thread timed out, forcing interruption");
-                shutdownThread.interrupt();
-            }
-        } catch (InterruptedException e) {
-            LOGGER.warn("Main shutdown interrupted");
-            Thread.currentThread().interrupt();
+            HologramManager.saveSync();
+            LOGGER.info("Holograms saved successfully during shutdown");
+        } catch (Exception e) {
+            LOGGER.error("Error saving holograms during shutdown", e);
         }
     }
 

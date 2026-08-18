@@ -1,8 +1,9 @@
 package com.strictgaming.elite.holograms.neo21.command;
 
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
-import com.strictgaming.elite.holograms.neo21.Neo21Holograms;
+import com.strictgaming.elite.holograms.neo21.hologram.HologramDisplayType;
 import com.strictgaming.elite.holograms.neo21.hologram.HologramManager;
+import com.strictgaming.elite.holograms.neo21.hologram.implementation.NeoForgeHologramBuilder;
 import com.strictgaming.elite.holograms.neo21.util.UtilChatColour;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
@@ -35,36 +36,40 @@ public class HologramsCreateAtCommand implements HologramsCommand.SubCommand {
      * Registers this command with the given dispatcher
      */
     public void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        // Register with full command name
-        dispatcher.register(
-            Commands.literal("eliteholograms")
-                .then(Commands.literal("createat")
-                    .requires(source -> source.hasPermission(2))
-                    .then(Commands.argument("id", StringArgumentType.word())
-                        .then(Commands.argument("x", StringArgumentType.word())
-                        .then(Commands.argument("y", StringArgumentType.word())
-                        .then(Commands.argument("z", StringArgumentType.word())
-                        .executes(ctx -> run(ctx, false, false))
-                        .then(Commands.argument("text", StringArgumentType.greedyString())
-                        .executes(ctx -> run(ctx, false, true))))))))
-        );
-        
-        // Register with short command alias
-        dispatcher.register(
-            Commands.literal("eh")
-                .then(Commands.literal("createat")
-                    .requires(source -> source.hasPermission(2))
-                    .then(Commands.argument("id", StringArgumentType.word())
-                        .then(Commands.argument("x", StringArgumentType.word())
-                        .then(Commands.argument("y", StringArgumentType.word())
-                        .then(Commands.argument("z", StringArgumentType.word())
-                        .executes(ctx -> run(ctx, false, false))
-                        .then(Commands.argument("text", StringArgumentType.greedyString())
-                        .executes(ctx -> run(ctx, false, true))))))))
-        );
+        dispatcher.register(Commands.literal("eliteholograms").then(buildArguments()));
+        dispatcher.register(Commands.literal("eh").then(buildArguments()));
     }
 
-    public int run(CommandContext<CommandSourceStack> context, boolean hasWorld, boolean hasText) throws CommandSyntaxException {
+    private LiteralArgumentBuilder<CommandSourceStack> buildArguments() {
+        return Commands.literal("createat")
+                .requires(source -> source.hasPermission(2))
+                // Explicit display type; literals match before the bare <id> argument.
+                .then(Commands.literal("facing").then(coordinateArguments(HologramDisplayType.FACING)))
+                .then(Commands.literal("fixed").then(coordinateArguments(HologramDisplayType.FIXED)))
+                .then(coordinateArguments(HologramDisplayType.FACING));
+    }
+
+    /**
+     * Builds the {@code <id> <x> <y> <z> [text]} chain for a given display type.
+     */
+    private com.mojang.brigadier.builder.RequiredArgumentBuilder<CommandSourceStack, String> coordinateArguments(
+            HologramDisplayType displayType) {
+        return Commands.argument("id", StringArgumentType.word())
+                .then(Commands.argument("x", StringArgumentType.word())
+                .then(Commands.argument("y", StringArgumentType.word())
+                .then(Commands.argument("z", StringArgumentType.word())
+                .executes(ctx -> run(ctx, false, false, displayType))
+                .then(Commands.argument("text", StringArgumentType.greedyString())
+                .executes(ctx -> run(ctx, false, true, displayType))))));
+    }
+
+    public int run(CommandContext<CommandSourceStack> context, boolean hasWorld, boolean hasText)
+            throws CommandSyntaxException {
+        return run(context, hasWorld, hasText, HologramDisplayType.FACING);
+    }
+
+    public int run(CommandContext<CommandSourceStack> context, boolean hasWorld, boolean hasText,
+                   HologramDisplayType displayType) throws CommandSyntaxException {
         CommandSourceStack source = context.getSource();
         String id = StringArgumentType.getString(context, "id");
         
@@ -94,15 +99,26 @@ public class HologramsCreateAtCommand implements HologramsCommand.SubCommand {
             text = "§6Example Hologram";
         }
         
+        // A fixed hologram keeps whatever rotation it is given. Face the sender when one is
+        // present; from console there is nothing to face, so it defaults to south.
+        float yaw = 0.0F;
+        if (displayType == HologramDisplayType.FIXED
+                && source.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            yaw = player.getYRot() - 180.0F;
+        }
+
         // Create hologram
-        Hologram hologram = Neo21Holograms.getInstance().builder()
+        Hologram hologram = new NeoForgeHologramBuilder()
                 .id(id)
                 .world(worldName)
                 .position(x, y, z)
+                .displayType(displayType)
+                .rotation(yaw, 0.0F)
                 .lines(text)
                 .buildAndSpawn();
         
-        source.sendSuccess(() -> UtilChatColour.parse("&aCreated hologram '&f" + id + "&a' at &f" + x + ", " + y + ", " + z), true);
+        source.sendSuccess(() -> UtilChatColour.parse("&aCreated " + displayType.getSerializedName()
+                + " hologram '&f" + id + "&a' at &f" + x + ", " + y + ", " + z), true);
         LOGGER.info("Created hologram '{}' at {}, {}, {} in world {}", id, x, y, z, worldName);
         
         return Command.SINGLE_SUCCESS;
@@ -120,11 +136,6 @@ public class HologramsCreateAtCommand implements HologramsCommand.SubCommand {
     
     @Override
     public LiteralArgumentBuilder<CommandSourceStack> getArguments() {
-        return Commands.literal("createat")
-                .then(Commands.argument("id", StringArgumentType.word())
-                    .then(Commands.argument("x", StringArgumentType.word())
-                    .then(Commands.argument("y", StringArgumentType.word())
-                    .then(Commands.argument("z", StringArgumentType.word())
-                    .then(Commands.argument("text", StringArgumentType.greedyString()))))));
+        return buildArguments();
     }
 }

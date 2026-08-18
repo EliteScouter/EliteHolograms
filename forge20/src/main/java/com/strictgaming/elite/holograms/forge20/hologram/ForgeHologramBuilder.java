@@ -24,26 +24,53 @@ public class ForgeHologramBuilder implements HologramBuilder {
     private double z;
     private int range;
     private List<String> lines = Lists.newArrayList();
+    private HologramDisplayType displayType = HologramDisplayType.FACING;
+    private float yaw = 0.0F;
+    private float pitch = 0.0F;
 
     public ForgeHologramBuilder() {}
 
     @Override
-    public HologramBuilder id(String id) {
+    public ForgeHologramBuilder id(String id) {
         this.id = id;
         return this;
     }
 
     @Override
-    public HologramBuilder world(String worldName) {
+    public ForgeHologramBuilder world(String worldName) {
         this.worldName = worldName;
         return this;
     }
 
     @Override
-    public HologramBuilder position(double x, double y, double z) {
+    public ForgeHologramBuilder position(double x, double y, double z) {
         this.x = x;
         this.y = y;
         this.z = z;
+        return this;
+    }
+
+    /**
+     * Sets how the hologram renders its lines.
+     *
+     * @param displayType facing (armor stand nameplates) or fixed (text displays)
+     * @return This builder
+     */
+    public ForgeHologramBuilder displayType(HologramDisplayType displayType) {
+        this.displayType = displayType == null ? HologramDisplayType.FACING : displayType;
+        return this;
+    }
+
+    /**
+     * Sets the orientation used when the display type is fixed.
+     *
+     * @param yaw   rotation around the Y axis in degrees
+     * @param pitch rotation around the X axis in degrees
+     * @return This builder
+     */
+    public ForgeHologramBuilder rotation(float yaw, float pitch) {
+        this.yaw = yaw;
+        this.pitch = pitch;
         return this;
     }
     
@@ -55,24 +82,24 @@ public class ForgeHologramBuilder implements HologramBuilder {
      * @param z The z coordinate
      * @return This builder
      */
-    public HologramBuilder position(int x, int y, int z) {
+    public ForgeHologramBuilder position(int x, int y, int z) {
         return position((double)x, (double)y, (double)z);
     }
 
     @Override
-    public HologramBuilder range(int range) {
+    public ForgeHologramBuilder range(int range) {
         this.range = range;
         return this;
     }
 
     @Override
-    public HologramBuilder line(String line) {
+    public ForgeHologramBuilder line(String line) {
         this.lines.add(line);
         return this;
     }
 
     @Override
-    public HologramBuilder lines(String... lines) {
+    public ForgeHologramBuilder lines(String... lines) {
         this.lines.addAll(Arrays.asList(lines));
         return this;
     }
@@ -87,6 +114,7 @@ public class ForgeHologramBuilder implements HologramBuilder {
         }
 
         Vec3 pos = new Vec3(this.x, this.y, this.z);
-        return new ForgeHologram(this.id, world, pos, this.range, save, this.lines.toArray(new String[0]));
+        return new ForgeHologram(this.id, world, pos, this.range, save,
+                this.displayType, this.yaw, this.pitch, this.lines.toArray(new String[0]));
     }
 } 

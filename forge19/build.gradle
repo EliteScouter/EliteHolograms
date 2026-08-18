@@ -14,7 +14,7 @@ apply plugin: 'java'
 apply plugin: 'maven-publish'
 
 group = 'com.strictgaming.elite.holograms'
-version = '1.19.2-1.1.1'
+version = '1.19.2-1.2.0'
 archivesBaseName = 'EliteHolograms'
 
 // Java version compatibility
@@ -69,7 +69,6 @@ sourceSets.main.resources { srcDir 'src/generated/resources' }
 repositories {
     mavenCentral()
     maven { url = 'https://repo.spongepowered.org/maven' }
-    maven { url = 'https://oss.sonatype.org/content/repositories/snapshots' }
 }
 
 configurations {

@@ -11,6 +11,7 @@ import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 
 import com.strictgaming.elite.holograms.neo21.config.ScoreboardThemeManager;
+import com.strictgaming.elite.holograms.neo21.hologram.HologramDisplayType;
 import com.strictgaming.elite.holograms.neo21.hologram.HologramManager;
 import com.strictgaming.elite.holograms.neo21.hologram.ScoreboardHologram;
 import com.strictgaming.elite.holograms.neo21.util.UtilPermissions;
@@ -54,55 +55,51 @@ public class HologramsCreateScoreboardCommand implements HologramsCommand.SubCom
     }
 
     public void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        dispatcher.register(
-            Commands.literal("eliteholograms")
-                .then(Commands.literal("createscoreboard")
-                    .requires(source -> UtilPermissions.canCreate(source))
-                    .then(Commands.argument("id", StringArgumentType.word())
-                        .then(Commands.argument("objective", StringArgumentType.word())
-                            .suggests(SUGGEST_OBJECTIVES)
-                            .executes(this::run)
-                            .then(Commands.argument("topCount", IntegerArgumentType.integer(1, 10))
-                                .executes(this::run)
-                                .then(Commands.argument("updateInterval", IntegerArgumentType.integer(5, 300))
-                                    .executes(this::run)
-                                    .then(Commands.argument("theme", StringArgumentType.word())
-                                        .suggests(SUGGEST_THEMES)
-                                        .executes(this::run)
-                                    )
-                                )
-                            )
-                        )
-                    )
-                )
-        );
+        dispatcher.register(Commands.literal("eliteholograms").then(buildArguments()));
+        dispatcher.register(Commands.literal("eh").then(buildArguments()));
+    }
 
-        dispatcher.register(
-            Commands.literal("eh")
-                .then(Commands.literal("createscoreboard")
-                    .requires(source -> UtilPermissions.canCreate(source))
-                    .then(Commands.argument("id", StringArgumentType.word())
-                        .then(Commands.argument("objective", StringArgumentType.word())
-                            .suggests(SUGGEST_OBJECTIVES)
-                            .executes(this::run)
-                            .then(Commands.argument("topCount", IntegerArgumentType.integer(1, 10))
-                                .executes(this::run)
+    private LiteralArgumentBuilder<CommandSourceStack> buildArguments() {
+        return Commands.literal("createscoreboard")
+                .requires(source -> UtilPermissions.canCreate(source))
+                // Explicit display type. Literals are matched before arguments, so these win
+                // over the bare <id> form without shadowing it.
+                .then(Commands.literal("facing")
+                        .then(boardArguments(HologramDisplayType.FACING)))
+                .then(Commands.literal("fixed")
+                        .then(boardArguments(HologramDisplayType.FIXED)))
+                .then(boardArguments(HologramDisplayType.FACING));
+    }
+
+    /**
+     * Builds the {@code <id> <objective> [topCount] [updateInterval] [theme]} chain for a
+     * given display type.
+     */
+    private com.mojang.brigadier.builder.RequiredArgumentBuilder<CommandSourceStack, String> boardArguments(
+            HologramDisplayType displayType) {
+        return Commands.argument("id", StringArgumentType.word())
+                .then(Commands.argument("objective", StringArgumentType.word())
+                        .suggests(SUGGEST_OBJECTIVES)
+                        .executes(context -> create(context, displayType))
+                        .then(Commands.argument("topCount", IntegerArgumentType.integer(1, 10))
+                                .executes(context -> create(context, displayType))
                                 .then(Commands.argument("updateInterval", IntegerArgumentType.integer(5, 300))
-                                    .executes(this::run)
-                                    .then(Commands.argument("theme", StringArgumentType.word())
-                                        .suggests(SUGGEST_THEMES)
-                                        .executes(this::run)
-                                    )
+                                        .executes(context -> create(context, displayType))
+                                        .then(Commands.argument("theme", StringArgumentType.word())
+                                                .suggests(SUGGEST_THEMES)
+                                                .executes(context -> create(context, displayType))
+                                        )
                                 )
-                            )
                         )
-                    )
-                )
-        );
+                );
     }
 
     @Override
     public int run(CommandContext<CommandSourceStack> context) {
+        return create(context, HologramDisplayType.FACING);
+    }
+
+    private int create(CommandContext<CommandSourceStack> context, HologramDisplayType displayType) {
         CommandSourceStack source = context.getSource();
         if (!UtilPermissions.canCreate(source)) {
             source.sendFailure(Component.literal("§cYou don't have permission to create holograms!"));
@@ -160,6 +157,9 @@ public class HologramsCreateScoreboardCommand implements HologramsCommand.SubCom
             double y = player.getY();
             double z = player.getZ();
 
+            // A fixed board keeps whatever rotation it is given, so start it facing the creator.
+            float yaw = displayType == HologramDisplayType.FIXED ? player.getYRot() - 180.0F : 0.0F;
+
             ScoreboardHologram holo = new ScoreboardHologram(
                     id,
                     worldName,
@@ -168,7 +168,10 @@ public class HologramsCreateScoreboardCommand implements HologramsCommand.SubCom
                     objective,
                     topCount,
                     updateInterval,
-                    theme
+                    theme,
+                    displayType,
+                    yaw,
+                    0.0F
             );
             holo.spawn();
             holo.forceUpdate();
@@ -178,8 +181,9 @@ public class HologramsCreateScoreboardCommand implements HologramsCommand.SubCom
             final int fc = topCount;
             final int fi = updateInterval;
             final String ft = theme;
+            final String fd = displayType.getSerializedName();
             source.sendSuccess(() -> Component.literal(
-                "§aCreated scoreboard hologram '" + id + "' for objective '" + objective +
+                "§aCreated " + fd + " scoreboard hologram '" + id + "' for objective '" + objective +
                 "' showing top " + fc + " players (updates every " + fi + "s, theme '" + ft + "')"
             ), false);
             return 1;
@@ -196,14 +200,7 @@ public class HologramsCreateScoreboardCommand implements HologramsCommand.SubCom
 
     @Override
     public LiteralArgumentBuilder<CommandSourceStack> getArguments() {
-        return Commands.literal("createscoreboard")
-                .then(Commands.argument("id", StringArgumentType.word())
-                    .then(Commands.argument("objective", StringArgumentType.word())
-                        .suggests(SUGGEST_OBJECTIVES)
-                        .then(Commands.argument("topCount", IntegerArgumentType.integer(1, 10))
-                            .then(Commands.argument("updateInterval", IntegerArgumentType.integer(5, 300))
-                                .then(Commands.argument("theme", StringArgumentType.word())
-                                    .suggests(SUGGEST_THEMES))))));
+        return buildArguments();
     }
 }
 

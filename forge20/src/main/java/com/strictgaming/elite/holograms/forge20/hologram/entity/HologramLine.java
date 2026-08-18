@@ -17,12 +17,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Manages a single line in a hologram
+ * A hologram line rendered as the nameplate of an invisible armor stand. The client always
+ * turns a nameplate towards the viewer, which is the {@code facing} display type.
  */
-public class HologramLine {
+public class HologramLine implements HologramLineRenderer {
 
     private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
-    private static int ENTITY_ID = -1000; // Start with a negative ID to avoid conflicts
 
     private transient ArmorStand armorStand;
     private transient String text;
@@ -35,7 +35,7 @@ public class HologramLine {
     private void setupArmorStand() {
         try {
             // Set a unique entity ID first
-            this.armorStand.setId(ENTITY_ID--);
+            this.armorStand.setId(HologramEntityIds.next());
             
             // Make the armor stand completely invisible but show the custom name
             this.armorStand.setInvisible(true);
@@ -65,6 +65,7 @@ public class HologramLine {
         }
     }
 
+    @Override
     public void setText(String text) {
         try {
             // Store the raw text
@@ -112,6 +113,7 @@ public class HologramLine {
         }
     }
 
+    @Override
     public void despawnForPlayer(ServerPlayer player) {
         if (player != null && player.connection != null) {
             try {

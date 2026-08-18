@@ -85,6 +85,17 @@ public class HologramsInfoCommand implements HologramsCommand.SubCommand {
         source.sendSuccess(() -> UtilChatColour.parse("&3│ &bLocation: &f" + String.format("%.2f, %.2f, %.2f", 
                 hologram.getX(), hologram.getY(), hologram.getZ())), false);
         source.sendSuccess(() -> UtilChatColour.parse("&3│ &bLines: &f" + lines.size()), false);
+
+        if (hologram instanceof com.strictgaming.elite.holograms.neo21.hologram.implementation.NeoForgeHologram nf) {
+            source.sendSuccess(() -> UtilChatColour.parse("&3│ &bDisplay: &f"
+                    + nf.getDisplayType().getSerializedName()), false);
+
+            if (nf.getDisplayType()
+                    == com.strictgaming.elite.holograms.neo21.hologram.HologramDisplayType.FIXED) {
+                source.sendSuccess(() -> UtilChatColour.parse("&3│ &bRotation: &f"
+                        + String.format("yaw %.1f, pitch %.1f", nf.getYaw(), nf.getPitch())), false);
+            }
+        }
         
         if (!lines.isEmpty()) {
             source.sendSuccess(() -> UtilChatColour.parse("&3│"), false);

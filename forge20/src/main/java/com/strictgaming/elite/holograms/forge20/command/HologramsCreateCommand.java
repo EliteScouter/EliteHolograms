@@ -2,6 +2,7 @@ package com.strictgaming.elite.holograms.forge20.command;
 
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
 import com.strictgaming.elite.holograms.forge20.hologram.ForgeHologram;
+import com.strictgaming.elite.holograms.forge20.hologram.HologramDisplayType;
 import com.strictgaming.elite.holograms.forge20.hologram.HologramManager;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.context.CommandContext;
@@ -41,11 +42,19 @@ public class HologramsCreateCommand implements Command<CommandSourceStack> {
     }
     
     /**
-     * Execute the command with given arguments
+     * Execute the command with given arguments, defaulting to a player-facing hologram.
      */
     public int executeCommand(CommandContext<CommandSourceStack> context, String[] args) throws CommandSyntaxException {
+        return executeCommand(context, args, HologramDisplayType.FACING);
+    }
+
+    /**
+     * Execute the command with an explicit display type.
+     */
+    public int executeCommand(CommandContext<CommandSourceStack> context, String[] args,
+                              HologramDisplayType displayType) throws CommandSyntaxException {
         if (args.length < 1) {
-            context.getSource().sendSystemMessage(Component.literal("§cUsage: /eh create <id> <text>"));
+            context.getSource().sendSystemMessage(Component.literal("§cUsage: /eh create [fixed|facing] <id> <text>"));
             return 0;
         }
         
@@ -73,11 +82,19 @@ public class HologramsCreateCommand implements Command<CommandSourceStack> {
         double y = player.getY() - 0.5; // Position below player's eye level
         double z = player.getZ();
         
+        // A fixed hologram keeps whatever rotation it is given, so start it facing the creator.
+        float yaw = displayType == HologramDisplayType.FIXED ? player.getYRot() - 180.0F : 0.0F;
+
         ForgeHologram hologram = new ForgeHologram(name, player.level(), 
                                                   new Vec3(x, y, z), 
-                                                  30, true, text);
+                                                  30, true, displayType, yaw, 0.0F, text);
         
-        player.sendSystemMessage(Component.literal("§aHologram '" + name + "' created successfully!"));
+        if (displayType == HologramDisplayType.FIXED) {
+            player.sendSystemMessage(Component.literal("§aFixed hologram '" + name
+                    + "' created, oriented to face you §7(yaw " + Math.round(hologram.getYaw()) + ")"));
+        } else {
+            player.sendSystemMessage(Component.literal("§aHologram '" + name + "' created successfully!"));
+        }
         
         return Command.SINGLE_SUCCESS;
     }

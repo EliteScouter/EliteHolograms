@@ -30,6 +30,12 @@ import java.util.List;
  * Every block in the column emits at full brightness ({@code 15}) so the beam
  * reads as a clean vertical light rather than a patch spread across the
  * floor.</p>
+ *
+ * <p>Because light blocks can only occupy whole cells while a hologram sits at an
+ * arbitrary fractional position, a hologram near a block edge would otherwise be
+ * lit noticeably off to one side. The column is therefore widened onto the
+ * neighbouring cell on any axis where the hologram sits close to an edge, so the
+ * glow stays centred on the text. See {@link #EDGE_THRESHOLD}.</p>
  */
 public final class UtilBacklight {
 
@@ -43,6 +49,16 @@ public final class UtilBacklight {
     public static final int LIGHT_EMISSION = 15;
     /** How far below the hologram we search for the ground before giving up. */
     private static final int MAX_GROUND_SCAN = 24;
+    /**
+     * How close to a block edge a hologram has to sit before the column is widened onto the
+     * neighbouring cell on that axis.
+     *
+     * <p>A single cell puts the glow at {@code cell + 0.5}, so its error is {@code |f - 0.5|}
+     * for a hologram at fractional offset {@code f}. Two cells straddling the edge put the glow
+     * at the edge itself, giving an error of {@code f}. Two cells therefore win exactly when
+     * {@code f < 0.25}, which caps the worst-case error at a quarter of a block instead of half.
+     */
+    private static final double EDGE_THRESHOLD = 0.25D;
 
     private UtilBacklight() {}
 
@@ -74,17 +90,56 @@ public final class UtilBacklight {
         }
         ServerLevel serverLevel = (ServerLevel) level;
 
-        int bx = Mth.floor(x);
-        int bz = Mth.floor(z);
+        int clampedHeight = clampLevel(height);
+        int startY = Mth.floor(bottomY);
 
+        // Light blocks can only sit on the block grid, but a hologram sits at an arbitrary
+        // fractional position, so a single column can end up visibly off to one side. Widening
+        // onto the neighbouring cell when the hologram is near a block edge keeps the glow
+        // symmetric about the text. This yields one, two or four columns.
+        for (int bx : straddlingCells(x)) {
+            for (int bz : straddlingCells(z)) {
+                placeColumnAt(serverLevel, bx, bz, startY, bottomY, topY, clampedHeight, placed);
+            }
+        }
+
+        return placed;
+    }
+
+    /**
+     * Chooses which block cells along one horizontal axis the column should occupy, returning
+     * either the single cell containing the coordinate or the two cells straddling the nearest
+     * block edge. See {@link #EDGE_THRESHOLD} for why the cutoff sits where it does.
+     */
+    private static int[] straddlingCells(double coordinate) {
+        int cell = Mth.floor(coordinate);
+        double fraction = coordinate - cell;
+
+        if (fraction < EDGE_THRESHOLD) {
+            return new int[]{cell - 1, cell};
+        }
+
+        if (fraction > 1.0D - EDGE_THRESHOLD) {
+            return new int[]{cell, cell + 1};
+        }
+
+        return new int[]{cell};
+    }
+
+    /**
+     * Fills one vertical column of the backlight. Each column finds its own ground so a
+     * widened backlight still sits correctly on uneven terrain.
+     */
+    private static void placeColumnAt(ServerLevel serverLevel, int bx, int bz, int startY,
+                                      double bottomY, double topY, int height, List<BlockPos> placed) {
         // Anchor the column to the ground beneath the lowest line, but never
         // above that line, so rows sitting near or below ground are still
         // covered. Then light every cell from there up through the top line,
         // extending further if the requested height asks for more.
-        int groundY = findGroundY(serverLevel, bx, Mth.floor(bottomY), bz);
+        int groundY = findGroundY(serverLevel, bx, startY, bz);
         int bottomCell = Math.min(groundY, Mth.floor(bottomY));
         int topCell = Mth.ceil(topY);
-        int endCell = Math.max(topCell, bottomCell + clampLevel(height) - 1);
+        int endCell = Math.max(topCell, bottomCell + height - 1);
 
         for (int y = bottomCell; y <= endCell; y++) {
             BlockPos pos = new BlockPos(bx, y, bz);
@@ -92,7 +147,6 @@ public final class UtilBacklight {
                 placed.add(pos.immutable());
             }
         }
-        return placed;
     }
 
     /**

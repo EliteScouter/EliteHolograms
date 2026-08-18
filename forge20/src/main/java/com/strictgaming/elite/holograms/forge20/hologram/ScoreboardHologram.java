@@ -2,7 +2,7 @@ package com.strictgaming.elite.holograms.forge20.hologram;
 
 import com.strictgaming.elite.holograms.forge20.config.ScoreboardTheme;
 import com.strictgaming.elite.holograms.forge20.config.ScoreboardThemeManager;
-import com.strictgaming.elite.holograms.forge20.hologram.entity.HologramLine;
+import com.strictgaming.elite.holograms.forge20.hologram.entity.HologramLineRenderer;
 import com.strictgaming.elite.holograms.forge20.util.UtilPlayer;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -50,6 +50,16 @@ public class ScoreboardHologram extends ForgeHologram {
     }
 
     /**
+     * Theme-based constructor with an explicit display type and orientation.
+     */
+    public ScoreboardHologram(String id, Level world, Vec3 position, int range,
+                             String objectiveName, int topCount, int updateInterval,
+                             String themeName, HologramDisplayType displayType, float yaw, float pitch) {
+        this(id, world, position, range, objectiveName, topCount, updateInterval,
+                themeName, null, null, null, displayType, yaw, pitch);
+    }
+
+    /**
      * Full constructor. When {@code themeName} is set and resolves to a known theme, its format
      * strings win. Otherwise the explicit header/player/empty formats are used, and any that are
      * {@code null} fall back to the built-in defaults. This keeps configs saved before themes
@@ -58,7 +68,23 @@ public class ScoreboardHologram extends ForgeHologram {
     public ScoreboardHologram(String id, Level world, Vec3 position, int range, 
                              String objectiveName, int topCount, int updateInterval,
                              String themeName, String headerFormat, String playerFormat, String emptyFormat) {
-        super(id, world, position, range, false); // Don't save initially
+        this(id, world, position, range, objectiveName, topCount, updateInterval,
+                themeName, headerFormat, playerFormat, emptyFormat,
+                HologramDisplayType.FACING, 0.0F, 0.0F);
+    }
+
+    /**
+     * Full constructor including the display type and orientation.
+     *
+     * <p>The display type has to reach {@code super} here rather than being applied afterwards,
+     * because this constructor renders the board's first frame and the line entities differ per
+     * display type.
+     */
+    public ScoreboardHologram(String id, Level world, Vec3 position, int range, 
+                             String objectiveName, int topCount, int updateInterval,
+                             String themeName, String headerFormat, String playerFormat, String emptyFormat,
+                             HologramDisplayType displayType, float yaw, float pitch) {
+        super(id, world, position, range, false, displayType, yaw, pitch); // Don't save initially
         
         this.objectiveName = objectiveName;
         this.topCount = Math.max(1, Math.min(topCount, 10)); // Limit between 1-10
@@ -199,7 +225,7 @@ public class ScoreboardHologram extends ForgeHologram {
         
         // Update hologram lines
         // Clear existing lines first (despawn for all nearby players)
-        for (HologramLine line : getLines()) {
+        for (HologramLineRenderer line : getLines()) {
             for (UUID playerUUID : getNearbyPlayers()) {
                 ServerPlayer player = UtilPlayer.getOnlinePlayer(playerUUID);
                 if (player != null) {

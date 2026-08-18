@@ -1,7 +1,6 @@
 package com.strictgaming.elite.holograms.forge20.hologram;
 
-import com.strictgaming.elite.holograms.forge20.hologram.entity.AnimatedHologramLine;
-import com.strictgaming.elite.holograms.forge20.hologram.entity.HologramLine;
+import com.strictgaming.elite.holograms.forge20.hologram.entity.HologramLineRenderer;
 import com.strictgaming.elite.holograms.forge20.util.UtilWorld;
 import com.strictgaming.elite.holograms.forge20.util.UtilBacklight;
 import com.google.common.collect.Lists;
@@ -26,15 +25,19 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
 
         JsonArray lines = new JsonArray();
 
-        for (HologramLine line : hologram.getLines()) {
-            if (line instanceof AnimatedHologramLine) {
-                AnimatedHologramLine animated = (AnimatedHologramLine) line;
+        for (HologramLineRenderer line : hologram.getLines()) {
+            // Asking the line for its frames rather than type-checking one implementation keeps
+            // animated lines working on both display types - a fixed hologram's animated lines
+            // are a different class but serialise identically.
+            List<String> lineFrames = line.getFrames();
+
+            if (lineFrames != null) {
                 JsonObject animObj = new JsonObject();
                 animObj.addProperty("type", "animated");
-                animObj.addProperty("interval", animated.getIntervalTicks() / 20); // Convert ticks to seconds
+                animObj.addProperty("interval", line.getIntervalTicks() / 20); // Convert ticks to seconds
                 
                 JsonArray frames = new JsonArray();
-                for (String frame : animated.getFrames()) {
+                for (String frame : lineFrames) {
                     frames.add(frame);
                 }
                 animObj.add("frames", frames);
@@ -50,6 +53,11 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
         // Backlight state
         object.addProperty("backlightEnabled", hologram.isBacklightEnabled());
         object.addProperty("backlightLevel", hologram.getBacklightLevel());
+
+        // How the lines render, and the orientation used when fixed
+        object.addProperty("displayType", hologram.getDisplayType().getSerializedName());
+        object.addProperty("yaw", hologram.getYaw());
+        object.addProperty("pitch", hologram.getPitch());
 
         // Include hologram type metadata for specialized holograms
         if (hologram instanceof ItemHologram) {
@@ -103,15 +111,26 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
                 return null;
             }
             
+            // Absent for holograms saved before fixed holograms existed, which read back as
+            // player-facing. Resolved up front so the lines below are built as the right
+            // entity type.
+            HologramDisplayType displayType = HologramDisplayType.fromStringOrDefault(
+                    object.has("displayType") ? object.get("displayType").getAsString() : null,
+                    HologramDisplayType.FACING);
+            float yaw = object.has("yaw") ? object.get("yaw").getAsFloat() : 0.0F;
+            float pitch = object.has("pitch") ? object.get("pitch").getAsFloat() : 0.0F;
+
             String hologramType = object.has("type") ? object.get("type").getAsString() : "basic";
             ForgeHologram hologram;
 
             if ("item".equalsIgnoreCase(hologramType) && object.has("itemId")) {
                 String itemId = object.get("itemId").getAsString();
-                hologram = new ItemHologram(id, world, new Vec3(x, y, z), range, itemId);
+                hologram = new ItemHologram(id, world, new Vec3(x, y, z), range, itemId,
+                        displayType, yaw, pitch);
             } else {
                 // Create the hologram base first (without lines)
-                hologram = new ForgeHologram(id, world, new Vec3(x, y, z), range, false);
+                hologram = new ForgeHologram(id, world, new Vec3(x, y, z), range, false,
+                        displayType, yaw, pitch);
             }
 
             // Restore backlight state (does not place block yet - spawn() will do that)
