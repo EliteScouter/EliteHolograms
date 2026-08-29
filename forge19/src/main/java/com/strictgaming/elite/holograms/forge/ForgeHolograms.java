@@ -23,6 +23,9 @@ import com.strictgaming.elite.holograms.forge.command.HologramsInfoCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsAnimateLineCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsCreateItemCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsBacklightCommand;
+import com.strictgaming.elite.holograms.forge.command.HologramsMoveVerticalCommand;
+import com.strictgaming.elite.holograms.forge.command.HologramsSetRotationCommand;
+import com.strictgaming.elite.holograms.forge.command.HologramsConvertCommand;
 import com.strictgaming.elite.holograms.forge.config.HologramsConfig;
 import com.strictgaming.elite.holograms.forge.hologram.HologramManager;
 import com.strictgaming.elite.holograms.forge.hologram.manager.ForgeHologramManager;
@@ -31,7 +34,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.IExtensionPoint;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.network.NetworkConstants;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
@@ -44,7 +50,16 @@ import java.io.IOException;
 public class ForgeHolograms {
 
     public static final String MOD_ID = "eliteholograms";
-    public static final String VERSION = "1.19.2-1.1.1";
+
+    /**
+     * Read from the jar manifest, which build.gradle populates with {@code Implementation-Version}
+     * from {@code project.version}. Previously this was a hardcoded literal and had drifted to
+     * 1.1.1 while the jar shipped as 1.2.0. Falls back to a label in a dev environment, where
+     * there is no manifest to read.
+     */
+    public static final String VERSION = ForgeHolograms.class.getPackage().getImplementationVersion() != null
+            ? ForgeHolograms.class.getPackage().getImplementationVersion()
+            : "dev";
     private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
 
     private static ForgeHolograms instance;
@@ -56,7 +71,37 @@ public class ForgeHolograms {
     public ForgeHolograms() {
         instance = this;
         LOGGER.info("Initializing Elite Holograms mod");
+        registerServerSideOnlyDisplayTest();
         MinecraftForge.EVENT_BUS.register(this);
+    }
+
+    /**
+     * Declares the mod as server-side-only for the multiplayer server list compatibility check.
+     *
+     * <p>Without this, Forge's default display test requires the mod to be present on both sides
+     * with the same version, so a server running Elite Holograms shows as an "Incompatible FML
+     * modded server" (red X) to clients that do not have it installed. Holograms are rendered
+     * entirely with vanilla entity packets and the mod registers no network channel of its own,
+     * so a client genuinely does not need it.</p>
+     *
+     * <p>{@code IGNORESERVERONLY} tells clients to ignore this mod when the server has it and they
+     * do not. The predicate returns {@code isFromServer} so that a client which <em>does</em> have
+     * it installed still accepts any version reported by a server, per Forge's own guidance in
+     * {@link IExtensionPoint.DisplayTest}. Note this is a display test only: it does not change
+     * whether a connection succeeds.</p>
+     *
+     * <p>Forge 1.19.2 and 1.20.1 have no {@code displayTest} key in {@code mods.toml} (that arrived
+     * in Forge 1.21), so this has to be registered in code. The NeoForge editions need no
+     * equivalent: their networking negotiates per registered payload, and this mod registers none.</p>
+     */
+    private void registerServerSideOnlyDisplayTest() {
+        ModLoadingContext.get().registerExtensionPoint(
+                IExtensionPoint.DisplayTest.class,
+                () -> new IExtensionPoint.DisplayTest(
+                        () -> NetworkConstants.IGNORESERVERONLY,
+                        (remoteVersion, isFromServer) -> isFromServer
+                )
+        );
     }
 
     @SubscribeEvent
@@ -219,7 +264,21 @@ public class ForgeHolograms {
 
         LOGGER.info("Registering HologramsBacklightCommand");
         command.registerSubCommand("backlight", new HologramsBacklightCommand());
-        
+
+        // Previously only registered by the redundant CommandManager event subscriber, which
+        // meant /eh movevertical tab-completed but failed the subcommand lookup at runtime.
+        LOGGER.info("Registering HologramsMoveVerticalCommand");
+        command.registerSubCommand("movevertical", new HologramsMoveVerticalCommand());
+
+        // Fixed-display commands. Forge 1.19.2 cannot render fixed holograms (text_display
+        // entities arrived in 1.19.4), so these exist to report that clearly instead of
+        // failing as unknown commands.
+        LOGGER.info("Registering HologramsSetRotationCommand");
+        command.registerSubCommand("setrotation", new HologramsSetRotationCommand());
+
+        LOGGER.info("Registering HologramsConvertCommand");
+        command.registerSubCommand("convert", new HologramsConvertCommand());
+
         LOGGER.info("Registering main command dispatcher");
         this.commandFactory.registerCommand(event.getDispatcher(), command);
         LOGGER.info("Commands registered successfully");

@@ -1,8 +1,30 @@
 # Changelog
 
+## Forge 1.19.2 - 1.2.1 - Command parity - 2026-08-28
+
+### Fixed
+
+* **`/eh backlight` reported "Unknown command" even though the feature shipped.** Commands were being registered twice on this edition: `ForgeHolograms` registered the full set, and a leftover `CommandManager` event subscriber registered a second, older set that was missing `backlight`, `settheme` and `list`. Brigadier merges literals that share a name and overwrites the bound handler when it does, so whichever subscriber ran last won, and the older one had no `backlight` entry to look up. The duplicate subscriber has been removed, so all 23 subcommands resolve against a single registry. `/eh settheme` was affected the same way
+* **`/eh movevertical` tab-completed but never ran.** The brigadier node and the command class both existed, but the handler was only ever registered by the duplicate `CommandManager` described above, so the lookup failed at execution time. It is now registered alongside every other subcommand
+* **`/eh backlight` with incomplete arguments gave a bare "Unknown or incomplete command".** Neither the `backlight` literal nor its `<id>` argument was executable, so partial input fell off the command tree and Minecraft answered as though the command did not exist. Both are now executable and fall through to the usage message, matching the NeoForge editions
+* **`fixed` and `facing` were silently swallowed into hologram text.** `/eh create shop fixed Welcome` produced a hologram whose first line read "fixed Welcome", because the greedy text argument absorbed the keyword. Both keywords are now recognised on `create`, `createat`, `createitem` and `createscoreboard`
+* The hardcoded `ForgeHolograms.VERSION` constant had drifted to `1.19.2-1.1.1` while the jar shipped as `1.2.0`. It is now read from the jar manifest
+
+### Added
+
+* **`/eh setrotation` and `/eh convert` now exist on Forge 1.19.2**, so the command set is identical across all five editions. Fixed holograms still cannot be rendered here, so these validate their arguments and then explain that the feature needs Minecraft 1.19.4+, instead of failing as unknown commands. `/eh convert <id> face` succeeds as a no-op, since every 1.19.2 hologram is already player-facing
+* Asking for `fixed` on this edition **refuses and explains rather than quietly creating a player-facing hologram**, so a command copied from a 1.20.1 or NeoForge server never silently produces something that looks wrong
+* `/eh` help output now lists `setrotation` and `convert`, marked as requiring 1.19.4+
+
+### Notes
+
+* Fixed holograms remain genuinely unavailable on Forge 1.19.2. They are built on `text_display` entities, added in Minecraft 1.19.4, and armor stand nameplates are billboarded by the client so they cannot be pinned to a yaw or pitch. There is no approximation, only clearer reporting
+
 ## All Editions - 1.2.0 - Fixed holograms - 2026-08-17
 
 ### Added
+
+* **New Fabric 1.20.1 edition.** Elite Holograms now runs on Fabric, with the same feature set as the Forge 1.20.1 edition - holograms, fixed holograms, item holograms, animated lines, scoreboard leaderboards, themes, backlights, placeholders and every command. It requires Fabric API, is server-side only (players join with a vanilla client), and reads the same `config/elite-holograms/holograms.json` format, so a world can be moved between the Forge and Fabric editions without converting anything. Permissions work through LuckPerms, falling back to operator level 2
 
 * **Fixed holograms** (NeoForge 1.21.1, NeoForge 26.1 & Forge 1.20.1) - holograms can now be anchored to a rotation instead of always turning to face the viewer. A *facing* hologram is the classic armor stand nameplate that spins to follow each player; a *fixed* hologram is a `text_display` entity locked to a yaw and pitch, so it reads like a sign hung on a wall and looks the same to everyone. Facing remains the default, and every hologram created before this update stays facing
 * **`fixed|facing` on every create command** - `/eh create fixed <id> <text>`, `/eh createat fixed <id> <x> <y> <z> [text]`, `/eh createitem fixed <id> <item> [text]` and `/eh createscoreboard fixed <id> <objective> [top] [interval] [theme]`. The keyword is optional and goes immediately after the subcommand; leaving it out creates a facing hologram exactly as before. A new fixed hologram is automatically oriented to face whoever created it
