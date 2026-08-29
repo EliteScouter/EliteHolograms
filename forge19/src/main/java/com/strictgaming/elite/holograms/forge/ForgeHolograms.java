@@ -34,7 +34,10 @@ import net.minecraft.network.chat.Component;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.IExtensionPoint;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.network.NetworkConstants;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
@@ -68,7 +71,37 @@ public class ForgeHolograms {
     public ForgeHolograms() {
         instance = this;
         LOGGER.info("Initializing Elite Holograms mod");
+        registerServerSideOnlyDisplayTest();
         MinecraftForge.EVENT_BUS.register(this);
+    }
+
+    /**
+     * Declares the mod as server-side-only for the multiplayer server list compatibility check.
+     *
+     * <p>Without this, Forge's default display test requires the mod to be present on both sides
+     * with the same version, so a server running Elite Holograms shows as an "Incompatible FML
+     * modded server" (red X) to clients that do not have it installed. Holograms are rendered
+     * entirely with vanilla entity packets and the mod registers no network channel of its own,
+     * so a client genuinely does not need it.</p>
+     *
+     * <p>{@code IGNORESERVERONLY} tells clients to ignore this mod when the server has it and they
+     * do not. The predicate returns {@code isFromServer} so that a client which <em>does</em> have
+     * it installed still accepts any version reported by a server, per Forge's own guidance in
+     * {@link IExtensionPoint.DisplayTest}. Note this is a display test only: it does not change
+     * whether a connection succeeds.</p>
+     *
+     * <p>Forge 1.19.2 and 1.20.1 have no {@code displayTest} key in {@code mods.toml} (that arrived
+     * in Forge 1.21), so this has to be registered in code. The NeoForge editions need no
+     * equivalent: their networking negotiates per registered payload, and this mod registers none.</p>
+     */
+    private void registerServerSideOnlyDisplayTest() {
+        ModLoadingContext.get().registerExtensionPoint(
+                IExtensionPoint.DisplayTest.class,
+                () -> new IExtensionPoint.DisplayTest(
+                        () -> NetworkConstants.IGNORESERVERONLY,
+                        (remoteVersion, isFromServer) -> isFromServer
+                )
+        );
     }
 
     @SubscribeEvent
