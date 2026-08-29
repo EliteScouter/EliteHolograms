@@ -23,6 +23,9 @@ import com.strictgaming.elite.holograms.forge.command.HologramsInfoCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsAnimateLineCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsCreateItemCommand;
 import com.strictgaming.elite.holograms.forge.command.HologramsBacklightCommand;
+import com.strictgaming.elite.holograms.forge.command.HologramsMoveVerticalCommand;
+import com.strictgaming.elite.holograms.forge.command.HologramsSetRotationCommand;
+import com.strictgaming.elite.holograms.forge.command.HologramsConvertCommand;
 import com.strictgaming.elite.holograms.forge.config.HologramsConfig;
 import com.strictgaming.elite.holograms.forge.hologram.HologramManager;
 import com.strictgaming.elite.holograms.forge.hologram.manager.ForgeHologramManager;
@@ -44,7 +47,16 @@ import java.io.IOException;
 public class ForgeHolograms {
 
     public static final String MOD_ID = "eliteholograms";
-    public static final String VERSION = "1.19.2-1.1.1";
+
+    /**
+     * Read from the jar manifest, which build.gradle populates with {@code Implementation-Version}
+     * from {@code project.version}. Previously this was a hardcoded literal and had drifted to
+     * 1.1.1 while the jar shipped as 1.2.0. Falls back to a label in a dev environment, where
+     * there is no manifest to read.
+     */
+    public static final String VERSION = ForgeHolograms.class.getPackage().getImplementationVersion() != null
+            ? ForgeHolograms.class.getPackage().getImplementationVersion()
+            : "dev";
     private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
 
     private static ForgeHolograms instance;
@@ -219,7 +231,21 @@ public class ForgeHolograms {
 
         LOGGER.info("Registering HologramsBacklightCommand");
         command.registerSubCommand("backlight", new HologramsBacklightCommand());
-        
+
+        // Previously only registered by the redundant CommandManager event subscriber, which
+        // meant /eh movevertical tab-completed but failed the subcommand lookup at runtime.
+        LOGGER.info("Registering HologramsMoveVerticalCommand");
+        command.registerSubCommand("movevertical", new HologramsMoveVerticalCommand());
+
+        // Fixed-display commands. Forge 1.19.2 cannot render fixed holograms (text_display
+        // entities arrived in 1.19.4), so these exist to report that clearly instead of
+        // failing as unknown commands.
+        LOGGER.info("Registering HologramsSetRotationCommand");
+        command.registerSubCommand("setrotation", new HologramsSetRotationCommand());
+
+        LOGGER.info("Registering HologramsConvertCommand");
+        command.registerSubCommand("convert", new HologramsConvertCommand());
+
         LOGGER.info("Registering main command dispatcher");
         this.commandFactory.registerCommand(event.getDispatcher(), command);
         LOGGER.info("Commands registered successfully");

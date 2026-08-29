@@ -1,0 +1,772 @@
+package com.strictgaming.elite.holograms.fabric.command;
+
+import com.strictgaming.elite.holograms.api.hologram.Hologram;
+import com.strictgaming.elite.holograms.fabric.hologram.HologramDisplayType;
+import com.strictgaming.elite.holograms.fabric.hologram.HologramManager;
+import com.strictgaming.elite.holograms.fabric.util.UtilChatColour;
+import com.strictgaming.elite.holograms.fabric.util.UtilPermissions;
+import com.strictgaming.elite.holograms.fabric.command.HologramsCreateScoreboardCommand;
+import com.strictgaming.elite.holograms.fabric.command.HologramsCreateItemCommand;
+import com.strictgaming.elite.holograms.fabric.command.HologramsAnimateLineCommand;
+import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+
+/**
+ * Main command for Elite Holograms
+ */
+public class HologramsCommand {
+
+    private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
+    private final Map<String, Object> subCommands = new HashMap<>();
+    
+    // Suggestion provider for hologram IDs
+    private static final SuggestionProvider<CommandSourceStack> HOLOGRAM_ID_SUGGESTIONS = (context, builder) -> {
+        for (Hologram hologram : HologramManager.getAllHolograms()) {
+            builder.suggest(hologram.getId());
+        }
+        return builder.buildFuture();
+    };
+
+    // Suggests objectives currently registered on the server scoreboard
+    private static final SuggestionProvider<CommandSourceStack> OBJECTIVE_SUGGESTIONS = (context, builder) -> {
+        try {
+            var server = context.getSource().getServer();
+            if (server != null) {
+                for (net.minecraft.world.scores.Objective objective : server.getScoreboard().getObjectives()) {
+                    builder.suggest(objective.getName());
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return builder.buildFuture();
+    };
+
+    // Suggests the configured scoreboard theme names
+    private static final SuggestionProvider<CommandSourceStack> THEME_SUGGESTIONS = (context, builder) -> {
+        for (String name : com.strictgaming.elite.holograms.fabric.config.ScoreboardThemeManager.getThemeNames()) {
+            builder.suggest(name);
+        }
+        return builder.buildFuture();
+    };
+
+    // Suggests the IDs of existing scoreboard holograms
+    private static final SuggestionProvider<CommandSourceStack> SCOREBOARD_ID_SUGGESTIONS = (context, builder) -> {
+        for (Hologram hologram : HologramManager.getAllHolograms()) {
+            if (hologram instanceof com.strictgaming.elite.holograms.fabric.hologram.ScoreboardHologram) {
+                builder.suggest(hologram.getId());
+            }
+        }
+        return builder.buildFuture();
+    };
+    
+    /**
+     * Register the command with the dispatcher
+     */
+    public void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        // Add debug statement to register
+        LOGGER.debug("Registering commands...");
+        
+        // Register the main command
+        registerCommandWithAliases(dispatcher, "eliteholograms");
+        registerCommandWithAliases(dispatcher, "eh");
+        registerCommandWithAliases(dispatcher, "hologram");
+    }
+    
+    /**
+     * Register a command with its aliases and subcommands
+     */
+    private void registerCommandWithAliases(CommandDispatcher<CommandSourceStack> dispatcher, String alias) {
+        LiteralArgumentBuilder<CommandSourceStack> command = Commands.literal(alias)
+                .requires(source -> UtilPermissions.hasPermission(source, UtilPermissions.LIST))
+                .executes(this::onCommand);
+        
+        // Register subcommands
+        for (Map.Entry<String, Object> entry : subCommands.entrySet()) {
+            String name = entry.getKey();
+            
+            LiteralArgumentBuilder<CommandSourceStack> subCommand = Commands.literal(name);
+            
+            // Add permission requirements based on command type
+            if (name.equals("create") || name.equals("createat") || name.equals("createscoreboard") || name.equals("createitem") || name.equals("settheme")) {
+                subCommand.requires(UtilPermissions::canCreate);
+            } else if (name.equals("delete")) {
+                subCommand.requires(UtilPermissions::canDelete);
+            } else if (name.equals("list")) {
+                subCommand.requires(UtilPermissions::canList);
+            } else if (name.equals("info")) {
+                subCommand.requires(UtilPermissions::canInfo);
+            } else if (name.equals("teleport")) {
+                subCommand.requires(UtilPermissions::canTeleport);
+            } else if (name.equals("near")) {
+                subCommand.requires(UtilPermissions::canNear);
+            } else if (name.equals("addline") || name.equals("setline") || name.equals("insertline") || 
+                       name.equals("removeline") || name.equals("movehere") || name.equals("moveto") || name.equals("animateline")) {
+                subCommand.requires(UtilPermissions::canEdit);
+            } else if (name.equals("copy")) {
+                subCommand.requires(UtilPermissions::canCreate); // Copy requires create permission
+            } else if (name.equals("backlight")) {
+                subCommand.requires(src -> UtilPermissions.hasPermission(src, UtilPermissions.BACKLIGHT));
+            } else if (name.equals("setrotation") || name.equals("convert")) {
+                subCommand.requires(UtilPermissions::canEdit);
+            } else if (name.equals("reload")) {
+                subCommand.requires(UtilPermissions::canAdmin);
+            }
+            
+            // Add appropriate arguments based on command name
+            if (name.equals("create")) {
+                // Explicit display type first. Brigadier matches literals before arguments, so
+                // these take precedence over the bare <id> form without shadowing it.
+                for (HologramDisplayType type : HologramDisplayType.values()) {
+                    subCommand.then(Commands.literal(type.getSerializedName())
+                        .then(Commands.argument("id", StringArgumentType.word())
+                        .then(Commands.argument("text", StringArgumentType.greedyString())
+                        .executes(ctx -> executeSubCommand(ctx, "create", new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "text")
+                        }, type)))));
+                }
+
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .then(Commands.argument("text", StringArgumentType.greedyString())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "text")
+                        };
+                        return executeSubCommand(ctx, "create", args);
+                    })));
+            } else if (name.equals("createscoreboard")) {
+                // Explicit display type: /eh createscoreboard fixed|facing <id> <objective> ...
+                for (HologramDisplayType type : HologramDisplayType.values()) {
+                    subCommand.then(Commands.literal(type.getSerializedName())
+                        .then(Commands.argument("id", StringArgumentType.word())
+                        .then(Commands.argument("objective", StringArgumentType.word())
+                        .suggests(OBJECTIVE_SUGGESTIONS)
+                        .executes(ctx -> executeSubCommand(ctx, "createscoreboard", new String[0], type))
+                        .then(Commands.argument("topCount", IntegerArgumentType.integer(1, 10))
+                        .executes(ctx -> executeSubCommand(ctx, "createscoreboard", new String[0], type))
+                        .then(Commands.argument("updateInterval", IntegerArgumentType.integer(5, 300))
+                        .executes(ctx -> executeSubCommand(ctx, "createscoreboard", new String[0], type))
+                        .then(Commands.argument("theme", StringArgumentType.word())
+                        .suggests(THEME_SUGGESTIONS)
+                        .executes(ctx -> executeSubCommand(ctx, "createscoreboard", new String[0], type))))))));
+                }
+
+                // Bare form, no display type: /eh createscoreboard <id> <objective> ...
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .then(Commands.argument("objective", StringArgumentType.word())
+                    .suggests(OBJECTIVE_SUGGESTIONS)
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "objective")
+                        };
+                        return executeSubCommand(ctx, "createscoreboard", args);
+                    })
+                    .then(Commands.argument("topCount", IntegerArgumentType.integer(1, 10))
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "objective"),
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "topCount"))
+                        };
+                        return executeSubCommand(ctx, "createscoreboard", args);
+                    })
+                    .then(Commands.argument("updateInterval", IntegerArgumentType.integer(5, 300))
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "objective"),
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "topCount")),
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "updateInterval"))
+                        };
+                        return executeSubCommand(ctx, "createscoreboard", args);
+                    })
+                    .then(Commands.argument("theme", StringArgumentType.word())
+                    .suggests(THEME_SUGGESTIONS)
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "objective"),
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "topCount")),
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "updateInterval")),
+                            StringArgumentType.getString(ctx, "theme")
+                        };
+                        return executeSubCommand(ctx, "createscoreboard", args);
+                    }))))));
+            } else if (name.equals("settheme")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(SCOREBOARD_ID_SUGGESTIONS)
+                    .then(Commands.argument("theme", StringArgumentType.word())
+                    .suggests(THEME_SUGGESTIONS)
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "theme")
+                        };
+                        return executeSubCommand(ctx, "settheme", args);
+                    })));
+            } else if (name.equals("createitem")) {
+                // Explicit display type: /eh createitem fixed|facing <id> <item> [text]
+                for (HologramDisplayType type : HologramDisplayType.values()) {
+                    subCommand.then(Commands.literal(type.getSerializedName())
+                        .then(Commands.argument("id", StringArgumentType.word())
+                        .then(Commands.argument("item", StringArgumentType.word())
+                        .executes(ctx -> executeSubCommand(ctx, "createitem", new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "item")
+                        }, type))
+                        .then(Commands.argument("text", StringArgumentType.greedyString())
+                        .executes(ctx -> executeSubCommand(ctx, "createitem", new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "item"),
+                            StringArgumentType.getString(ctx, "text")
+                        }, type))))));
+                }
+
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .then(Commands.argument("item", StringArgumentType.word())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "item")
+                        };
+                        return executeSubCommand(ctx, "createitem", args);
+                    })
+                    .then(Commands.argument("text", StringArgumentType.greedyString())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "item"),
+                            StringArgumentType.getString(ctx, "text")
+                        };
+                        return executeSubCommand(ctx, "createitem", args);
+                    }))));
+            } else if (name.equals("animateline")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.argument("line", IntegerArgumentType.integer(1))
+                    .then(Commands.argument("seconds", IntegerArgumentType.integer(1))
+                    .then(Commands.argument("frames", StringArgumentType.greedyString())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "line")),
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "seconds")),
+                            StringArgumentType.getString(ctx, "frames")
+                        };
+                        return executeSubCommand(ctx, "animateline", args);
+                    })))));
+            } else if (name.equals("movevertical")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.argument("amount", StringArgumentType.word())
+                        .executes(ctx -> {
+                            String[] args = new String[] {
+                                StringArgumentType.getString(ctx, "id"),
+                                StringArgumentType.getString(ctx, "amount")
+                            };
+                            return executeSubCommand(ctx, name, args);
+                        })
+                    )
+                    .then(Commands.literal("up")
+                        .then(Commands.argument("amount", StringArgumentType.word())
+                            .executes(ctx -> {
+                                String[] args = new String[] {
+                                    StringArgumentType.getString(ctx, "id"),
+                                    "up",
+                                    StringArgumentType.getString(ctx, "amount")
+                                };
+                                return executeSubCommand(ctx, name, args);
+                            })
+                        )
+                    )
+                    .then(Commands.literal("down")
+                        .then(Commands.argument("amount", StringArgumentType.word())
+                            .executes(ctx -> {
+                                String[] args = new String[] {
+                                    StringArgumentType.getString(ctx, "id"),
+                                    "down",
+                                    StringArgumentType.getString(ctx, "amount")
+                                };
+                                return executeSubCommand(ctx, name, args);
+                            })
+                        )
+                    )
+                );
+            } else if (name.equals("delete") || name.equals("info") || name.equals("movehere") || name.equals("teleport")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id")
+                        };
+                        return executeSubCommand(ctx, name, args);
+                    }));
+            } else if (name.equals("addline")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.argument("text", StringArgumentType.greedyString())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "text")
+                        };
+                        return executeSubCommand(ctx, name, args);
+                    })));
+            } else if (name.equals("setline") || name.equals("insertline")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.argument("line", StringArgumentType.word())
+                    .then(Commands.argument("text", StringArgumentType.greedyString())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "line"),
+                            StringArgumentType.getString(ctx, "text")
+                        };
+                        return executeSubCommand(ctx, name, args);
+                    }))));
+            } else if (name.equals("removeline")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.argument("line", StringArgumentType.word())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "line")
+                        };
+                        return executeSubCommand(ctx, name, args);
+                    })));
+            } else if (name.equals("list")) {
+                subCommand.executes(this::listHolograms);
+            } else if (name.equals("near")) {
+                subCommand.executes(this::executeNearCommand)
+                    .then(Commands.argument("page", StringArgumentType.word())
+                    .executes(ctx -> {
+                        try {
+                            String page = StringArgumentType.getString(ctx, "page");
+                            return this.executeNearCommandWithPage(ctx, page);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            return 0;
+                        }
+                    }));
+            } else if (name.equals("moveto")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.argument("x", StringArgumentType.word())
+                    .then(Commands.argument("y", StringArgumentType.word())
+                    .then(Commands.argument("z", StringArgumentType.word())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "x"),
+                            StringArgumentType.getString(ctx, "y"),
+                            StringArgumentType.getString(ctx, "z")
+                        };
+                        return executeSubCommand(ctx, name, args);
+                    })
+                    .then(Commands.argument("world", StringArgumentType.greedyString())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "x"),
+                            StringArgumentType.getString(ctx, "y"),
+                            StringArgumentType.getString(ctx, "z"),
+                            StringArgumentType.getString(ctx, "world")
+                        };
+                        return executeSubCommand(ctx, name, args);
+                    }))))));
+            } else if (name.equals("createat")) {
+                // Explicit display type: /eh createat fixed|facing <id> <x> <y> <z> [text]
+                for (HologramDisplayType type : HologramDisplayType.values()) {
+                    subCommand.then(Commands.literal(type.getSerializedName())
+                        .then(Commands.argument("id", StringArgumentType.word())
+                        .then(Commands.argument("x", StringArgumentType.word())
+                        .then(Commands.argument("y", StringArgumentType.word())
+                        .then(Commands.argument("z", StringArgumentType.word())
+                        .executes(ctx -> executeSubCommand(ctx, "createat", new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "x"),
+                            StringArgumentType.getString(ctx, "y"),
+                            StringArgumentType.getString(ctx, "z")
+                        }, type))
+                        .then(Commands.argument("text", StringArgumentType.greedyString())
+                        .executes(ctx -> executeSubCommand(ctx, "createat", new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "x"),
+                            StringArgumentType.getString(ctx, "y"),
+                            StringArgumentType.getString(ctx, "z"),
+                            StringArgumentType.getString(ctx, "text")
+                        }, type))))))));
+                }
+
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .then(Commands.argument("x", StringArgumentType.word())
+                    .then(Commands.argument("y", StringArgumentType.word())
+                    .then(Commands.argument("z", StringArgumentType.word())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "x"),
+                            StringArgumentType.getString(ctx, "y"),
+                            StringArgumentType.getString(ctx, "z")
+                        };
+                        return executeSubCommand(ctx, name, args);
+                    })
+                    .then(Commands.argument("text", StringArgumentType.greedyString())
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            StringArgumentType.getString(ctx, "x"),
+                            StringArgumentType.getString(ctx, "y"),
+                            StringArgumentType.getString(ctx, "z"),
+                            StringArgumentType.getString(ctx, "text")
+                        };
+                        return executeSubCommand(ctx, name, args);
+                    }))))));
+            } else if (name.equals("setrotation")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.argument("yaw", StringArgumentType.word())
+                    .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "yaw")
+                    }))
+                    .then(Commands.argument("pitch", StringArgumentType.word())
+                    .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "yaw"),
+                        StringArgumentType.getString(ctx, "pitch")
+                    })))));
+            } else if (name.equals("convert")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.literal("fixed")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "fixed"
+                        })))
+                    .then(Commands.literal("face")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "face"
+                        })))
+                    .then(Commands.literal("facing")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "facing"
+                        }))));
+            } else if (name.equals("copy")) {
+                subCommand
+                    .then(Commands.argument("target", StringArgumentType.word())
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .executes(ctx -> {
+                        String[] args = new String[] {
+                            StringArgumentType.getString(ctx, "target"),
+                            StringArgumentType.getString(ctx, "id")
+                        };
+                        return executeSubCommand(ctx, name, args);
+                    })));
+            } else if (name.equals("reload")) {
+                subCommand.executes(ctx -> executeSubCommand(ctx, name, new String[0]));
+            } else if (name.equals("backlight")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.literal("on")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "on"
+                        }))
+                        .then(Commands.argument("level", IntegerArgumentType.integer(0, 15))
+                            .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                                StringArgumentType.getString(ctx, "id"), "on",
+                                String.valueOf(IntegerArgumentType.getInteger(ctx, "level"))
+                            })))
+                    )
+                    .then(Commands.literal("off")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "off"
+                        }))
+                    )
+                    .then(Commands.literal("toggle")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "toggle"
+                        }))
+                    )
+                );
+            }
+            
+            command.then(subCommand);
+        }
+        
+        dispatcher.register(command);
+    }
+    
+    /**
+     * Handle the command execution
+     */
+    public int onCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        
+        source.sendSystemMessage(Component.literal("§3§l┌─§b§lElite Holograms §3§l──────┐"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh create <id> <text>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh createat <id> <x> <y> <z> [world] <text>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh createitem <id> <item> [text]"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh createscoreboard <id> <objective> [top] [interval] [theme]"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh settheme <id> <theme>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh list"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh delete <id>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh addline <id> <text>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh setline <id> <line> <text>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh removeline <id> <line>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh movehere <id>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh moveto <id> <x> <y> <z> [world]"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh near [page]"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh reload"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh teleport <id>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh copy <target> <id>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh insertline <id> <line> <text>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh animateline <id> <line> <sec> <frames>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh info <id>"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh backlight <id> <on|off|toggle> [level 0-15]"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh setrotation <id> <yaw> [pitch]"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh convert <id> fixed|face"));
+        source.sendSystemMessage(Component.literal("§3│ §7fixed|facing works on every create command"));
+        source.sendSystemMessage(Component.literal("§3§l└─────────────────┘"));
+        return 1;
+    }
+    
+    /**
+     * Register a subcommand
+     */
+    public void registerSubCommand(String name, Object subCommand) {
+        this.subCommands.put(name.toLowerCase(), subCommand);
+    }
+    
+    /**
+     * Execute a subcommand
+     */
+    private int executeSubCommand(CommandContext<CommandSourceStack> context, String name, String[] args) {
+        return executeSubCommand(context, name, args, null);
+    }
+
+    /**
+     * Executes a subcommand, optionally forcing a display type.
+     *
+     * <p>Only the create commands understand a display type. When {@code displayType} is null the
+     * command's own default (player-facing) applies, which is what every other subcommand and the
+     * bare {@code /eh create <id> <text>} form use.
+     */
+    private int executeSubCommand(CommandContext<CommandSourceStack> context, String name, String[] args,
+                                  HologramDisplayType displayType) {
+        if (displayType != null) {
+            Object typed = subCommands.get(name.toLowerCase().trim());
+
+            try {
+                if (typed instanceof HologramsCreateCommand) {
+                    return ((HologramsCreateCommand) typed).executeCommand(context, args, displayType);
+                } else if (typed instanceof HologramsCreateAtCommand) {
+                    return ((HologramsCreateAtCommand) typed).executeCommand(context, args, displayType);
+                } else if (typed instanceof HologramsCreateItemCommand) {
+                    return ((HologramsCreateItemCommand) typed).executeCommand(context, args, displayType);
+                } else if (typed instanceof HologramsCreateScoreboardCommand) {
+                    return ((HologramsCreateScoreboardCommand) typed).run(context, displayType);
+                }
+            } catch (Exception e) {
+                LOGGER.error("Error executing command: {}", name, e);
+                context.getSource().sendSystemMessage(Component.literal("§c§l(!) §cAn error occurred while executing the command."));
+                return 0;
+            }
+        }
+
+        LOGGER.debug("Looking for command: {}", name);
+        
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("Available commands: {}", String.join(", ", subCommands.keySet()));
+        }
+        
+        // Clean the name - standard formatting for our commands
+        String cleanName = name.toLowerCase().trim();
+        
+        // Try to find the command with different name formats
+        Object subCommand = null;
+        
+        // Try exact match first
+        if (subCommands.containsKey(cleanName)) {
+            subCommand = subCommands.get(cleanName);
+        }
+        
+        // Debug: Print registered subcommands
+        if (subCommand == null) {
+            StringBuilder availableCommands = new StringBuilder("§e§l(!) §eAvailable commands: ");
+            for (String cmd : subCommands.keySet()) {
+                availableCommands.append(cmd).append(", ");
+            }
+            context.getSource().sendSystemMessage(Component.literal(availableCommands.toString()));
+            
+            context.getSource().sendSystemMessage(Component.literal("§c§l(!) §cUnknown command: " + name));
+            return 0;
+        }
+        
+        try {
+            // Call the executeCommand method on the subcommand
+            if (subCommand instanceof HologramsMoveVerticalCommand) {
+                return ((HologramsMoveVerticalCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsCreateCommand) {
+                return ((HologramsCreateCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsCreateScoreboardCommand) {
+                return ((HologramsCreateScoreboardCommand) subCommand).run(context);
+            } else if (subCommand instanceof HologramsSetThemeCommand) {
+                return ((HologramsSetThemeCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsCreateItemCommand) {
+                return ((HologramsCreateItemCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsAnimateLineCommand) {
+                return ((HologramsAnimateLineCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsDeleteCommand) {
+                return ((HologramsDeleteCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsListCommand) {
+                return ((HologramsListCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsReloadCommand) {
+                return ((HologramsReloadCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsInsertLineCommand) {
+                return ((HologramsInsertLineCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsAddLineCommand) {
+                return ((HologramsAddLineCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsSetLineCommand) {
+                return ((HologramsSetLineCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsRemoveLineCommand) {
+                return ((HologramsRemoveLineCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsMoveHereCommand) {
+                return ((HologramsMoveHereCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsMoveToCommand) {
+                return ((HologramsMoveToCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsCreateAtCommand) {
+                return ((HologramsCreateAtCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsTeleportCommand) {
+                return ((HologramsTeleportCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsCopyCommand) {
+                return ((HologramsCopyCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsInfoCommand) {
+                return ((HologramsInfoCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsNearCommand) {
+                return ((HologramsNearCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsBacklightCommand) {
+                return ((HologramsBacklightCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsSetRotationCommand) {
+                return ((HologramsSetRotationCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsConvertCommand) {
+                return ((HologramsConvertCommand) subCommand).executeCommand(context, args);
+            }
+            
+            // If we don't have a handler for this command, show an error
+            context.getSource().sendSystemMessage(Component.literal("§c§l(!) §cCommand not fully implemented: " + name));
+            return 0;
+        } catch (Exception e) {
+            LOGGER.error("Error executing command: {}", name, e);
+            context.getSource().sendSystemMessage(Component.literal("§c§l(!) §cAn error occurred while executing the command."));
+            return 0;
+        }
+    }
+    
+    /**
+     * List all holograms
+     */
+    private int listHolograms(CommandContext<CommandSourceStack> context) {
+        Object listCmd = subCommands.get("list");
+        if (listCmd instanceof HologramsListCommand) {
+            try {
+                return ((HologramsListCommand) listCmd).executeCommand(context, new String[0]);
+            } catch (Exception e) {
+                LOGGER.error("Error executing list command", e);
+                context.getSource().sendSystemMessage(Component.literal("§c§l(!) §cAn error occurred while listing holograms."));
+                return 0;
+            }
+        }
+        
+        // Fallback if the list command is not registered
+        context.getSource().sendSystemMessage(Component.literal("§c§l(!) §cList command not registered."));
+        return 0;
+    }
+    
+    /**
+     * Execute the near command
+     */
+    private int executeNearCommand(CommandContext<CommandSourceStack> context) {
+        Object nearCmd = subCommands.get("near");
+        if (nearCmd instanceof HologramsNearCommand) {
+            try {
+                return ((HologramsNearCommand) nearCmd).executeCommand(context, new String[0]);
+            } catch (Exception e) {
+                LOGGER.error("Error executing near command", e);
+                context.getSource().sendSystemMessage(Component.literal("§c§l(!) §cAn error occurred while listing nearby holograms."));
+                return 0;
+            }
+        }
+        
+        // Fallback if the near command is not registered
+        context.getSource().sendSystemMessage(Component.literal("§c§l(!) §cNear command not registered."));
+        return 0;
+    }
+    
+    /**
+     * Execute the near command with a page
+     */
+    private int executeNearCommandWithPage(CommandContext<CommandSourceStack> context, String page) {
+        Object nearCmd = subCommands.get("near");
+        if (nearCmd instanceof HologramsNearCommand) {
+            try {
+                return ((HologramsNearCommand) nearCmd).executeCommand(context, new String[] { page });
+            } catch (Exception e) {
+                LOGGER.error("Error executing near command with page {}", page, e);
+                context.getSource().sendSystemMessage(Component.literal("§c§l(!) §cAn error occurred while listing nearby holograms."));
+                return 0;
+            }
+        }
+        
+        // Fallback if the near command is not registered
+        context.getSource().sendSystemMessage(Component.literal("§c§l(!) §cNear command not registered."));
+        return 0;
+    }
+    
+    /**
+     * Debug command registration
+     */
+    private void debugCommandRegistration() {
+        StringBuilder registeredCommands = new StringBuilder();
+        for (String cmd : subCommands.keySet()) {
+            registeredCommands.append(cmd).append(", ");
+        }
+        LOGGER.debug("Registered commands: {}", registeredCommands.toString());
+    }
+} 

@@ -58,6 +58,8 @@ These show different information for each player viewing the hologram:
 
 ## Commands
 
+**Loaders:** Forge (1.19.2, 1.20.1), NeoForge (1.21.1, 26.1.2) and Fabric (1.20.1). The Fabric edition requires Fabric API. All editions share the same config format and command set.
+
 **Permissions:** Commands require either specific permission nodes (if using a supported permission mod like LuckPerms or FTB Ranks) or operator (OP level 2) status. See the "Permissions" section below or `PERMISSIONS.md` for details.
 
 | Command                     | Description                                  | Permission Node Suffix |
@@ -124,6 +126,11 @@ backlights all carry over:
 
 > **Forge 1.19.2:** fixed holograms are not available. They are built on `text_display` entities,
 > which Minecraft added in 1.19.4, so the 1.19.2 edition supports player-facing holograms only.
+> The commands themselves still exist there, so the command set matches the other editions:
+> `/eh setrotation` and `/eh create fixed` validate their arguments and then explain the version
+> requirement rather than failing as unknown commands, and `/eh convert <id> face` succeeds as a
+> no-op because every 1.19.2 hologram is already player-facing. Nothing is created when you ask
+> for `fixed`, so a command copied from a newer server never silently produces the wrong thing.
 
 ### Scoreboard Holograms
 

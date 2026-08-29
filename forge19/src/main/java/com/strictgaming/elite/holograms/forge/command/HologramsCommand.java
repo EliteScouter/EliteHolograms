@@ -5,6 +5,7 @@ import com.strictgaming.elite.holograms.forge.hologram.HologramManager;
 import com.strictgaming.elite.holograms.forge.util.UtilChatColour;
 import com.strictgaming.elite.holograms.forge.util.UtilPermissions;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
@@ -58,6 +59,15 @@ public class HologramsCommand {
         for (String name : com.strictgaming.elite.holograms.forge.config.ScoreboardThemeManager.getThemeNames()) {
             builder.suggest(name);
         }
+        return builder.buildFuture();
+    };
+
+    // Suggests the display types accepted by /eh convert. Kept in step with the newer editions
+    // even though only the player-facing type can be rendered on 1.19.2.
+    private static final SuggestionProvider<CommandSourceStack> DISPLAY_TYPE_SUGGESTIONS = (context, builder) -> {
+        builder.suggest("fixed");
+        builder.suggest("face");
+        builder.suggest("facing");
         return builder.buildFuture();
     };
 
@@ -420,27 +430,12 @@ public class HologramsCommand {
                 }))));
                 
         // Backlight command - toggles invisible minecraft:light block at hologram position
-        LiteralArgumentBuilder<CommandSourceStack> backlightCommand = Commands.literal("backlight")
-                .requires(src -> UtilPermissions.hasPermission(src, UtilPermissions.BACKLIGHT))
-                .then(Commands.argument("id", StringArgumentType.word())
-                .suggests(HOLOGRAM_ID_SUGGESTIONS)
-                .then(Commands.literal("on")
-                    .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
-                        StringArgumentType.getString(ctx, "id"), "on"
-                    }))
-                    .then(Commands.argument("level", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, 15))
-                        .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
-                            StringArgumentType.getString(ctx, "id"), "on",
-                            String.valueOf(com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "level"))
-                        }))))
-                .then(Commands.literal("off")
-                    .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
-                        StringArgumentType.getString(ctx, "id"), "off"
-                    })))
-                .then(Commands.literal("toggle")
-                    .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
-                        StringArgumentType.getString(ctx, "id"), "toggle"
-                    }))));
+        LiteralArgumentBuilder<CommandSourceStack> backlightCommand = buildBacklightTree();
+
+        // Fixed-display commands. Not renderable on 1.19.2, but present so the command surface
+        // matches the newer editions and the limitation is reported explicitly.
+        LiteralArgumentBuilder<CommandSourceStack> setRotationCommand = buildSetRotationTree();
+        LiteralArgumentBuilder<CommandSourceStack> convertCommand = buildConvertTree();
 
         command.then(createCommand);
         command.then(createAtCommand);
@@ -463,6 +458,15 @@ public class HologramsCommand {
         command.then(animateLineCommand);
         command.then(createItemCommand);
         command.then(backlightCommand);
+        command.then(setRotationCommand);
+        command.then(convertCommand);
+
+        // Graft the fixed|facing keywords onto the create family. Merged into the literals above
+        // by brigadier, so the existing argument shapes are untouched.
+        command.then(displayTypeBranches("create", 1));
+        command.then(displayTypeBranches("createat", 4));
+        command.then(displayTypeBranches("createitem", 2));
+        command.then(displayTypeBranches("createscoreboard", -1));
         
         dispatcher.register(command);
         
@@ -500,10 +504,191 @@ public class HologramsCommand {
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh animateline <id> <line> <sec> <frame1>|<frame2>"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh createitem <id> <item> [text...]"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh backlight <id> <on|off|toggle> [level 0-15]"));
+        source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh setrotation <id> <yaw> [pitch] &8(1.19.4+ only)"));
+        source.sendSystemMessage(UtilChatColour.parse("&3│ &b/eh convert <id> <fixed|face> &8(1.19.4+ only)"));
         source.sendSystemMessage(UtilChatColour.parse("&3&l└─────────────────┘"));
+        source.sendSystemMessage(UtilChatColour.parse(
+                "&8Fixed holograms need Minecraft 1.19.4+; on 1.19.2 all holograms face the viewer."));
         return 1;
     }
     
+    /**
+     * Builds a create-style subcommand literal carrying only the {@code facing} and {@code fixed}
+     * display-type branches, matching {@code /eh create fixed|facing <id> [text]} on the Forge
+     * 1.20.1 and NeoForge editions.
+     *
+     * <p>Brigadier merges literals that share a name, and a node with no {@code executes} of its
+     * own does not overwrite the command already bound to the existing node. That lets this be
+     * attached alongside the real create tree to graft the two keywords on without restating the
+     * arguments, in both the main tree and every alias.
+     *
+     * <p>Without these branches the keyword was silently swallowed by the greedy text argument, so
+     * {@code /eh create shop fixed Welcome} produced a hologram whose first line read
+     * "fixed Welcome".
+     *
+     * @param subCommandName the create-style subcommand to graft onto
+     * @param leadingWords   how many leading whitespace-separated arguments precede the greedy
+     *                       text argument, or a negative value when every argument is a word
+     */
+    private LiteralArgumentBuilder<CommandSourceStack> displayTypeBranches(String subCommandName, int leadingWords) {
+        return Commands.literal(subCommandName)
+                .requires(UtilPermissions::canCreate)
+                .then(Commands.literal("facing")
+                        .executes(ctx -> executeSubCommand(ctx, subCommandName, new String[0]))
+                        .then(Commands.argument("args", StringArgumentType.greedyString())
+                                .executes(ctx -> executeSubCommand(ctx, subCommandName,
+                                        splitArgs(StringArgumentType.getString(ctx, "args"), leadingWords)))))
+                .then(Commands.literal("fixed")
+                        .executes(this::reportFixedUnsupported)
+                        .then(Commands.argument("args", StringArgumentType.greedyString())
+                                .executes(this::reportFixedUnsupported)));
+    }
+
+    /**
+     * Reports that fixed holograms cannot be rendered on this edition.
+     *
+     * <p>Deliberately refuses rather than quietly creating a player-facing hologram, so a command
+     * copied from a 1.20.1 or NeoForge server never silently produces something that looks wrong.
+     */
+    private int reportFixedUnsupported(CommandContext<CommandSourceStack> context) {
+        context.getSource().sendSystemMessage(UtilChatColour.parse(
+                com.strictgaming.elite.holograms.forge.hologram.HologramDisplayType.UNSUPPORTED_MESSAGE));
+        context.getSource().sendSystemMessage(UtilChatColour.parse(
+                com.strictgaming.elite.holograms.forge.hologram.HologramDisplayType.UNSUPPORTED_HINT));
+        return 0;
+    }
+
+    /**
+     * Splits a greedy argument string into the flat {@code String[]} the legacy subcommand
+     * handlers expect.
+     *
+     * @param raw          the greedy argument text
+     * @param leadingWords how many leading arguments are single words; the rest of the string is
+     *                     kept intact as one trailing element. A negative value splits on every
+     *                     run of whitespace, for subcommands that take no free-form text.
+     */
+    private static String[] splitArgs(String raw, int leadingWords) {
+        String trimmed = raw == null ? "" : raw.trim();
+
+        if (trimmed.isEmpty()) {
+            return new String[0];
+        }
+
+        if (leadingWords < 0) {
+            return trimmed.split("\\s+");
+        }
+
+        List<String> parts = new ArrayList<>();
+        String remaining = trimmed;
+
+        while (parts.size() < leadingWords && !remaining.isEmpty()) {
+            int space = remaining.indexOf(' ');
+
+            if (space < 0) {
+                parts.add(remaining);
+                remaining = "";
+                break;
+            }
+
+            parts.add(remaining.substring(0, space));
+            remaining = remaining.substring(space + 1).trim();
+        }
+
+        if (!remaining.isEmpty()) {
+            parts.add(remaining);
+        }
+
+        return parts.toArray(new String[0]);
+    }
+
+    /**
+     * Builds the {@code backlight} subcommand tree.
+     *
+     * <p>Shared by the main command and every alias so the two cannot drift apart. Both the bare
+     * literal and the {@code <id>} node are executable and fall through to the subcommand's own
+     * usage message. Without that, partial input such as {@code /eh backlight} left the tree with
+     * no executable node and Minecraft answered "Unknown or incomplete command", which reads as
+     * the feature being missing entirely.
+     */
+    private LiteralArgumentBuilder<CommandSourceStack> buildBacklightTree() {
+        return Commands.literal("backlight")
+                .requires(src -> UtilPermissions.hasPermission(src, UtilPermissions.BACKLIGHT))
+                .executes(ctx -> executeSubCommand(ctx, "backlight", new String[0]))
+                .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
+                    StringArgumentType.getString(ctx, "id")
+                }))
+                .then(Commands.literal("on")
+                    .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
+                        StringArgumentType.getString(ctx, "id"), "on"
+                    }))
+                    .then(Commands.argument("level", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, 15))
+                        .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
+                            StringArgumentType.getString(ctx, "id"), "on",
+                            String.valueOf(com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "level"))
+                        }))))
+                .then(Commands.literal("off")
+                    .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
+                        StringArgumentType.getString(ctx, "id"), "off"
+                    })))
+                .then(Commands.literal("toggle")
+                    .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
+                        StringArgumentType.getString(ctx, "id"), "toggle"
+                    }))));
+    }
+
+    /**
+     * Builds the {@code setrotation} subcommand tree.
+     *
+     * <p>Argument shape matches the Forge 1.20.1 and NeoForge editions so the same command works
+     * everywhere, but on 1.19.2 the handler only explains that fixed holograms need 1.19.4+.
+     */
+    private LiteralArgumentBuilder<CommandSourceStack> buildSetRotationTree() {
+        return Commands.literal("setrotation")
+                .requires(UtilPermissions::canEdit)
+                .executes(ctx -> executeSubCommand(ctx, "setrotation", new String[0]))
+                .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                .executes(ctx -> executeSubCommand(ctx, "setrotation", new String[] {
+                    StringArgumentType.getString(ctx, "id")
+                }))
+                .then(Commands.argument("yaw", FloatArgumentType.floatArg(-360.0F, 360.0F))
+                    .executes(ctx -> executeSubCommand(ctx, "setrotation", new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        String.valueOf(FloatArgumentType.getFloat(ctx, "yaw"))
+                    }))
+                    .then(Commands.argument("pitch", FloatArgumentType.floatArg(-90.0F, 90.0F))
+                        .executes(ctx -> executeSubCommand(ctx, "setrotation", new String[] {
+                            StringArgumentType.getString(ctx, "id"),
+                            String.valueOf(FloatArgumentType.getFloat(ctx, "yaw")),
+                            String.valueOf(FloatArgumentType.getFloat(ctx, "pitch"))
+                        })))));
+    }
+
+    /**
+     * Builds the {@code convert} subcommand tree.
+     *
+     * <p>{@code face} is accepted alongside {@code facing}, matching the newer editions. On 1.19.2
+     * converting to {@code face} is a no-op and {@code fixed} reports the platform limitation.
+     */
+    private LiteralArgumentBuilder<CommandSourceStack> buildConvertTree() {
+        return Commands.literal("convert")
+                .requires(UtilPermissions::canEdit)
+                .executes(ctx -> executeSubCommand(ctx, "convert", new String[0]))
+                .then(Commands.argument("id", StringArgumentType.word())
+                .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                .executes(ctx -> executeSubCommand(ctx, "convert", new String[] {
+                    StringArgumentType.getString(ctx, "id")
+                }))
+                .then(Commands.argument("type", StringArgumentType.word())
+                    .suggests(DISPLAY_TYPE_SUGGESTIONS)
+                    .executes(ctx -> executeSubCommand(ctx, "convert", new String[] {
+                        StringArgumentType.getString(ctx, "id"),
+                        StringArgumentType.getString(ctx, "type")
+                    }))));
+    }
+
     /**
      * Register a subcommand
      */
@@ -982,27 +1167,17 @@ public class HologramsCommand {
                 })));
 
         // Backlight command (alias)
-        aliasCommand.then(Commands.literal("backlight")
-                .requires(src -> UtilPermissions.hasPermission(src, UtilPermissions.BACKLIGHT))
-                .then(Commands.argument("id", StringArgumentType.word())
-                .suggests(HOLOGRAM_ID_SUGGESTIONS)
-                .then(Commands.literal("on")
-                    .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
-                        StringArgumentType.getString(ctx, "id"), "on"
-                    }))
-                    .then(Commands.argument("level", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0, 15))
-                        .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
-                            StringArgumentType.getString(ctx, "id"), "on",
-                            String.valueOf(com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "level"))
-                        }))))
-                .then(Commands.literal("off")
-                    .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
-                        StringArgumentType.getString(ctx, "id"), "off"
-                    })))
-                .then(Commands.literal("toggle")
-                    .executes(ctx -> executeSubCommand(ctx, "backlight", new String[] {
-                        StringArgumentType.getString(ctx, "id"), "toggle"
-                    })))));
+        aliasCommand.then(buildBacklightTree());
+
+        // Fixed-display commands (alias)
+        aliasCommand.then(buildSetRotationTree());
+        aliasCommand.then(buildConvertTree());
+
+        // fixed|facing keywords on the create family (alias)
+        aliasCommand.then(displayTypeBranches("create", 1));
+        aliasCommand.then(displayTypeBranches("createat", 4));
+        aliasCommand.then(displayTypeBranches("createitem", 2));
+        aliasCommand.then(displayTypeBranches("createscoreboard", -1));
 
         dispatcher.register(aliasCommand);
     }
