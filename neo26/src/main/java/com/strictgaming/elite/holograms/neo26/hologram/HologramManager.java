@@ -299,6 +299,15 @@ public class HologramManager {
                             data.yaw,
                             data.pitch
                     );
+                    // Restore the background before spawn/forceUpdate, both of which rebuild the
+                    // line entities and read it on construction.
+                    holo.restoreBackgroundState(
+                            com.strictgaming.elite.holograms.neo26.config.HologramsConfig.parseColour(data.backgroundColour,
+                                    com.strictgaming.elite.holograms.neo26.hologram.implementation.NeoForgeHologram.DEFAULT_BACKGROUND_COLOUR),
+                            data.backgroundOpacity == null
+                                    ? com.strictgaming.elite.holograms.neo26.hologram.implementation.NeoForgeHologram.DEFAULT_BACKGROUND_OPACITY
+                                    : data.backgroundOpacity);
+
                     // Restore persisted backlight state before spawn so spawn() re-applies the light column
                     if (data.backlightEnabled) {
                         holo.restoreBacklightState(true, data.backlightLevel);

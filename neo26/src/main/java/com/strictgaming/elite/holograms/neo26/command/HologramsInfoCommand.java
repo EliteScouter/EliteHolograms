@@ -95,6 +95,13 @@ public class HologramsInfoCommand implements HologramsCommand.SubCommand {
                     == com.strictgaming.elite.holograms.neo26.hologram.HologramDisplayType.FIXED) {
                 source.sendSuccess(() -> UtilChatColour.parse("&3│ &bRotation: &f"
                         + String.format("yaw %.1f, pitch %.1f", nf.getYaw(), nf.getPitch())), false);
+
+                source.sendSuccess(() -> UtilChatColour.parse("&3│ &bBackground: &f"
+                        + (nf.getBackgroundOpacity() == 0
+                                ? "hidden"
+                                : String.format("#%06X at %d%%",
+                                        nf.getBackgroundColour(),
+                                        nf.getBackgroundOpacity()))), false);
             }
         }
         

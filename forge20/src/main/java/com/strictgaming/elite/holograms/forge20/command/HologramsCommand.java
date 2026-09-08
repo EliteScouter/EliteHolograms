@@ -36,6 +36,14 @@ public class HologramsCommand {
     private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
     private final Map<String, Object> subCommands = new HashMap<>();
     
+    // Suggestion provider for background colour names
+    private static final SuggestionProvider<CommandSourceStack> BACKGROUND_COLOUR_SUGGESTIONS = (context, builder) -> {
+        for (String colour : HologramsBackgroundCommand.colourNames()) {
+            builder.suggest(colour);
+        }
+        return builder.buildFuture();
+    };
+
     // Suggestion provider for hologram IDs
     private static final SuggestionProvider<CommandSourceStack> HOLOGRAM_ID_SUGGESTIONS = (context, builder) -> {
         for (Hologram hologram : HologramManager.getAllHolograms()) {
@@ -123,7 +131,7 @@ public class HologramsCommand {
                 subCommand.requires(UtilPermissions::canCreate); // Copy requires create permission
             } else if (name.equals("backlight")) {
                 subCommand.requires(src -> UtilPermissions.hasPermission(src, UtilPermissions.BACKLIGHT));
-            } else if (name.equals("setrotation") || name.equals("convert")) {
+            } else if (name.equals("setrotation") || name.equals("convert") || name.equals("background")) {
                 subCommand.requires(UtilPermissions::canEdit);
             } else if (name.equals("reload")) {
                 subCommand.requires(UtilPermissions::canAdmin);
@@ -500,6 +508,34 @@ public class HologramsCommand {
                     })));
             } else if (name.equals("reload")) {
                 subCommand.executes(ctx -> executeSubCommand(ctx, name, new String[0]));
+            } else if (name.equals("background")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.literal("colour")
+                        // Greedy so a hex value keeps its leading "#": brigadier's word()
+                        // only accepts [a-zA-Z0-9_.+-] and would reject "#1E90FF" outright.
+                        .then(Commands.argument("colour", StringArgumentType.greedyString())
+                        .suggests(BACKGROUND_COLOUR_SUGGESTIONS)
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "colour",
+                            StringArgumentType.getString(ctx, "colour")
+                        }))))
+                    .then(Commands.literal("opacity")
+                        .then(Commands.argument("percent", IntegerArgumentType.integer(0, 100))
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "opacity",
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "percent"))
+                        }))))
+                    .then(Commands.literal("none")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "none"
+                        })))
+                    .then(Commands.literal("reset")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "reset"
+                        })))
+                );
             } else if (name.equals("backlight")) {
                 subCommand
                     .then(Commands.argument("id", StringArgumentType.word())
@@ -560,6 +596,7 @@ public class HologramsCommand {
         source.sendSystemMessage(Component.literal("§3│ §b/eh animateline <id> <line> <sec> <frames>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh info <id>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh backlight <id> <on|off|toggle> [level 0-15]"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh background <id> colour|opacity|none|reset"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh setrotation <id> <yaw> [pitch]"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh convert <id> fixed|face"));
         source.sendSystemMessage(Component.literal("§3│ §7fixed|facing works on every create command"));
@@ -683,6 +720,8 @@ public class HologramsCommand {
                 return ((HologramsNearCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsBacklightCommand) {
                 return ((HologramsBacklightCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsBackgroundCommand) {
+                return ((HologramsBackgroundCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsSetRotationCommand) {
                 return ((HologramsSetRotationCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsConvertCommand) {

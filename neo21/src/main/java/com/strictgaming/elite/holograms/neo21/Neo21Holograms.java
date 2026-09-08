@@ -5,6 +5,7 @@ import com.strictgaming.elite.holograms.api.manager.HologramFactory;
 import com.strictgaming.elite.holograms.api.manager.PlatformHologramManager;
 import com.strictgaming.elite.holograms.neo21.command.CommandFactory;
 import com.strictgaming.elite.holograms.neo21.command.HologramsAnimateLineCommand;
+import com.strictgaming.elite.holograms.neo21.command.HologramsBackgroundCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsBacklightCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsCreateCommand;
@@ -60,7 +61,14 @@ import java.io.IOException;
 public class Neo21Holograms implements PlatformHologramManager {
 
     public static final String MOD_ID = "eliteholograms";
-    public static final String VERSION = "1.21.1-1.1.1";
+    /**
+     * Read from the jar manifest rather than repeated here, where it drifted out of step
+     * with gradle.properties. Falls back to a label in a dev environment, where there is
+     * no manifest to read.
+     */
+    public static final String VERSION = Neo21Holograms.class.getPackage().getImplementationVersion() != null
+            ? Neo21Holograms.class.getPackage().getImplementationVersion()
+            : "dev";
     private static final Logger LOGGER = LogUtils.getLogger();
 
     private static Neo21Holograms instance;
@@ -94,6 +102,7 @@ public class Neo21Holograms implements PlatformHologramManager {
     private HologramsSetThemeCommand setThemeCommand;
     private HologramsMoveVerticalCommand moveVerticalCommand;
     private HologramsBacklightCommand backlightCommand;
+    private HologramsBackgroundCommand backgroundCommand;
     private HologramsSetRotationCommand setRotationCommand;
     private HologramsConvertCommand convertCommand;
 
@@ -130,6 +139,7 @@ public class Neo21Holograms implements PlatformHologramManager {
         setThemeCommand = new HologramsSetThemeCommand();
         moveVerticalCommand = new HologramsMoveVerticalCommand();
         backlightCommand = new HologramsBacklightCommand();
+        backgroundCommand = new HologramsBackgroundCommand();
         setRotationCommand = new HologramsSetRotationCommand();
         convertCommand = new HologramsConvertCommand();
         
@@ -155,6 +165,7 @@ public class Neo21Holograms implements PlatformHologramManager {
         mainCommand.registerSubCommand("settheme", setThemeCommand);
         mainCommand.registerSubCommand("movevertical", moveVerticalCommand);
         mainCommand.registerSubCommand("backlight", backlightCommand);
+        mainCommand.registerSubCommand("background", backgroundCommand);
         mainCommand.registerSubCommand("setrotation", setRotationCommand);
         mainCommand.registerSubCommand("convert", convertCommand);
     }
@@ -253,6 +264,7 @@ public class Neo21Holograms implements PlatformHologramManager {
         setThemeCommand.register(event.getDispatcher());
         moveVerticalCommand.register(event.getDispatcher());
         backlightCommand.register(event.getDispatcher());
+        backgroundCommand.register(event.getDispatcher());
         setRotationCommand.register(event.getDispatcher());
         convertCommand.register(event.getDispatcher());
         

@@ -2,6 +2,8 @@ package com.strictgaming.elite.holograms.forge20.hologram;
 
 import com.strictgaming.elite.holograms.forge20.hologram.entity.HologramLineRenderer;
 import com.strictgaming.elite.holograms.forge20.util.UtilWorld;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import com.strictgaming.elite.holograms.forge20.util.UtilBacklight;
 import com.google.common.collect.Lists;
 import com.google.gson.*;
@@ -15,6 +17,8 @@ import java.util.List;
  * Type adapter for serializing and deserializing ForgeHologram objects
  */
 public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, JsonDeserializer<ForgeHologram> {
+
+    private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
 
     @Override
     public JsonElement serialize(ForgeHologram hologram, Type type, JsonSerializationContext context) {
@@ -58,6 +62,11 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
         object.addProperty("displayType", hologram.getDisplayType().getSerializedName());
         object.addProperty("yaw", hologram.getYaw());
         object.addProperty("pitch", hologram.getPitch());
+
+        // Background behind a fixed hologram's text. Written as hex so the file stays
+        // readable and hand-editable.
+        object.addProperty("backgroundColour", String.format("#%06X", hologram.getBackgroundColour()));
+        object.addProperty("backgroundOpacity", hologram.getBackgroundOpacity());
 
         // Include hologram type metadata for specialized holograms
         if (hologram instanceof ItemHologram) {
@@ -120,6 +129,21 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
             float yaw = object.has("yaw") ? object.get("yaw").getAsFloat() : 0.0F;
             float pitch = object.has("pitch") ? object.get("pitch").getAsFloat() : 0.0F;
 
+            // Absent for holograms saved before backgrounds were configurable, which read
+            // back as vanilla's 25% black.
+            int backgroundColour = ForgeHologram.DEFAULT_BACKGROUND_COLOUR;
+            if (object.has("backgroundColour")) {
+                try {
+                    backgroundColour = Integer.parseInt(
+                            object.get("backgroundColour").getAsString().replace("#", "").trim(), 16);
+                } catch (NumberFormatException e) {
+                    LOGGER.warn("Invalid backgroundColour for hologram {}, using the default", id);
+                }
+            }
+            int backgroundOpacity = object.has("backgroundOpacity")
+                    ? object.get("backgroundOpacity").getAsInt()
+                    : ForgeHologram.DEFAULT_BACKGROUND_OPACITY;
+
             String hologramType = object.has("type") ? object.get("type").getAsString() : "basic";
             ForgeHologram hologram;
 
@@ -132,6 +156,8 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
                 hologram = new ForgeHologram(id, world, new Vec3(x, y, z), range, false,
                         displayType, yaw, pitch);
             }
+
+            hologram.restoreBackgroundState(backgroundColour, backgroundOpacity);
 
             // Restore backlight state (does not place block yet - spawn() will do that)
             boolean backlightEnabled = object.has("backlightEnabled") && object.get("backlightEnabled").getAsBoolean();

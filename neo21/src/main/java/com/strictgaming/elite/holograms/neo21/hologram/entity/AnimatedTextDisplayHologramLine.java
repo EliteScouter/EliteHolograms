@@ -18,7 +18,13 @@ public class AnimatedTextDisplayHologramLine extends TextDisplayHologramLine {
 
     public AnimatedTextDisplayHologramLine(ServerLevel level, double x, double y, double z,
                                            float yaw, float pitch, List<String> frames, int intervalTicks) {
-        super(level, x, y, z, yaw, pitch, frames.isEmpty() ? "" : frames.get(0));
+        this(level, x, y, z, yaw, pitch, frames, intervalTicks, HologramTextDisplay.DEFAULT_BACKGROUND);
+    }
+
+    public AnimatedTextDisplayHologramLine(ServerLevel level, double x, double y, double z,
+                                           float yaw, float pitch, List<String> frames, int intervalTicks,
+                                           int backgroundArgb) {
+        super(level, x, y, z, yaw, pitch, frames.isEmpty() ? "" : frames.get(0), backgroundArgb);
         this.frames = frames;
         this.intervalTicks = intervalTicks;
     }

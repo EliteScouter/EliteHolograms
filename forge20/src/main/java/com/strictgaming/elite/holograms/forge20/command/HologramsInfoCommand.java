@@ -71,6 +71,13 @@ public class HologramsInfoCommand implements Command<CommandSourceStack> {
                     player.sendSystemMessage(Component.literal("§3│ §bRotation: §f"
                             + String.format("yaw %.1f, pitch %.1f",
                                     infoHologram.getYaw(), infoHologram.getPitch())));
+
+                    player.sendSystemMessage(Component.literal("§3│ §bBackground: §f"
+                            + (infoHologram.getBackgroundOpacity() == 0
+                                    ? "hidden"
+                                    : String.format("#%06X at %d%%",
+                                            infoHologram.getBackgroundColour(),
+                                            infoHologram.getBackgroundOpacity()))));
                 }
             }
             

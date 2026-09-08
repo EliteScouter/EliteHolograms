@@ -26,6 +26,7 @@ import com.strictgaming.elite.holograms.forge20.command.HologramsMoveVerticalCom
 import com.strictgaming.elite.holograms.forge20.command.HologramsCreateItemCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsAnimateLineCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsBacklightCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsBackgroundCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsSetRotationCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsConvertCommand;
 import com.strictgaming.elite.holograms.forge20.config.HologramsConfig;
@@ -227,6 +228,7 @@ public class Forge20Holograms implements PlatformHologramManager {
         HologramsCreateItemCommand createItemCommand = new HologramsCreateItemCommand();
         HologramsAnimateLineCommand animateLineCommand = new HologramsAnimateLineCommand();
         HologramsBacklightCommand backlightCommand = new HologramsBacklightCommand();
+        HologramsBackgroundCommand backgroundCommand = new HologramsBackgroundCommand();
         HologramsSetRotationCommand setRotationCommand = new HologramsSetRotationCommand();
         HologramsConvertCommand convertCommand = new HologramsConvertCommand();
         
@@ -252,6 +254,7 @@ public class Forge20Holograms implements PlatformHologramManager {
         command.registerSubCommand("near", nearCommand);
         command.registerSubCommand("movevertical", moveVerticalCommand);
         command.registerSubCommand("backlight", backlightCommand);
+        command.registerSubCommand("background", backgroundCommand);
         command.registerSubCommand("setrotation", setRotationCommand);
         command.registerSubCommand("convert", convertCommand);
         

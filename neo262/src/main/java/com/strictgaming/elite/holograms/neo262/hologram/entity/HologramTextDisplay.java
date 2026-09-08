@@ -38,6 +38,16 @@ public class HologramTextDisplay extends Display.TextDisplay {
      */
     private static final int NO_WRAP_LINE_WIDTH = Integer.MAX_VALUE;
 
+    /**
+     * What vanilla gives a text display when nothing sets a background: 25% opaque black
+     * ({@code 0x40000000}). This is the look hologram lines have always had, so it stays the
+     * default and existing holograms are unaffected.
+     */
+    public static final int DEFAULT_BACKGROUND = 0x40000000;
+
+    /** Current ARGB background, applied on every settings write. */
+    private int backgroundArgb = DEFAULT_BACKGROUND;
+
     /** Written once while locating the synched data field that holds the text. */
     private static final String PROBE_TEXT = "EliteHologramsProbe";
 
@@ -63,11 +73,7 @@ public class HologramTextDisplay extends Display.TextDisplay {
      * background, no shadow, not see-through - so they are left alone.
      */
     public void applyHologramDefaults() {
-        CompoundTag tag = new CompoundTag();
-        tag.putString("billboard", Display.BillboardConstraints.FIXED.getSerializedName());
-        tag.putString("alignment", Display.TextDisplay.Align.CENTER.getSerializedName());
-        tag.putInt("line_width", NO_WRAP_LINE_WIDTH);
-        applySaveData(tag);
+        applySettings();
 
         // Resolve the text field now rather than lazily on the first packet build. Discovery
         // writes a probe value into this entity, and buildTextData is documented not to mutate
@@ -75,6 +81,48 @@ public class HologramTextDisplay extends Display.TextDisplay {
         // the next viewer's spawn snapshot to pick up. Clearing it here also means a line whose
         // text is never set renders empty rather than showing the probe.
         setHologramText(Component.empty());
+    }
+
+    /**
+     * @return the ARGB background currently applied to this display
+     */
+    public int getBackgroundArgb() {
+        return this.backgroundArgb;
+    }
+
+    /**
+     * Replaces the background colour and pushes it onto the entity.
+     *
+     * @param argb the packed ARGB background; alpha 0 hides the background entirely
+     */
+    public void setBackgroundArgb(int argb) {
+        this.backgroundArgb = argb;
+        applySettings();
+    }
+
+    /**
+     * Writes the complete display configuration in one go.
+     *
+     * <p>Every field is written every time on purpose. From 26.1 vanilla reads these with
+     * {@code getIntOr}/{@code getByteOr}, which means a tag that omits a key resets that key to
+     * its default rather than leaving it alone - so a partial write here would silently wipe a
+     * custom background. Writing the full state keeps the behaviour identical on 1.21.1, where
+     * the same read is conditional on the key being present.
+     */
+    private void applySettings() {
+        applySaveData(buildSettingsTag());
+    }
+
+    /**
+     * @return a tag carrying this display's full configuration
+     */
+    private CompoundTag buildSettingsTag() {
+        CompoundTag tag = new CompoundTag();
+        tag.putString("billboard", Display.BillboardConstraints.FIXED.getSerializedName());
+        tag.putString("alignment", Display.TextDisplay.Align.CENTER.getSerializedName());
+        tag.putInt("line_width", NO_WRAP_LINE_WIDTH);
+        tag.putInt("background", this.backgroundArgb);
+        return tag;
     }
 
     /**
@@ -144,10 +192,12 @@ public class HologramTextDisplay extends Display.TextDisplay {
      * component serializer is picked out - on a text display, the text is the only such field.
      */
     private EntityDataAccessor<Component> discoverTextAccessor() {
-        CompoundTag probe = new CompoundTag();
+        // Built from the full settings tag so the probe write cannot reset any other field.
+        // This matters from 26.1 on, where vanilla reads these with getIntOr/getByteOr and a
+        // missing key resets that setting rather than leaving it alone.
+        CompoundTag probe = buildSettingsTag();
         // The component codec accepts a bare string as literal text.
         probe.putString("text", PROBE_TEXT);
-        probe.putString("alignment", Display.TextDisplay.Align.CENTER.getSerializedName());
         applySaveData(probe);
 
         List<SynchedEntityData.DataValue<?>> values = this.getEntityData().getNonDefaultValues();

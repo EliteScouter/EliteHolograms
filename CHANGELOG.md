@@ -1,11 +1,17 @@
 # Changelog
 
-## Forge 1.19.2 - 1.2.1 - Command parity - 2026-08-28
+## All Editions - 1.2.1 - Hologram backgrounds & Forge 1.19.2 command parity - 2026-09-06
+
+### Added
+
+* **`/eh background <id> ...` restyles the panel behind a fixed hologram's text.** Vanilla draws that panel as 25% opaque black, which is the dark box behind the text, and until now there was no way to change it. `colour <name or #RRGGBB>` sets the colour, `opacity <0-100>` sets how solid it is (0 invisible, 100 solid), `none` removes the panel entirely for floating text with no box, and `reset` restores the vanilla look. Colour names and hologram IDs tab-complete
+* **`/eh info <id>` now reports the background** colour and opacity alongside the display type and rotation
+* Uses the existing **`eliteholograms.edit`** permission
 
 ### Fixed
 
-* **`/eh backlight` reported "Unknown command" even though the feature shipped.** Commands were being registered twice on this edition: `ForgeHolograms` registered the full set, and a leftover `CommandManager` event subscriber registered a second, older set that was missing `backlight`, `settheme` and `list`. Brigadier merges literals that share a name and overwrites the bound handler when it does, so whichever subscriber ran last won, and the older one had no `backlight` entry to look up. The duplicate subscriber has been removed, so all 23 subcommands resolve against a single registry. `/eh settheme` was affected the same way
-* **`/eh movevertical` tab-completed but never ran.** The brigadier node and the command class both existed, but the handler was only ever registered by the duplicate `CommandManager` described above, so the lookup failed at execution time. It is now registered alongside every other subcommand
+* **Forge 1.19.2: `/eh backlight` reported "Unknown command" even though the feature shipped.** Commands were being registered twice on that edition: `ForgeHolograms` registered the full set, and a leftover `CommandManager` event subscriber registered a second, older set that was missing `backlight`, `settheme` and `list`. Brigadier merges literals that share a name and overwrites the bound handler when it does, so whichever subscriber ran last won, and the older one had no `backlight` entry to look up. The duplicate subscriber has been removed, so all 23 subcommands resolve against a single registry. `/eh settheme` was affected the same way
+* **Forge 1.19.2: `/eh movevertical` tab-completed but never ran.** The brigadier node and the command class both existed, but the handler was only ever registered by the duplicate `CommandManager` described above, so the lookup failed at execution time. It is now registered alongside every other subcommand
 * **`/eh backlight` with incomplete arguments gave a bare "Unknown or incomplete command".** Neither the `backlight` literal nor its `<id>` argument was executable, so partial input fell off the command tree and Minecraft answered as though the command did not exist. Both are now executable and fall through to the usage message, matching the NeoForge editions
 * **`fixed` and `facing` were silently swallowed into hologram text.** `/eh create shop fixed Welcome` produced a hologram whose first line read "fixed Welcome", because the greedy text argument absorbed the keyword. Both keywords are now recognised on `create`, `createat`, `createitem` and `createscoreboard`
 * The hardcoded `ForgeHolograms.VERSION` constant had drifted to `1.19.2-1.1.1` while the jar shipped as `1.2.0`. It is now read from the jar manifest

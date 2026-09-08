@@ -55,8 +55,15 @@ public class TextDisplayHologramLine implements HologramLineRenderer {
     private double slotZ;
     private float yaw;
     private float pitch;
+    private int backgroundArgb = HologramTextDisplay.DEFAULT_BACKGROUND;
 
     public TextDisplayHologramLine(Level world, double x, double y, double z, float yaw, float pitch) {
+        this(world, x, y, z, yaw, pitch, HologramTextDisplay.DEFAULT_BACKGROUND);
+    }
+
+    public TextDisplayHologramLine(Level world, double x, double y, double z, float yaw, float pitch,
+                                   int backgroundArgb) {
+        this.backgroundArgb = backgroundArgb;
         this.slotX = x;
         this.slotY = y;
         this.slotZ = z;
@@ -68,6 +75,7 @@ public class TextDisplayHologramLine implements HologramLineRenderer {
     private HologramTextDisplay createDisplay(Level world) {
         HologramTextDisplay created = new HologramTextDisplay(world);
         created.setId(HologramEntityIds.next());
+        created.setBackgroundArgb(this.backgroundArgb);
         created.applyHologramDefaults();
         created.moveTo(this.slotX, this.slotY + ARMOR_STAND_TEXT_OFFSET, this.slotZ, this.yaw, this.pitch);
         return created;
@@ -214,6 +222,48 @@ public class TextDisplayHologramLine implements HologramLineRenderer {
         }
 
         return UtilChatColour.parse(this.text.replace("%", "%%"));
+    }
+
+    /**
+     * Changes this line's background colour.
+     *
+     * <p>The colour lives in the display's synched data rather than in the text payload, so
+     * viewers only see it after a settings snapshot - {@link #sendSettingsSnapshot(ServerPlayer)}.
+     *
+     * @param argb the packed ARGB background; alpha 0 hides the background entirely
+     */
+    @Override
+    public void setBackgroundArgb(int argb) {
+        this.backgroundArgb = argb;
+        this.display.setBackgroundArgb(argb);
+    }
+
+    /**
+     * Re-sends this line's full data snapshot, then its text.
+     *
+     * <p>Used after a settings change such as the background colour. The snapshot carries the
+     * shared, placeholder-free text, so the per-player text is pushed straight after it to stop
+     * a viewer briefly seeing another player's resolved line.
+     *
+     * @param player the viewer
+     */
+    @Override
+    public void sendSettingsSnapshot(ServerPlayer player) {
+        if (player == null || player.connection == null) {
+            return;
+        }
+
+        try {
+            List<SynchedEntityData.DataValue<?>> snapshot = this.display.getEntityData().getNonDefaultValues();
+
+            if (snapshot != null && !snapshot.isEmpty()) {
+                player.connection.send(new ClientboundSetEntityDataPacket(this.display.getId(), snapshot));
+            }
+
+            updateForPlayer(player);
+        } catch (Exception e) {
+            LOGGER.debug("Error refreshing fixed hologram line settings for player", e);
+        }
     }
 
     /**

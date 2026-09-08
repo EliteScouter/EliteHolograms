@@ -49,9 +49,15 @@ public class TextDisplayHologramLine implements HologramLineRenderer {
 
     public TextDisplayHologramLine(ServerLevel level, double x, double y, double z,
                                    float yaw, float pitch, String rawText) {
+        this(level, x, y, z, yaw, pitch, rawText, HologramTextDisplay.DEFAULT_BACKGROUND);
+    }
+
+    public TextDisplayHologramLine(ServerLevel level, double x, double y, double z,
+                                   float yaw, float pitch, String rawText, int backgroundArgb) {
         this.rawText = rawText;
         this.display = new HologramTextDisplay(level);
         this.display.setId(HologramEntityIds.next());
+        this.display.setBackgroundArgb(backgroundArgb);
         this.display.applyHologramDefaults();
         this.display.snapTo(x, y + ARMOR_STAND_TEXT_OFFSET, z, yaw, pitch);
         // Seed the entity copy of the text so the snapshot sent on spawn is never blank.
@@ -183,6 +189,33 @@ public class TextDisplayHologramLine implements HologramLineRenderer {
         }
 
         return UtilChatColour.parse(processed);
+    }
+
+    /**
+     * Changes this line's background colour.
+     *
+     * <p>The colour lives in the display's synched data rather than in the text payload, so
+     * viewers only see it after a settings snapshot - {@link #sendSettingsSnapshot(ServerPlayer)}.
+     *
+     * @param argb the packed ARGB background; alpha 0 hides the background entirely
+     */
+    @Override
+    public void setBackgroundArgb(int argb) {
+        this.display.setBackgroundArgb(argb);
+    }
+
+    /**
+     * Re-sends this line's full data snapshot, then its text.
+     *
+     * <p>Used after a settings change such as the background colour. The snapshot carries the
+     * shared, placeholder-free text, so the per-player text is pushed straight after it to stop
+     * a viewer briefly seeing another player's resolved line.
+     *
+     * @param player the viewer
+     */
+    @Override
+    public void sendSettingsSnapshot(ServerPlayer player) {
+        updateForPlayer(player, true);
     }
 
     /**

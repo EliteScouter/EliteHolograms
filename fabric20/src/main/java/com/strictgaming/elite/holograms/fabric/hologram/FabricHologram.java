@@ -38,10 +38,22 @@ public class FabricHologram implements Hologram {
     private transient final List<UUID> nearbyPlayers;
     private transient long tickCount = 0;
 
+    /** Vanilla's text display background is black, which is what hologram lines have always had. */
+    public static final int DEFAULT_BACKGROUND_COLOUR = 0x000000;
+
+    /** Vanilla's text display background is 25% opaque (alpha 64 of 255). */
+    public static final int DEFAULT_BACKGROUND_OPACITY = 25;
+
     // How the lines are rendered, and the orientation used when that is FIXED
     private HologramDisplayType displayType = HologramDisplayType.FACING;
     private float yaw = 0.0F;
     private float pitch = 0.0F;
+
+    // Background of the text panel behind a fixed hologram's lines. Stored as an RGB
+    // colour plus an opacity percentage rather than one packed value so both halves can be
+    // set independently, and so the config stays readable.
+    private int backgroundColour = DEFAULT_BACKGROUND_COLOUR;
+    private int backgroundOpacity = DEFAULT_BACKGROUND_OPACITY;
 
     // Backlight state - places invisible minecraft:light blocks at the hologram
     private boolean backlightEnabled = false;
@@ -107,7 +119,7 @@ public class FabricHologram implements Hologram {
 
         if (this.displayType == HologramDisplayType.FIXED) {
             line = new TextDisplayHologramLine(this.world, this.position.x, lineY, this.position.z,
-                    this.yaw, this.pitch);
+                    this.yaw, this.pitch, getBackgroundArgb());
         } else {
             ArmorStand armorStand = new ArmorStand(this.world, this.position.x, lineY, this.position.z);
             line = new HologramLine(armorStand);
@@ -128,7 +140,7 @@ public class FabricHologram implements Hologram {
     private HologramLineRenderer createAnimatedLine(double lineY, List<String> frames, int intervalTicks) {
         if (this.displayType == HologramDisplayType.FIXED) {
             return new AnimatedTextDisplayHologramLine(this.world, this.position.x, lineY, this.position.z,
-                    this.yaw, this.pitch, frames, intervalTicks);
+                    this.yaw, this.pitch, frames, intervalTicks, getBackgroundArgb());
         }
 
         ArmorStand armorStand = new ArmorStand(this.world, this.position.x, lineY, this.position.z);
@@ -402,6 +414,7 @@ public class FabricHologram implements Hologram {
         
         // Carry the display type and orientation over to the copy
         newHologram.restoreDisplayState(this.displayType, this.yaw, this.pitch);
+        newHologram.restoreBackgroundState(this.backgroundColour, this.backgroundOpacity);
 
         // Get all lines' content and add them in the same order
         for (int i = 0; i < this.lines.size(); i++) {
@@ -568,6 +581,69 @@ public class FabricHologram implements Hologram {
         }
 
         HologramManager.save();
+    }
+
+    /**
+     * @return the RGB background colour used behind a fixed hologram's text
+     */
+    public int getBackgroundColour() {
+        return this.backgroundColour;
+    }
+
+    /**
+     * @return how opaque the background is, 0 (invisible) to 100 (solid)
+     */
+    public int getBackgroundOpacity() {
+        return this.backgroundOpacity;
+    }
+
+    /**
+     * @return the colour and opacity packed the way a text display wants them
+     */
+    public int getBackgroundArgb() {
+        int alpha = Math.round(this.backgroundOpacity * 255.0F / 100.0F);
+        return (alpha << 24) | (this.backgroundColour & 0xFFFFFF);
+    }
+
+    /**
+     * Sets the background behind a fixed hologram's text and pushes it to anyone watching.
+     *
+     * <p>Player-facing holograms are unaffected on screen: their text is an armor stand
+     * nameplate, whose background the client draws using the viewer's own chat background
+     * opacity. The value is still stored so it applies if the hologram is later converted.
+     *
+     * @param colour  the RGB colour
+     * @param opacity how opaque to draw it, 0 (invisible) to 100 (solid)
+     */
+    public void setBackground(int colour, int opacity) {
+        this.backgroundColour = colour & 0xFFFFFF;
+        this.backgroundOpacity = Math.max(0, Math.min(100, opacity));
+
+        int argb = getBackgroundArgb();
+
+        for (HologramLineRenderer line : this.lines) {
+            line.setBackgroundArgb(argb);
+        }
+
+        for (ServerPlayer player : currentViewers()) {
+            for (HologramLineRenderer line : this.lines) {
+                line.sendSettingsSnapshot(player);
+            }
+        }
+
+        HologramManager.save();
+    }
+
+    /**
+     * Restores the background from storage without saving. Called during load, before the line
+     * entities are built, so they pick the colour up on construction.
+     *
+     * @param colour  the persisted RGB colour
+     * @param opacity the persisted opacity percentage
+     */
+    public void restoreBackgroundState(int colour, int opacity) {
+        this.backgroundColour = colour & 0xFFFFFF;
+        this.backgroundOpacity = Math.max(0, Math.min(100, opacity));
     }
 
     /**

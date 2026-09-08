@@ -67,6 +67,8 @@ public class ScoreboardHologramConfig {
                 d.displayType = holo.getDisplayType().getSerializedName();
                 d.yaw = holo.getYaw();
                 d.pitch = holo.getPitch();
+                d.backgroundColour = String.format("#%06X", holo.getBackgroundColour());
+                d.backgroundOpacity = holo.getBackgroundOpacity();
                 configData.add(d);
             }
 
@@ -137,5 +139,10 @@ public class ScoreboardHologramConfig {
         public String displayType;
         public float yaw;
         public float pitch;
+
+        // Background behind a fixed board's text. Null for boards saved before
+        // backgrounds were configurable, which read back as 25% black.
+        public String backgroundColour;
+        public Integer backgroundOpacity;
     }
 }

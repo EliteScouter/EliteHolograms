@@ -55,6 +55,18 @@ public class NeoForgeHologram implements Hologram {
     private HologramDisplayType displayType = HologramDisplayType.FACING;
     private float yaw = 0.0F;
     private float pitch = 0.0F;
+
+    /** Vanilla's text display background is black, which is what hologram lines have always had. */
+    public static final int DEFAULT_BACKGROUND_COLOUR = 0x000000;
+
+    /** Vanilla's text display background is 25% opaque (alpha 64 of 255). */
+    public static final int DEFAULT_BACKGROUND_OPACITY = 25;
+
+    // Background of the text panel behind a fixed hologram's lines. Stored as an RGB
+    // colour plus an opacity percentage rather than one packed value so both halves can be
+    // set independently, and so the config stays readable.
+    private int backgroundColour = DEFAULT_BACKGROUND_COLOUR;
+    private int backgroundOpacity = DEFAULT_BACKGROUND_OPACITY;
     
     // Content of lines: String or AnimatedLineData
     private List<Object> linesContent = new ArrayList<>();
@@ -159,7 +171,7 @@ public class NeoForgeHologram implements Hologram {
 
             if (fixed) {
                 return new AnimatedTextDisplayHologramLine(level, this.x, lineY, this.z,
-                        this.yaw, this.pitch, data.frames, intervalTicks);
+                        this.yaw, this.pitch, data.frames, intervalTicks, getBackgroundArgb());
             }
 
             ArmorStand armorStand = new ArmorStand(level, this.x, lineY, this.z);
@@ -174,7 +186,8 @@ public class NeoForgeHologram implements Hologram {
         String text = (content != null) ? content.toString() : "";
 
         if (fixed) {
-            return new TextDisplayHologramLine(level, this.x, lineY, this.z, this.yaw, this.pitch, text);
+            return new TextDisplayHologramLine(level, this.x, lineY, this.z, this.yaw, this.pitch, text,
+                    getBackgroundArgb());
         }
 
         return new HologramLine(level, this.x, lineY, this.z, text);
@@ -395,6 +408,72 @@ public class NeoForgeHologram implements Hologram {
      */
     public float getPitch() {
         return this.pitch;
+    }
+
+    /**
+     * @return the RGB background colour used behind a fixed hologram's text
+     */
+    public int getBackgroundColour() {
+        return this.backgroundColour;
+    }
+
+    /**
+     * @return how opaque the background is, 0 (invisible) to 100 (solid)
+     */
+    public int getBackgroundOpacity() {
+        return this.backgroundOpacity;
+    }
+
+    /**
+     * @return the colour and opacity packed the way a text display wants them
+     */
+    public int getBackgroundArgb() {
+        int alpha = Math.round(this.backgroundOpacity * 255.0F / 100.0F);
+        return (alpha << 24) | (this.backgroundColour & 0xFFFFFF);
+    }
+
+    /**
+     * Sets the background behind a fixed hologram's text and pushes it to anyone watching.
+     *
+     * <p>Player-facing holograms are unaffected on screen: their text is an armor stand
+     * nameplate, whose background the client draws using the viewer's own chat background
+     * opacity. The value is still stored so it applies if the hologram is later converted.
+     *
+     * @param colour  the RGB colour
+     * @param opacity how opaque to draw it, 0 (invisible) to 100 (solid)
+     */
+    public void setBackground(int colour, int opacity) {
+        this.backgroundColour = colour & 0xFFFFFF;
+        this.backgroundOpacity = Math.max(0, Math.min(100, opacity));
+
+        int argb = getBackgroundArgb();
+
+        for (HologramLineRenderer line : hologramLines) {
+            line.setBackgroundArgb(argb);
+        }
+
+        if (spawned) {
+            for (UUID uuid : new ArrayList<>(nearbyPlayers)) {
+                ServerPlayer player = getPlayerByUUID(uuid);
+                if (player != null) {
+                    hologramLines.forEach(line -> line.sendSettingsSnapshot(player));
+                }
+            }
+        }
+
+        saveToConfig();
+    }
+
+    /**
+     * Restores the background from storage without saving. Called during load, before the line
+     * entities are built, so they pick the colour up on construction.
+     *
+     * @param colour  the persisted RGB colour
+     * @param opacity the persisted opacity percentage
+     */
+    public void restoreBackgroundState(int colour, int opacity) {
+        this.backgroundColour = colour & 0xFFFFFF;
+        this.backgroundOpacity = Math.max(0, Math.min(100, opacity));
     }
 
     /**

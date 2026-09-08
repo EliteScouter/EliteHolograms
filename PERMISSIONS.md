@@ -13,7 +13,7 @@ EliteHolograms supports modern permission systems like **LuckPerms** and **FTB R
 |----------------|-------------|----------|
 | `eliteholograms.create` | Create new holograms | `/eh create` |
 | `eliteholograms.delete` | Delete holograms | `/eh delete` |
-| `eliteholograms.edit` | Edit hologram content | `/eh addline`, `/eh setline`, `/eh removeline`, `/eh insertline`, `/eh movehere`, `/eh movevertical`, `/eh convert`, `/eh setrotation` |
+| `eliteholograms.edit` | Edit hologram content | `/eh addline`, `/eh setline`, `/eh removeline`, `/eh insertline`, `/eh movehere`, `/eh movevertical`, `/eh convert`, `/eh setrotation`, `/eh background` |
 | `eliteholograms.list` | List holograms | `/eh list` |
 | `eliteholograms.info` | View hologram info | `/eh info` |
 | `eliteholograms.near` | View nearby holograms | `/eh near` |

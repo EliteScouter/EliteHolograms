@@ -216,6 +216,13 @@ tasks.withType(JavaCompile).configureEach {
 
 // Configure shadowJar to relocate packages
 shadowJar {
+    // Written so the mod can report its own version at runtime instead of repeating it
+    // in source, where it drifted out of step with gradle.properties. The final artifact
+    // comes from this task (via remapJar on Fabric), so the attribute has to be set here
+    // rather than on the disabled/plain jar task.
+    manifest {
+        attributes(['Implementation-Version': project.version.toString()])
+    }
     archiveClassifier = ''
     configurations = [project.configurations.shadow]
 

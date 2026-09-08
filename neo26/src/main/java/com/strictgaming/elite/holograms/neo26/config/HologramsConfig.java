@@ -137,6 +137,12 @@ public class HologramsConfig {
                                 com.strictgaming.elite.holograms.neo26.hologram.HologramDisplayType.FACING),
                         data.yaw, data.pitch);
 
+                hologram.restoreBackgroundState(
+                        parseColour(data.backgroundColour, com.strictgaming.elite.holograms.neo26.hologram.implementation.NeoForgeHologram.DEFAULT_BACKGROUND_COLOUR),
+                        data.backgroundOpacity == null
+                                ? com.strictgaming.elite.holograms.neo26.hologram.implementation.NeoForgeHologram.DEFAULT_BACKGROUND_OPACITY
+                                : data.backgroundOpacity);
+
                 // Restore complex content
                 hologram.setLinesContent(linesContent);
 
@@ -189,6 +195,8 @@ public class HologramsConfig {
                 data.displayType = nf.getDisplayType().getSerializedName();
                 data.yaw = nf.getYaw();
                 data.pitch = nf.getPitch();
+                data.backgroundColour = String.format("#%06X", nf.getBackgroundColour());
+                data.backgroundOpacity = nf.getBackgroundOpacity();
             }
             
             data.lines = new ArrayList<>();
@@ -228,6 +236,26 @@ public class HologramsConfig {
         }
     }
     
+    /**
+     * Reads a "#RRGGBB" colour from the config.
+     *
+     * @param value        the stored value, may be null on configs written before backgrounds existed
+     * @param defaultValue the colour to use when the value is missing or malformed
+     * @return the RGB colour
+     */
+    public static int parseColour(String value, int defaultValue) {
+        if (value == null || value.isEmpty()) {
+            return defaultValue;
+        }
+
+        try {
+            return Integer.parseInt(value.replace("#", "").trim(), 16);
+        } catch (NumberFormatException e) {
+            LOGGER.warn("Invalid backgroundColour '{}' in config, using the default", value);
+            return defaultValue;
+        }
+    }
+
     private static class HologramData {
         String world;
         double x, y, z;
@@ -242,5 +270,12 @@ public class HologramsConfig {
         String displayType;
         float yaw = 0.0F;
         float pitch = 0.0F;
+        /**
+         * Background behind a fixed hologram's text, as "#RRGGBB" plus an opacity
+         * percentage. Absent for holograms saved before backgrounds were configurable,
+         * which is why they fall back to vanilla's 25% black.
+         */
+        String backgroundColour;
+        Integer backgroundOpacity;
     }
 }

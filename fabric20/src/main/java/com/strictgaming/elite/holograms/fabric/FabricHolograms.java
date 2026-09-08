@@ -7,6 +7,7 @@ import com.strictgaming.elite.holograms.api.manager.PlatformHologramManager;
 import com.strictgaming.elite.holograms.fabric.command.CommandFactory;
 import com.strictgaming.elite.holograms.fabric.command.HologramsAddLineCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsAnimateLineCommand;
+import com.strictgaming.elite.holograms.fabric.command.HologramsBackgroundCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsBacklightCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsConvertCommand;
@@ -59,7 +60,14 @@ import java.io.IOException;
 public class FabricHolograms implements ModInitializer, PlatformHologramManager {
 
     public static final String MOD_ID = "eliteholograms";
-    public static final String VERSION = "1.20.1-1.2.0";
+    /**
+     * Read from the jar manifest rather than repeated here, where it drifted out of step
+     * with gradle.properties. Falls back to a label in a dev environment, where there is
+     * no manifest to read.
+     */
+    public static final String VERSION = FabricHolograms.class.getPackage().getImplementationVersion() != null
+            ? FabricHolograms.class.getPackage().getImplementationVersion()
+            : "dev";
     private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
 
     private static FabricHolograms instance;
@@ -213,6 +221,7 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
             command.registerSubCommand("near", new HologramsNearCommand());
             command.registerSubCommand("movevertical", new HologramsMoveVerticalCommand());
             command.registerSubCommand("backlight", new HologramsBacklightCommand());
+            command.registerSubCommand("background", new HologramsBackgroundCommand());
             command.registerSubCommand("setrotation", new HologramsSetRotationCommand());
             command.registerSubCommand("convert", new HologramsConvertCommand());
 
