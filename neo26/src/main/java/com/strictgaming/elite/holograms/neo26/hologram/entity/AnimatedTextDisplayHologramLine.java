@@ -1,6 +1,7 @@
 package com.strictgaming.elite.holograms.neo26.hologram.entity;
 
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Display;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.List;
@@ -24,7 +25,17 @@ public class AnimatedTextDisplayHologramLine extends TextDisplayHologramLine {
     public AnimatedTextDisplayHologramLine(ServerLevel level, double x, double y, double z,
                                            float yaw, float pitch, List<String> frames, int intervalTicks,
                                            int backgroundArgb) {
-        super(level, x, y, z, yaw, pitch, frames.isEmpty() ? "" : frames.get(0), backgroundArgb);
+        this(level, x, y, z, yaw, pitch, frames, intervalTicks, backgroundArgb,
+                HologramTextDisplay.DEFAULT_SCALE, HologramTextDisplay.BRIGHTNESS_AUTO,
+                Display.BillboardConstraints.FIXED);
+    }
+
+    public AnimatedTextDisplayHologramLine(ServerLevel level, double x, double y, double z,
+                                           float yaw, float pitch, List<String> frames, int intervalTicks,
+                                           int backgroundArgb, float scale, int brightness,
+                                           Display.BillboardConstraints billboard) {
+        super(level, x, y, z, yaw, pitch, frames.isEmpty() ? "" : frames.get(0), backgroundArgb,
+                scale, brightness, billboard);
         this.frames = frames;
         this.intervalTicks = intervalTicks;
     }

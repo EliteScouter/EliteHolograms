@@ -1,4 +1,13 @@
 package com.strictgaming.elite.holograms.neo21.hologram;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Interaction;
+import net.neoforged.neoforge.server.ServerLifecycleHooks;
+import com.strictgaming.elite.holograms.neo21.hologram.entity.HologramInteraction;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
 import com.strictgaming.elite.holograms.neo21.Neo21Holograms;
@@ -308,6 +317,17 @@ public class HologramManager {
                                     ? com.strictgaming.elite.holograms.neo21.hologram.implementation.NeoForgeHologram.DEFAULT_BACKGROUND_OPACITY
                                     : data.backgroundOpacity);
 
+                    holo.restorePresentationState(
+                            data.scale == null
+                                    ? com.strictgaming.elite.holograms.neo21.hologram.entity.HologramTextDisplay.DEFAULT_SCALE
+                                    : data.scale,
+                            data.brightness == null
+                                    ? com.strictgaming.elite.holograms.neo21.hologram.entity.HologramTextDisplay.BRIGHTNESS_AUTO
+                                    : data.brightness,
+                            com.strictgaming.elite.holograms.neo21.config.HologramsConfig.parseBillboard(data.billboard));
+
+                    holo.restoreClickState(data.clickCommand, data.clickAsConsole);
+
                     // Restore persisted backlight state before spawn so spawn() re-applies the light column
                     if (data.backlightEnabled) {
                         holo.restoreBacklightState(true, data.backlightLevel);
@@ -339,5 +359,127 @@ public class HologramManager {
     
     public static List<Hologram> getAllHolograms() {
         return new ArrayList<>(HOLOGRAMS.values());
+    }
+
+    // Maps a clickable hitbox to the hologram that owns it. Interactions are real
+    // entities, so a click arrives as a normal interaction event carrying the entity -
+    // this is how that entity is turned back into a hologram without scanning them all.
+    private static final Map<UUID, String> INTERACTION_OWNERS = new ConcurrentHashMap<>();
+
+    /** Stops a single player triggering a command every tick by holding right-click. */
+    private static final long CLICK_COOLDOWN_MS = 500L;
+    private static final Map<UUID, Long> LAST_CLICK = new ConcurrentHashMap<>();
+
+    /**
+     * Records that a clickable hitbox belongs to a hologram.
+     *
+     * @param entityUUID the hitbox entity
+     * @param hologramId the owning hologram
+     */
+    public static void registerInteraction(UUID entityUUID, String hologramId) {
+        INTERACTION_OWNERS.put(entityUUID, hologramId);
+    }
+
+    /**
+     * Forgets a clickable hitbox, called when it is removed from the world.
+     *
+     * @param entityUUID the hitbox entity
+     */
+    public static void unregisterInteraction(UUID entityUUID) {
+        INTERACTION_OWNERS.remove(entityUUID);
+    }
+
+    /**
+     * Runs the click command of whichever hologram owns the given hitbox.
+     *
+     * <p>Called from the interaction event. Does nothing when the entity is not one of
+     * ours, so unrelated interactions are untouched.
+     *
+     * @param player     the player who clicked
+     * @param entity     the entity they clicked
+     * @return true when this was one of our hitboxes and the click was consumed
+     */
+    public static boolean handleInteractionClick(ServerPlayer player, Entity entity) {
+        if (player == null || !(entity instanceof Interaction)
+                || !entity.getTags().contains(HologramInteraction.HOLOGRAM_TAG)) {
+            return false;
+        }
+
+        String hologramId = INTERACTION_OWNERS.get(entity.getUUID());
+
+        if (hologramId == null) {
+            // Ours by tag but not by registry, so it is a stale copy saved into the chunk
+            // by a build before hitboxes stopped persisting. Clear it out as we meet it,
+            // which repairs an existing world without a chunk-load sweep.
+            LOGGER.debug("Discarding an orphaned hologram click hitbox at {}", entity.blockPosition());
+            entity.discard();
+            return false;
+        }
+
+        // Consume the click from here on: it was ours even if we end up running nothing.
+        long now = System.currentTimeMillis();
+        Long last = LAST_CLICK.get(player.getUUID());
+
+        if (last != null && (now - last) < CLICK_COOLDOWN_MS) {
+            return true;
+        }
+
+        LAST_CLICK.put(player.getUUID(), now);
+
+        Hologram hologram = getById(hologramId);
+
+        if (!(hologram instanceof NeoForgeHologram nf) || nf.getClickCommand() == null) {
+            return true;
+        }
+
+        String command = nf.getClickCommand().replace("%player%", player.getName().getString());
+
+        try {
+            CommandSourceStack source = player.createCommandSourceStack();
+
+            if (nf.isClickAsConsole()) {
+                // Same source, elevated, so @s and the execution position still mean the
+                // player who clicked. Setting this mode is gated on the admin permission.
+                source = source.withPermission(4);
+            }
+
+            player.getServer().getCommands().performPrefixedCommand(source, command);
+        } catch (Exception e) {
+            LOGGER.error("Error running click command for hologram {}: {}", hologramId, e.getMessage());
+        }
+
+        return true;
+    }
+
+    /**
+     * Removes clickable hitboxes left behind by a server that did not run its shutdown
+     * path.
+     *
+     * <p>These are real entities and are saved with the chunk, so a crash would otherwise
+     * leave a duplicate behind every time the server came back up. Only entities carrying
+     * our own tag are touched.
+     */
+    public static void sweepOrphanedInteractions() {
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+
+        if (server == null) {
+            return;
+        }
+
+        int removed = 0;
+
+        for (ServerLevel level : server.getAllLevels()) {
+            for (Entity entity : level.getAllEntities()) {
+                if (entity instanceof Interaction
+                        && entity.getTags().contains(HologramInteraction.HOLOGRAM_TAG)) {
+                    entity.discard();
+                    removed++;
+                }
+            }
+        }
+
+        if (removed > 0) {
+            LOGGER.info("Removed {} orphaned hologram click hitboxes left by a previous run", removed);
+        }
     }
 }

@@ -9,6 +9,7 @@ import com.strictgaming.elite.holograms.fabric.command.HologramsAddLineCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsAnimateLineCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsBackgroundCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsBacklightCommand;
+import com.strictgaming.elite.holograms.fabric.command.HologramsClickCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsConvertCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsCopyCommand;
@@ -17,6 +18,7 @@ import com.strictgaming.elite.holograms.fabric.command.HologramsCreateCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsCreateItemCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsCreateScoreboardCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsDeleteCommand;
+import com.strictgaming.elite.holograms.fabric.command.HologramsDisplayCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsInfoCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsInsertLineCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsListCommand;
@@ -40,10 +42,13 @@ import com.strictgaming.elite.holograms.fabric.util.UtilServer;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionResult;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -88,6 +93,7 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
 
         registerLifecycleEvents();
         registerPlayerEvents();
+        registerInteractionEvents();
         registerCommands();
     }
 
@@ -113,6 +119,24 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> UtilServer.clear());
 
         ServerTickEvents.END_SERVER_TICK.register(server -> HologramManager.tick());
+    }
+
+    /**
+     * Turns a right-click on a hologram hitbox into its configured command.
+     *
+     * <p>The hitbox is a real entity, so Fabric's ordinary use-entity callback sees it and no
+     * packet interception or mixin is needed. Anything that is not one of ours falls through.
+     */
+    private void registerInteractionEvents() {
+        UseEntityCallback.EVENT.register((player, level, hand, entity, hitResult) -> {
+            if (level.isClientSide() || !(player instanceof ServerPlayer serverPlayer) || entity == null) {
+                return InteractionResult.PASS;
+            }
+
+            return HologramManager.handleInteractionClick(serverPlayer, entity)
+                    ? InteractionResult.SUCCESS
+                    : InteractionResult.PASS;
+        });
     }
 
     private void registerPlayerEvents() {
@@ -145,6 +169,9 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
         LOGGER.info("Server started - loading holograms");
 
         UtilPlaceholder.setServerStartTime();
+
+        // Before anything is spawned, clear click hitboxes a previous run left behind.
+        HologramManager.sweepOrphanedInteractions();
 
         try {
             HologramManager.load();
@@ -222,6 +249,8 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
             command.registerSubCommand("movevertical", new HologramsMoveVerticalCommand());
             command.registerSubCommand("backlight", new HologramsBacklightCommand());
             command.registerSubCommand("background", new HologramsBackgroundCommand());
+            command.registerSubCommand("display", new HologramsDisplayCommand());
+            command.registerSubCommand("click", new HologramsClickCommand());
             command.registerSubCommand("setrotation", new HologramsSetRotationCommand());
             command.registerSubCommand("convert", new HologramsConvertCommand());
 

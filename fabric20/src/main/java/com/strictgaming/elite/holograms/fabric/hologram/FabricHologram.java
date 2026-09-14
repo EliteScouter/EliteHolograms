@@ -5,13 +5,17 @@ import com.strictgaming.elite.holograms.fabric.hologram.entity.AnimatedHologramL
 import com.strictgaming.elite.holograms.fabric.hologram.entity.AnimatedTextDisplayHologramLine;
 import com.strictgaming.elite.holograms.fabric.hologram.entity.HologramLine;
 import com.strictgaming.elite.holograms.fabric.hologram.entity.HologramLineRenderer;
+import com.strictgaming.elite.holograms.fabric.hologram.entity.HologramInteraction;
+import com.strictgaming.elite.holograms.fabric.hologram.entity.HologramTextDisplay;
 import com.strictgaming.elite.holograms.fabric.hologram.entity.TextDisplayHologramLine;
 import com.strictgaming.elite.holograms.fabric.util.UtilBacklight;
 import com.strictgaming.elite.holograms.fabric.util.UtilConcurrency;
 import com.strictgaming.elite.holograms.fabric.util.UtilWorld;
 import com.google.common.collect.Lists;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
@@ -20,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.UUID;
 
 /**
@@ -54,6 +59,18 @@ public class FabricHologram implements Hologram {
     // set independently, and so the config stays readable.
     private int backgroundColour = DEFAULT_BACKGROUND_COLOUR;
     private int backgroundOpacity = DEFAULT_BACKGROUND_OPACITY;
+
+    // Text display presentation. Only meaningful on a fixed hologram - an armor stand
+    // nameplate is drawn by the client at a fixed size, always facing the camera, and lit
+    // by the world, none of which the server can override.
+    private float scale = HologramTextDisplay.DEFAULT_SCALE;
+    private int brightness = HologramTextDisplay.BRIGHTNESS_AUTO;
+    private Display.BillboardConstraints billboard = Display.BillboardConstraints.FIXED;
+
+    // Click-to-run. The command is null when the hologram is not clickable.
+    private String clickCommand;
+    private boolean clickAsConsole = false;
+    private transient HologramInteraction interaction;
 
     // Backlight state - places invisible minecraft:light blocks at the hologram
     private boolean backlightEnabled = false;
@@ -119,7 +136,8 @@ public class FabricHologram implements Hologram {
 
         if (this.displayType == HologramDisplayType.FIXED) {
             line = new TextDisplayHologramLine(this.world, this.position.x, lineY, this.position.z,
-                    this.yaw, this.pitch, getBackgroundArgb());
+                    this.yaw, this.pitch, getBackgroundArgb(), this.scale, this.brightness,
+                    this.billboard);
         } else {
             ArmorStand armorStand = new ArmorStand(this.world, this.position.x, lineY, this.position.z);
             line = new HologramLine(armorStand);
@@ -140,7 +158,8 @@ public class FabricHologram implements Hologram {
     private HologramLineRenderer createAnimatedLine(double lineY, List<String> frames, int intervalTicks) {
         if (this.displayType == HologramDisplayType.FIXED) {
             return new AnimatedTextDisplayHologramLine(this.world, this.position.x, lineY, this.position.z,
-                    this.yaw, this.pitch, frames, intervalTicks, getBackgroundArgb());
+                    this.yaw, this.pitch, frames, intervalTicks, getBackgroundArgb(), this.scale,
+                    this.brightness, this.billboard);
         }
 
         ArmorStand armorStand = new ArmorStand(this.world, this.position.x, lineY, this.position.z);
@@ -151,7 +170,17 @@ public class FabricHologram implements Hologram {
      * @return the Y coordinate for the line sitting at {@code index}
      */
     private double lineY(int index) {
-        return this.position.y - (index * HOLOGRAM_LINE_GAP);
+        return this.position.y - (index * lineGap());
+    }
+
+    /**
+     * @return the vertical distance between lines, widened in step with the scale so a
+     *         scaled-up hologram does not overlap its own lines
+     */
+    private double lineGap() {
+        return this.displayType == HologramDisplayType.FIXED
+                ? HOLOGRAM_LINE_GAP * this.scale
+                : HOLOGRAM_LINE_GAP;
     }
 
     /**
@@ -335,6 +364,7 @@ public class FabricHologram implements Hologram {
     public void delete() {
         // Remove backlight first while we still have a valid world reference
         clearBacklight();
+        clearInteraction();
 
         // First remove from manager
         HologramManager.removeHologram(this);
@@ -353,6 +383,7 @@ public class FabricHologram implements Hologram {
     public void spawn() {
         // Apply backlight if enabled (also handles re-apply after reload)
         applyBacklight();
+        applyInteraction();
     }
 
     @Override
@@ -365,6 +396,7 @@ public class FabricHologram implements Hologram {
         this.nearbyPlayers.clear();
         // Remove the world-side light block too
         clearBacklight();
+        clearInteraction();
     }
 
     private void despawnLine(HologramLineRenderer line) {
@@ -415,6 +447,8 @@ public class FabricHologram implements Hologram {
         // Carry the display type and orientation over to the copy
         newHologram.restoreDisplayState(this.displayType, this.yaw, this.pitch);
         newHologram.restoreBackgroundState(this.backgroundColour, this.backgroundOpacity);
+        newHologram.restorePresentationState(this.scale, this.brightness, this.billboard);
+        newHologram.restoreClickState(this.clickCommand, this.clickAsConsole);
 
         // Get all lines' content and add them in the same order
         for (int i = 0; i < this.lines.size(); i++) {
@@ -461,6 +495,10 @@ public class FabricHologram implements Hologram {
             LOGGER.debug("Repositioned line {} to ({}, {}, {})", 
                 i, this.position.x, lineY, this.position.z);
         }
+
+        // The clickable hitbox is sized and placed from the text block, so it has to be
+        // rebuilt whenever the lines move or their count changes.
+        applyInteraction();
     }
     
     /**
@@ -647,6 +685,101 @@ public class FabricHologram implements Hologram {
     }
 
     /**
+     * @return the uniform scale applied to a fixed hologram text
+     */
+    public float getScale() {
+        return this.scale;
+    }
+
+    /**
+     * @return the light override, or {@link HologramTextDisplay#BRIGHTNESS_AUTO}
+     */
+    public int getBrightness() {
+        return this.brightness;
+    }
+
+    /**
+     * @return how a fixed hologram turns towards the viewer
+     */
+    public Display.BillboardConstraints getBillboard() {
+        return this.billboard;
+    }
+
+    /**
+     * Resizes a fixed hologram. Line spacing widens with the scale, so the lines have to be
+     * repositioned rather than just re-sent.
+     *
+     * @param scale the uniform scale; 1.0 is the natural size
+     */
+    public void setScale(float scale) {
+        this.scale = scale;
+
+        for (HologramLineRenderer line : this.lines) {
+            line.setScale(scale);
+        }
+
+        repositionLines();
+
+        for (ServerPlayer player : currentViewers()) {
+            for (HologramLineRenderer line : this.lines) {
+                line.sendSettingsSnapshot(player);
+            }
+        }
+
+        HologramManager.save();
+    }
+
+    /**
+     * Overrides the light a fixed hologram text is drawn at.
+     *
+     * @param brightness 0-15, or {@link HologramTextDisplay#BRIGHTNESS_AUTO} for world lighting
+     */
+    public void setBrightness(int brightness) {
+        this.brightness = brightness;
+        pushLineSetting(line -> line.setBrightness(brightness));
+    }
+
+    /**
+     * Sets how a fixed hologram turns towards the viewer.
+     *
+     * @param billboard the billboard constraint to apply
+     */
+    public void setBillboard(Display.BillboardConstraints billboard) {
+        this.billboard = billboard;
+        pushLineSetting(line -> line.setBillboard(billboard));
+    }
+
+    /**
+     * Applies a display setting to every line and pushes it to anyone watching.
+     */
+    private void pushLineSetting(Consumer<HologramLineRenderer> change) {
+        this.lines.forEach(change);
+
+        for (ServerPlayer player : currentViewers()) {
+            for (HologramLineRenderer line : this.lines) {
+                line.sendSettingsSnapshot(player);
+            }
+        }
+
+        HologramManager.save();
+    }
+
+    /**
+     * Restores presentation settings from storage without saving. Called during load, before
+     * the line entities are built, so they pick these up on construction.
+     *
+     * @param scale      the persisted scale
+     * @param brightness the persisted light override
+     * @param billboard  the persisted billboard constraint
+     */
+    public void restorePresentationState(float scale, int brightness,
+                                         Display.BillboardConstraints billboard) {
+        this.scale = scale;
+        this.brightness = brightness;
+        this.billboard = billboard == null ? Display.BillboardConstraints.FIXED : billboard;
+    }
+
+    /**
      * Switches how this hologram renders. The line entities are a different entity type per
      * display type, so every line is rebuilt and respawned for anyone currently watching.
      *
@@ -793,6 +926,135 @@ public class FabricHologram implements Hologram {
 
         this.backlightPositions = UtilBacklight.placeColumn(this.world, this.position.x, bottomY,
                 topY, this.position.z, backlightLevel);
+    }
+
+    /**
+     * @return whether a clickable hitbox currently exists in the world for this hologram
+     */
+    public boolean hasClickHitbox() {
+        return this.interaction != null && this.interaction.isAlive();
+    }
+
+    /**
+     * @return the command run when a player clicks this hologram, or null when it is not
+     *         clickable
+     */
+    public String getClickCommand() {
+        return this.clickCommand;
+    }
+
+    /**
+     * @return whether the click command runs elevated rather than as the clicking player
+     */
+    public boolean isClickAsConsole() {
+        return this.clickAsConsole;
+    }
+
+    /**
+     * Makes this hologram run a command when clicked, or stops it doing so.
+     *
+     * @param command   the command to run without a leading slash, or null to clear it
+     * @param asConsole true to run it elevated rather than as the clicking player
+     */
+    public void setClickCommand(String command, boolean asConsole) {
+        this.clickCommand = (command == null || command.trim().isEmpty()) ? null : command.trim();
+        this.clickAsConsole = asConsole;
+        applyInteraction();
+        HologramManager.save();
+    }
+
+    /**
+     * Restores click settings from storage without saving or touching the world.
+     *
+     * @param command   the persisted command
+     * @param asConsole the persisted execution mode
+     */
+    public void restoreClickState(String command, boolean asConsole) {
+        this.clickCommand = (command == null || command.trim().isEmpty()) ? null : command.trim();
+        this.clickAsConsole = asConsole;
+    }
+
+    /**
+     * Creates the clickable hitbox if it is missing.
+     *
+     * <p>The hitbox is a real entity, so it can only be added to a loaded chunk. A hologram
+     * away from spawn is in an unloaded chunk when the server starts, so the attempt made
+     * during load silently does nothing and the hologram comes back unclickable. Calling this
+     * as a player comes into range retries at the one moment the chunk is guaranteed loaded.
+     */
+    public void ensureClickHitbox() {
+        if (this.clickCommand != null && !hasClickHitbox()) {
+            applyInteraction();
+        }
+    }
+
+    /**
+     * Rebuilds the clickable hitbox to match the current text block.
+     *
+     * <p>Always clears first: the hitbox is sized from the line count and scale, so an edit
+     * that changes either has to replace it rather than move it.
+     */
+    private void applyInteraction() {
+        clearInteraction();
+
+        if (this.clickCommand == null || this.lines.isEmpty()
+                || !(this.world instanceof ServerLevel serverLevel)) {
+            return;
+        }
+
+        double gap = lineGap();
+        // The text hangs below the anchor, one line slot per line, and the bottom line
+        // extends a little further down than its own slot.
+        double height = ((this.lines.size() - 1) * gap) + (0.25D * this.scale);
+
+        // The text is not drawn at the hologram position: every line renders a nameplate
+        // height above its own slot. The hitbox has to follow the visible text, or it
+        // ends up a couple of blocks low and only the bottom of a tall hologram is
+        // clickable.
+        double textTop = this.position.y + TextDisplayHologramLine.textTopOffset();
+        double bottomY = textTop - height;
+
+        // Width cannot be measured server-side - the font lives on the client - so this is a
+        // readable-looking box derived from the longest line, clamped so a very long line
+        // does not produce a hitbox players bump into from across the room.
+        double width = Math.max(1.0D, Math.min(8.0D, longestLineLength() * 0.11D * this.scale));
+
+        this.interaction = new HologramInteraction(serverLevel);
+        this.interaction.applySize((float) width, (float) Math.max(gap, height));
+        this.interaction.moveTo(this.position.x, bottomY, this.position.z, 0.0F, 0.0F);
+
+        serverLevel.addFreshEntity(this.interaction);
+        HologramManager.registerInteraction(this.interaction.getUUID(), this.id);
+    }
+
+    /**
+     * Removes the clickable hitbox from the world.
+     */
+    private void clearInteraction() {
+        if (this.interaction == null) {
+            return;
+        }
+
+        HologramManager.unregisterInteraction(this.interaction.getUUID());
+        this.interaction.discard();
+        this.interaction = null;
+    }
+
+    /**
+     * @return the character count of the longest line, used only to size the click hitbox
+     */
+    private int longestLineLength() {
+        int longest = 0;
+
+        for (HologramLineRenderer line : this.lines) {
+            String text = line.getText();
+
+            if (text != null) {
+                longest = Math.max(longest, text.length());
+            }
+        }
+
+        return longest;
     }
 
     private void clearBacklight() {

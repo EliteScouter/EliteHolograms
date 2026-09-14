@@ -70,6 +70,13 @@ public class ScoreboardHologramConfig {
                 data.displayType = hologram.getDisplayType().getSerializedName();
                 data.yaw = hologram.getYaw();
                 data.pitch = hologram.getPitch();
+                data.backgroundColour = String.format("#%06X", hologram.getBackgroundColour());
+                data.backgroundOpacity = hologram.getBackgroundOpacity();
+                data.scale = hologram.getScale();
+                data.brightness = hologram.getBrightness();
+                data.billboard = hologram.getBillboard().getSerializedName();
+                data.clickCommand = hologram.getClickCommand();
+                data.clickAsConsole = hologram.isClickAsConsole();
 
                 configData.add(data);
             }
@@ -141,5 +148,15 @@ public class ScoreboardHologramConfig {
         public String displayType;
         public float yaw;
         public float pitch;
+
+        // Presentation and click settings. All absent for boards saved before they existed,
+        // which read back as the look and behaviour those boards already had.
+        public String backgroundColour;
+        public Integer backgroundOpacity;
+        public Float scale;
+        public Integer brightness;
+        public String billboard;
+        public String clickCommand;
+        public boolean clickAsConsole = false;
     }
 }

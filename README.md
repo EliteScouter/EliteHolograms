@@ -101,6 +101,8 @@ These show different information for each player viewing the hologram:
 | `/eh convert <id> fixed\|face` | Switch a hologram between fixed and player-facing | `.edit`          |
 | `/eh setrotation <id> <yaw> [pitch]` | Set the orientation of a fixed hologram | `.edit`             |
 | `/eh background <id> <colour\|opacity\|none\|reset>` | Restyle the panel behind a fixed hologram's text | `.edit` |
+| `/eh display <id> <scale\|brightness\|billboard\|reset>` | Resize, light, or change how a fixed hologram turns | `.edit` |
+| `/eh click <id> <set\|console <command>\|none>` | Run a command when a player clicks the hologram | `.edit` (`.admin` for `console`) |
 | `/eh backlight <id> <on\|off\|toggle> [height 1-10]` | Light a hologram with a column of invisible light blocks | `.backlight` |
 | `/eh teleport <id>`         | Teleport to a hologram                       | `.teleport`            |
 | `/eh reload`                | Reload holograms and scoreboard themes from storage | `.admin`        |

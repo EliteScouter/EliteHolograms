@@ -1,5 +1,30 @@
 # Changelog
 
+## All Editions - 1.3.0 - Clickable holograms, scale, brightness and billboards - 2026-09-13
+
+### Added
+
+* **Clickable holograms.** `/eh click <id> set <command...>` makes a hologram run a command when a player right-clicks it, `console <command...>` runs it elevated, and `none` turns it off. `%player%` in the command is replaced with the clicking player's name. Use it for warp signs, shop buttons, quest turn-ins - anything that was previously a sign and a pressure plate. Clicking is backed by a real, invisible `minecraft:interaction` hitbox placed over the text, which is why it works on every loader without a client mod
+* **`/eh display <id> scale <0.1-10>`** - resizes a fixed hologram's text. Line spacing widens with the scale, so a scaled-up hologram does not overlap its own lines, and the top line stays anchored where the hologram is
+* **`/eh display <id> brightness <0-15|auto>`** - lights the text regardless of the surrounding light level. `15` makes a hologram readable at night **without placing a single block in the world**, which for most people is what `/eh backlight` was being used for. `auto` restores world lighting
+* **`/eh display <id> billboard <fixed|vertical|horizontal|center>`** - controls how a fixed hologram turns towards the viewer. `vertical` is worth knowing about: the text turns to follow the player horizontally but never tilts, so it stays readable from any direction without lying on its back when someone flies overhead. `fixed` remains the default
+* **`/eh display <id> reset`** restores all three at once
+
+### Changed
+
+* The three display settings are grouped under one `/eh display` command rather than three top-level ones, to keep the `/eh` tab-completion list readable
+
+### Fixed
+
+* **Scoreboard holograms did not keep their background settings.** Boards persist to their own `scoreboard_holograms.json` rather than to `holograms.json`, and the Forge 1.20.1 and Fabric editions never wrote the background colour and opacity there, so a restyled board reverted to 25% black on restart. All editions now persist the full set - background, scale, brightness, billboard and click command - for scoreboard holograms as well as regular ones
+
+### Notes
+
+* None of these apply to a player-facing hologram. Its text is an armor stand nameplate, which the client sizes, turns and lights itself - the server has no say in any of it. The values are stored either way and take effect the moment the hologram is converted with `/eh convert <id> fixed`
+* **`/eh click <id> console ...` requires the admin permission**, not the edit permission that covers the rest of the command. Running a click command elevated would otherwise let anyone who can edit holograms hand themselves operator commands through a sign
+* Click hitboxes are real entities, so they are saved with the chunk. They are removed on shutdown, and any left behind by a crash are swept on the next startup, so they cannot accumulate
+* Forge 1.19.2 is unaffected by all of this - it has no text displays, so there is nothing to scale, light, turn or click
+
 ## All Editions - 1.2.1 - Hologram backgrounds & Forge 1.19.2 command parity - 2026-09-06
 
 ### Added

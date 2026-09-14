@@ -3,6 +3,8 @@ package com.strictgaming.elite.holograms.neo26.hologram.entity;
 import com.mojang.logging.LogUtils;
 
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.FloatTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -45,8 +47,26 @@ public class HologramTextDisplay extends Display.TextDisplay {
      */
     public static final int DEFAULT_BACKGROUND = 0x40000000;
 
+    /** Vanilla leaves a text display at its natural size. */
+    public static final float DEFAULT_SCALE = 1.0F;
+
+    /**
+     * Sentinel for "no brightness override", i.e. the text is lit by the world like any
+     * other entity. Vanilla models this as an absent tag rather than a value.
+     */
+    public static final int BRIGHTNESS_AUTO = -1;
+
     /** Current ARGB background, applied on every settings write. */
     private int backgroundArgb = DEFAULT_BACKGROUND;
+
+    /** Uniform scale applied through the transformation matrix. */
+    private float scale = DEFAULT_SCALE;
+
+    /** 0-15 light override applied to both block and sky light, or {@link #BRIGHTNESS_AUTO}. */
+    private int brightness = BRIGHTNESS_AUTO;
+
+    /** How the display turns towards the viewer. */
+    private Display.BillboardConstraints billboard = Display.BillboardConstraints.FIXED;
 
     /** Written once while locating the synched data field that holds the text. */
     private static final String PROBE_TEXT = "EliteHologramsProbe";
@@ -101,6 +121,52 @@ public class HologramTextDisplay extends Display.TextDisplay {
     }
 
     /**
+     * @return the uniform scale applied to this display
+     */
+    public float getScale() {
+        return this.scale;
+    }
+
+    /**
+     * @param scale the uniform scale; 1.0 is the natural size
+     */
+    public void setScale(float scale) {
+        this.scale = scale;
+        applySettings();
+    }
+
+    /**
+     * @return the light override, or {@link #BRIGHTNESS_AUTO} when the world lights the text
+     */
+    public int getBrightness() {
+        return this.brightness;
+    }
+
+    /**
+     * @param brightness 0-15 to light the text regardless of its surroundings, or
+     *                   {@link #BRIGHTNESS_AUTO} to let the world light it
+     */
+    public void setBrightness(int brightness) {
+        this.brightness = brightness;
+        applySettings();
+    }
+
+    /**
+     * @return how this display turns towards the viewer
+     */
+    public Display.BillboardConstraints getBillboard() {
+        return this.billboard;
+    }
+
+    /**
+     * @param billboard how the display should turn towards the viewer
+     */
+    public void setBillboard(Display.BillboardConstraints billboard) {
+        this.billboard = billboard;
+        applySettings();
+    }
+
+    /**
      * Writes the complete display configuration in one go.
      *
      * <p>Every field is written every time on purpose. From 26.1 vanilla reads these with
@@ -118,11 +184,48 @@ public class HologramTextDisplay extends Display.TextDisplay {
      */
     private CompoundTag buildSettingsTag() {
         CompoundTag tag = new CompoundTag();
-        tag.putString("billboard", Display.BillboardConstraints.FIXED.getSerializedName());
+        tag.putString("billboard", this.billboard.getSerializedName());
         tag.putString("alignment", Display.TextDisplay.Align.CENTER.getSerializedName());
         tag.putInt("line_width", NO_WRAP_LINE_WIDTH);
         tag.putInt("background", this.backgroundArgb);
+        tag.put("transformation", buildTransformationTag());
+
+        // Brightness is the one setting vanilla models as "absent means no override" - it
+        // explicitly nulls the override when the key is missing - so auto is written by
+        // leaving the key out rather than by writing a value.
+        if (this.brightness != BRIGHTNESS_AUTO) {
+            CompoundTag light = new CompoundTag();
+            light.putInt("block", this.brightness);
+            light.putInt("sky", this.brightness);
+            tag.put("brightness", light);
+        }
+
         return tag;
+    }
+
+    /**
+     * Builds the transformation carrying this display scale.
+     *
+     * <p>Vanilla non-matrix transformation codec requires all four components, so the
+     * rotations and translation are written as identity values alongside the scale.
+     */
+    private CompoundTag buildTransformationTag() {
+        CompoundTag transformation = new CompoundTag();
+        transformation.put("translation", floats(0.0F, 0.0F, 0.0F));
+        transformation.put("left_rotation", floats(0.0F, 0.0F, 0.0F, 1.0F));
+        transformation.put("scale", floats(this.scale, this.scale, this.scale));
+        transformation.put("right_rotation", floats(0.0F, 0.0F, 0.0F, 1.0F));
+        return transformation;
+    }
+
+    private static ListTag floats(float... values) {
+        ListTag list = new ListTag();
+
+        for (float value : values) {
+            list.add(FloatTag.valueOf(value));
+        }
+
+        return list;
     }
 
     /**

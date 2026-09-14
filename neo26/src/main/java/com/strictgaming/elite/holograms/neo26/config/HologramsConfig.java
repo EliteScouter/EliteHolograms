@@ -1,4 +1,5 @@
 package com.strictgaming.elite.holograms.neo26.config;
+import net.minecraft.world.entity.Display;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -143,6 +144,17 @@ public class HologramsConfig {
                                 ? com.strictgaming.elite.holograms.neo26.hologram.implementation.NeoForgeHologram.DEFAULT_BACKGROUND_OPACITY
                                 : data.backgroundOpacity);
 
+                hologram.restorePresentationState(
+                        data.scale == null
+                                ? com.strictgaming.elite.holograms.neo26.hologram.entity.HologramTextDisplay.DEFAULT_SCALE
+                                : data.scale,
+                        data.brightness == null
+                                ? com.strictgaming.elite.holograms.neo26.hologram.entity.HologramTextDisplay.BRIGHTNESS_AUTO
+                                : data.brightness,
+                        parseBillboard(data.billboard));
+
+                hologram.restoreClickState(data.clickCommand, data.clickAsConsole);
+
                 // Restore complex content
                 hologram.setLinesContent(linesContent);
 
@@ -197,6 +209,11 @@ public class HologramsConfig {
                 data.pitch = nf.getPitch();
                 data.backgroundColour = String.format("#%06X", nf.getBackgroundColour());
                 data.backgroundOpacity = nf.getBackgroundOpacity();
+                data.scale = nf.getScale();
+                data.brightness = nf.getBrightness();
+                data.billboard = nf.getBillboard().getSerializedName();
+                data.clickCommand = nf.getClickCommand();
+                data.clickAsConsole = nf.isClickAsConsole();
             }
             
             data.lines = new ArrayList<>();
@@ -243,6 +260,24 @@ public class HologramsConfig {
      * @param defaultValue the colour to use when the value is missing or malformed
      * @return the RGB colour
      */
+    /**
+     * Reads a billboard name from the config.
+     *
+     * @param value the stored name, may be null on older configs
+     * @return the matching constraint, or fixed when missing or unrecognised
+     */
+    public static Display.BillboardConstraints parseBillboard(String value) {
+        if (value != null) {
+            for (Display.BillboardConstraints candidate : Display.BillboardConstraints.values()) {
+                if (candidate.getSerializedName().equalsIgnoreCase(value.trim())) {
+                    return candidate;
+                }
+            }
+        }
+
+        return Display.BillboardConstraints.FIXED;
+    }
+
     public static int parseColour(String value, int defaultValue) {
         if (value == null || value.isEmpty()) {
             return defaultValue;
@@ -277,5 +312,14 @@ public class HologramsConfig {
          */
         String backgroundColour;
         Integer backgroundOpacity;
+        /**
+         * Presentation and click settings. All absent for holograms saved before they
+         * existed, which read back as the look and behaviour those holograms already had.
+         */
+        Float scale;
+        Integer brightness;
+        String billboard;
+        String clickCommand;
+        boolean clickAsConsole = false;
     }
 }

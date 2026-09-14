@@ -5,6 +5,7 @@ import com.strictgaming.elite.holograms.api.manager.database.HologramSaver;
 import com.strictgaming.elite.holograms.fabric.FabricHolograms;
 import com.strictgaming.elite.holograms.fabric.config.ScoreboardHologramConfig;
 import com.strictgaming.elite.holograms.fabric.hologram.database.JsonHologramSaver;
+import com.strictgaming.elite.holograms.fabric.hologram.entity.HologramInteraction;
 import com.strictgaming.elite.holograms.fabric.hologram.entity.HologramLineRenderer;
 import com.strictgaming.elite.holograms.fabric.hologram.ScoreboardHologram;
 import com.strictgaming.elite.holograms.fabric.util.UtilConcurrency;
@@ -14,6 +15,11 @@ import net.minecraft.world.level.Level;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Display;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Interaction;
 import net.minecraft.server.level.ServerPlayer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -294,6 +300,38 @@ public class HologramManager implements Runnable {
     /**
      * Load scoreboard holograms from separate config file
      */
+    /**
+     * Reads a "#RRGGBB" colour from the scoreboard config.
+     *
+     * @param value        the stored value, null on configs written before backgrounds existed
+     * @param defaultValue the colour to use when it is missing or malformed
+     * @return the RGB colour
+     */
+    private static int parseColour(String value, int defaultValue) {
+        if (value == null || value.isEmpty()) {
+            return defaultValue;
+        }
+
+        try {
+            return Integer.parseInt(value.replace("#", "").trim(), 16);
+        } catch (NumberFormatException e) {
+            LOGGER.warn("Invalid backgroundColour '{}' for a scoreboard hologram, using the default", value);
+            return defaultValue;
+        }
+    }
+
+    /**
+     * Reads a billboard name from the scoreboard config.
+     *
+     * @param value the stored name, may be null on older configs
+     * @return the matching constraint, or fixed when missing or unrecognised
+     */
+    private static Display.BillboardConstraints parseBillboard(String value) {
+        Display.BillboardConstraints parsed =
+                com.strictgaming.elite.holograms.fabric.command.HologramsDisplayCommand.parseBillboard(value);
+        return parsed == null ? Display.BillboardConstraints.FIXED : parsed;
+    }
+
     private static void loadScoreboardHolograms() {
         // Refresh themes from disk first so reload picks up edits without a reboot.
         com.strictgaming.elite.holograms.fabric.config.ScoreboardThemeManager.reload();
@@ -332,6 +370,25 @@ public class HologramManager implements Runnable {
                     data.pitch
                 );
                 
+                // Restore presentation and click settings before the first render, which
+                // rebuilds the line entities and reads them on construction.
+                hologram.restoreBackgroundState(
+                        parseColour(data.backgroundColour, FabricHologram.DEFAULT_BACKGROUND_COLOUR),
+                        data.backgroundOpacity == null
+                                ? FabricHologram.DEFAULT_BACKGROUND_OPACITY
+                                : data.backgroundOpacity);
+
+                hologram.restorePresentationState(
+                        data.scale == null
+                                ? com.strictgaming.elite.holograms.fabric.hologram.entity.HologramTextDisplay.DEFAULT_SCALE
+                                : data.scale,
+                        data.brightness == null
+                                ? com.strictgaming.elite.holograms.fabric.hologram.entity.HologramTextDisplay.BRIGHTNESS_AUTO
+                                : data.brightness,
+                        parseBillboard(data.billboard));
+
+                hologram.restoreClickState(data.clickCommand, data.clickAsConsole);
+
                 // Force initial update
                 hologram.forceUpdate();
 
@@ -490,6 +547,10 @@ public class HologramManager implements Runnable {
                 }
 
                 if (!hologram.getNearbyPlayers().contains(player.getUUID())) {
+                    // A player being in range means this chunk is loaded, which is the only
+                    // point at which a click hitbox can actually be added to the world.
+                    UtilConcurrency.runSync(hologram::ensureClickHitbox);
+
                     // Spawn item first if this is an ItemHologram
                     if (hologram instanceof ItemHologram) {
                         UtilConcurrency.runSync(() -> ((ItemHologram) hologram).spawnItemFor(player));
@@ -557,5 +618,122 @@ public class HologramManager implements Runnable {
         }
 
         LOGGER.debug("Refreshed hologram visibility for player: {}", player.getName().getString());
+    }
+    // Maps a clickable hitbox to the hologram that owns it. Interactions are real entities,
+    // so a click arrives as a normal interaction event carrying the entity - this is how that
+    // entity is turned back into a hologram without scanning every one of them.
+    private static final Map<UUID, String> INTERACTION_OWNERS = Maps.newConcurrentMap();
+
+    /** Stops a single player triggering a command every tick by holding right-click. */
+    private static final long CLICK_COOLDOWN_MS = 500L;
+    private static final Map<UUID, Long> LAST_CLICK = Maps.newConcurrentMap();
+
+    /**
+     * Records that a clickable hitbox belongs to a hologram.
+     *
+     * @param entityUUID the hitbox entity
+     * @param hologramId the owning hologram
+     */
+    public static void registerInteraction(UUID entityUUID, String hologramId) {
+        INTERACTION_OWNERS.put(entityUUID, hologramId);
+    }
+
+    /**
+     * Forgets a clickable hitbox, called when it is removed from the world.
+     *
+     * @param entityUUID the hitbox entity
+     */
+    public static void unregisterInteraction(UUID entityUUID) {
+        INTERACTION_OWNERS.remove(entityUUID);
+    }
+
+    /**
+     * Runs the click command of whichever hologram owns the given hitbox.
+     *
+     * <p>Called from each loader's interaction event. Does nothing, and reports nothing, when
+     * the entity is not one of ours, so unrelated interactions are untouched.
+     *
+     * @param player     the player who clicked
+     * @param entity     the entity they clicked
+     * @return true when this was one of our hitboxes and the click was consumed
+     */
+    public static boolean handleInteractionClick(ServerPlayer player, Entity entity) {
+        if (player == null || !(entity instanceof Interaction)
+                || !entity.getTags().contains(HologramInteraction.HOLOGRAM_TAG)) {
+            return false;
+        }
+
+        String hologramId = INTERACTION_OWNERS.get(entity.getUUID());
+
+        if (hologramId == null) {
+            // Ours by tag but not by registry, so it is a stale copy saved into the chunk
+            // by a build before hitboxes stopped persisting. Clear it out as we meet it,
+            // which repairs an existing world without a chunk-load sweep.
+            LOGGER.debug("Discarding an orphaned hologram click hitbox at {}", entity.blockPosition());
+            entity.discard();
+            return false;
+        }
+
+        // Consume the click from here on: it was ours even if we end up running nothing.
+        long now = System.currentTimeMillis();
+        Long last = LAST_CLICK.get(player.getUUID());
+
+        if (last != null && (now - last) < CLICK_COOLDOWN_MS) {
+            return true;
+        }
+
+        LAST_CLICK.put(player.getUUID(), now);
+
+        Hologram hologram = getById(hologramId);
+
+        if (!(hologram instanceof FabricHologram fh) || fh.getClickCommand() == null) {
+            return true;
+        }
+
+        String command = fh.getClickCommand().replace("%player%", player.getName().getString());
+
+        try {
+            CommandSourceStack source = player.createCommandSourceStack();
+
+            if (fh.isClickAsConsole()) {
+                // Same source, elevated, so @s and the execution position still mean the
+                // player who clicked. Setting this mode is gated on the admin permission.
+                source = source.withPermission(4);
+            }
+
+            player.getServer().getCommands().performPrefixedCommand(source, command);
+        } catch (Exception e) {
+            LOGGER.error("Error running click command for hologram {}: {}", hologramId, e.getMessage());
+        }
+
+        return true;
+    }
+
+    /**
+     * Removes clickable hitboxes left behind by a server that did not run its shutdown path.
+     *
+     * <p>These are real entities and are saved with the chunk, so a crash would otherwise leave
+     * a duplicate behind every time the server came back up. Only entities carrying our own tag
+     * are touched.
+     */
+    public static void sweepOrphanedInteractions() {
+        if (UtilServer.get() == null) {
+            return;
+        }
+
+        int removed = 0;
+
+        for (ServerLevel level : UtilServer.get().getAllLevels()) {
+            for (Entity entity : level.getAllEntities()) {
+                if (entity instanceof Interaction && entity.getTags().contains(HologramInteraction.HOLOGRAM_TAG)) {
+                    entity.discard();
+                    removed++;
+                }
+            }
+        }
+
+        if (removed > 0) {
+            LOGGER.info("Removed {} orphaned hologram click hitboxes left by a previous run", removed);
+        }
     }
 }

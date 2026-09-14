@@ -27,6 +27,8 @@ import com.strictgaming.elite.holograms.forge20.command.HologramsCreateItemComma
 import com.strictgaming.elite.holograms.forge20.command.HologramsAnimateLineCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsBacklightCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsBackgroundCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsClickCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsDisplayCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsSetRotationCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsConvertCommand;
 import com.strictgaming.elite.holograms.forge20.config.HologramsConfig;
@@ -35,6 +37,7 @@ import com.strictgaming.elite.holograms.forge20.hologram.HologramManager;
 import com.strictgaming.elite.holograms.forge20.hologram.manager.ForgeHologramFactory;
 import com.strictgaming.elite.holograms.forge20.hologram.manager.ForgeHologramManager;
 import com.strictgaming.elite.holograms.forge20.util.UtilPlaceholder;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
@@ -43,6 +46,7 @@ import net.minecraftforge.fml.IExtensionPoint;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.network.NetworkConstants;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
@@ -150,6 +154,9 @@ public class Forge20Holograms implements PlatformHologramManager {
         
         // Initialize placeholder server start time for uptime tracking
         UtilPlaceholder.setServerStartTime();
+
+        // Before anything is spawned, clear click hitboxes a previous run left behind.
+        HologramManager.sweepOrphanedInteractions();
         
         try {
             HologramManager.load();
@@ -201,6 +208,23 @@ public class Forge20Holograms implements PlatformHologramManager {
         }
     }
 
+    /**
+     * Turns a right-click on a hologram hitbox into its configured command.
+     *
+     * <p>The hitbox is a real entity, so this is an ordinary interaction event - no packet
+     * interception or mixin needed. Anything that is not one of ours falls straight through.
+     */
+    @SubscribeEvent
+    public void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
+        if (event.getLevel().isClientSide() || !(event.getEntity() instanceof ServerPlayer player)) {
+            return;
+        }
+
+        if (HologramManager.handleInteractionClick(player, event.getTarget())) {
+            event.setCanceled(true);
+        }
+    }
+
     @SubscribeEvent
     public void onCommandRegister(RegisterCommandsEvent event) {
         LOGGER.info("Registering commands...");
@@ -229,6 +253,8 @@ public class Forge20Holograms implements PlatformHologramManager {
         HologramsAnimateLineCommand animateLineCommand = new HologramsAnimateLineCommand();
         HologramsBacklightCommand backlightCommand = new HologramsBacklightCommand();
         HologramsBackgroundCommand backgroundCommand = new HologramsBackgroundCommand();
+        HologramsDisplayCommand displayCommand = new HologramsDisplayCommand();
+        HologramsClickCommand clickCommand = new HologramsClickCommand();
         HologramsSetRotationCommand setRotationCommand = new HologramsSetRotationCommand();
         HologramsConvertCommand convertCommand = new HologramsConvertCommand();
         
@@ -255,6 +281,8 @@ public class Forge20Holograms implements PlatformHologramManager {
         command.registerSubCommand("movevertical", moveVerticalCommand);
         command.registerSubCommand("backlight", backlightCommand);
         command.registerSubCommand("background", backgroundCommand);
+        command.registerSubCommand("display", displayCommand);
+        command.registerSubCommand("click", clickCommand);
         command.registerSubCommand("setrotation", setRotationCommand);
         command.registerSubCommand("convert", convertCommand);
         

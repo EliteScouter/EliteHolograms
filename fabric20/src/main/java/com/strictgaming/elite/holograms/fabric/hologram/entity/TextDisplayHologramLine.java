@@ -11,6 +11,7 @@ import net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket;
 import net.minecraft.network.protocol.game.ClientboundTeleportEntityPacket;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.Level;
 
@@ -29,14 +30,8 @@ public class TextDisplayHologramLine implements HologramLineRenderer {
     private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
 
     /**
-     * Vertical gap between where an armor stand sits and where a text display has to sit for
-     * their text to land at the same height.
-     *
-     * <p>A nameplate is drawn at {@code getNameTagOffsetY() = bbHeight + 0.5}, while a single
-     * line text display is shifted down by {@code lines * 10} font pixels, putting its text top
-     * {@code 0.25} above its own origin. The difference is therefore {@code bbHeight + 0.25}.
-     * Keeping this exact means switching a hologram between display types leaves it looking like
-     * it never moved.
+     * How far above its own origin a single-line text display draws the top of its text, at
+     * scale 1.
      *
      * <p>This constant is version-specific and is NOT a copy/paste slip against the other
      * editions. Vanilla lays a text display out as {@code lines * 10} font pixels tall up to
@@ -44,7 +39,40 @@ public class TextDisplayHologramLine implements HologramLineRenderer {
      * origin here and 0.225 there. Check {@code DisplayRenderer.TextDisplayRenderer.renderInner}
      * before changing it.
      */
-    public static final double ARMOR_STAND_TEXT_OFFSET = EntityType.ARMOR_STAND.getHeight() + 0.25D;
+    private static final double TEXT_TOP_ABOVE_ORIGIN = 0.25D;
+
+    /** A nameplate's text is drawn with its top at {@code entityY + bbHeight + 0.5}. */
+    private static final double NAMEPLATE_TEXT_TOP = 0.5D;
+
+    /**
+     * Vertical gap between where an armor stand sits and where a text display has to sit for
+     * their text to land at the same height.
+     *
+     * <p>The text top scales with the display, so the offset has to shrink as the scale grows
+     * to keep the top line anchored where the hologram is. At scale 1 this is the historic
+     * {@code bbHeight + 0.25}, so an unscaled hologram sits exactly where it always did.
+     *
+     * @param scale the display's uniform scale
+     * @return the offset to add to a line slot's Y coordinate
+     */
+    /**
+     * How far above a line slot that line's text is actually drawn.
+     *
+     * <p>The backing entity sits at the slot, but the text renders a nameplate height
+     * above it - which is the whole point of {@link #textOffset(float)}. Anything that
+     * needs to line something up with the visible text, rather than with the entity, has
+     * to add this. It does not vary with scale: the offset above shrinks as the scale
+     * grows precisely so the text top stays put.
+     *
+     * @return the vertical distance from a line slot to the top of its text
+     */
+    public static double textTopOffset() {
+        return EntityType.ARMOR_STAND.getHeight() + NAMEPLATE_TEXT_TOP;
+    }
+
+    public static double textOffset(float scale) {
+        return EntityType.ARMOR_STAND.getHeight() + NAMEPLATE_TEXT_TOP - (TEXT_TOP_ABOVE_ORIGIN * scale);
+    }
 
     protected HologramTextDisplay display;
     protected String text;
@@ -56,6 +84,9 @@ public class TextDisplayHologramLine implements HologramLineRenderer {
     private float yaw;
     private float pitch;
     private int backgroundArgb = HologramTextDisplay.DEFAULT_BACKGROUND;
+    private float scale = HologramTextDisplay.DEFAULT_SCALE;
+    private int brightness = HologramTextDisplay.BRIGHTNESS_AUTO;
+    private Display.BillboardConstraints billboard = Display.BillboardConstraints.FIXED;
 
     public TextDisplayHologramLine(Level world, double x, double y, double z, float yaw, float pitch) {
         this(world, x, y, z, yaw, pitch, HologramTextDisplay.DEFAULT_BACKGROUND);
@@ -63,7 +94,17 @@ public class TextDisplayHologramLine implements HologramLineRenderer {
 
     public TextDisplayHologramLine(Level world, double x, double y, double z, float yaw, float pitch,
                                    int backgroundArgb) {
+        this(world, x, y, z, yaw, pitch, backgroundArgb, HologramTextDisplay.DEFAULT_SCALE,
+                HologramTextDisplay.BRIGHTNESS_AUTO, Display.BillboardConstraints.FIXED);
+    }
+
+    public TextDisplayHologramLine(Level world, double x, double y, double z, float yaw, float pitch,
+                                   int backgroundArgb, float scale, int brightness,
+                                   Display.BillboardConstraints billboard) {
         this.backgroundArgb = backgroundArgb;
+        this.scale = scale;
+        this.brightness = brightness;
+        this.billboard = billboard;
         this.slotX = x;
         this.slotY = y;
         this.slotZ = z;
@@ -76,8 +117,11 @@ public class TextDisplayHologramLine implements HologramLineRenderer {
         HologramTextDisplay created = new HologramTextDisplay(world);
         created.setId(HologramEntityIds.next());
         created.setBackgroundArgb(this.backgroundArgb);
+        created.setScale(this.scale);
+        created.setBrightness(this.brightness);
+        created.setBillboard(this.billboard);
         created.applyHologramDefaults();
-        created.moveTo(this.slotX, this.slotY + ARMOR_STAND_TEXT_OFFSET, this.slotZ, this.yaw, this.pitch);
+        created.moveTo(this.slotX, this.slotY + textOffset(this.scale), this.slotZ, this.yaw, this.pitch);
         return created;
     }
 
@@ -163,7 +207,7 @@ public class TextDisplayHologramLine implements HologramLineRenderer {
         this.slotX = x;
         this.slotY = y;
         this.slotZ = z;
-        this.display.setPos(x, y + ARMOR_STAND_TEXT_OFFSET, z);
+        this.display.setPos(x, y + textOffset(this.scale), z);
         this.display.setOldPosAndRot();
     }
 
@@ -222,6 +266,39 @@ public class TextDisplayHologramLine implements HologramLineRenderer {
         }
 
         return UtilChatColour.parse(this.text.replace("%", "%%"));
+    }
+
+    /**
+     * Resizes this line. The vertical offset is recalculated because a scaled display draws
+     * its text further from its own origin.
+     *
+     * @param scale the uniform scale; 1.0 is the natural size
+     */
+    @Override
+    public void setScale(float scale) {
+        this.scale = scale;
+        this.display.setScale(scale);
+        this.display.setPos(this.slotX, this.slotY + textOffset(scale), this.slotZ);
+        this.display.setOldPosAndRot();
+    }
+
+    /**
+     * @param brightness 0-15 to light the text regardless of its surroundings, or
+     *                   {@link HologramTextDisplay#BRIGHTNESS_AUTO} to let the world light it
+     */
+    @Override
+    public void setBrightness(int brightness) {
+        this.brightness = brightness;
+        this.display.setBrightness(brightness);
+    }
+
+    /**
+     * @param billboard how this line should turn towards the viewer
+     */
+    @Override
+    public void setBillboard(Display.BillboardConstraints billboard) {
+        this.billboard = billboard;
+        this.display.setBillboard(billboard);
     }
 
     /**

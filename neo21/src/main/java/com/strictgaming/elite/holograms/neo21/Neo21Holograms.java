@@ -6,6 +6,8 @@ import com.strictgaming.elite.holograms.api.manager.PlatformHologramManager;
 import com.strictgaming.elite.holograms.neo21.command.CommandFactory;
 import com.strictgaming.elite.holograms.neo21.command.HologramsAnimateLineCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsBackgroundCommand;
+import com.strictgaming.elite.holograms.neo21.command.HologramsClickCommand;
+import com.strictgaming.elite.holograms.neo21.command.HologramsDisplayCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsBacklightCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsCommand;
 import com.strictgaming.elite.holograms.neo21.command.HologramsCreateCommand;
@@ -49,6 +51,7 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.living.LivingEvent;
@@ -103,6 +106,8 @@ public class Neo21Holograms implements PlatformHologramManager {
     private HologramsMoveVerticalCommand moveVerticalCommand;
     private HologramsBacklightCommand backlightCommand;
     private HologramsBackgroundCommand backgroundCommand;
+    private HologramsDisplayCommand displayCommand;
+    private HologramsClickCommand clickCommand;
     private HologramsSetRotationCommand setRotationCommand;
     private HologramsConvertCommand convertCommand;
 
@@ -140,6 +145,8 @@ public class Neo21Holograms implements PlatformHologramManager {
         moveVerticalCommand = new HologramsMoveVerticalCommand();
         backlightCommand = new HologramsBacklightCommand();
         backgroundCommand = new HologramsBackgroundCommand();
+        displayCommand = new HologramsDisplayCommand();
+        clickCommand = new HologramsClickCommand();
         setRotationCommand = new HologramsSetRotationCommand();
         convertCommand = new HologramsConvertCommand();
         
@@ -166,6 +173,8 @@ public class Neo21Holograms implements PlatformHologramManager {
         mainCommand.registerSubCommand("movevertical", moveVerticalCommand);
         mainCommand.registerSubCommand("backlight", backlightCommand);
         mainCommand.registerSubCommand("background", backgroundCommand);
+        mainCommand.registerSubCommand("display", displayCommand);
+        mainCommand.registerSubCommand("click", clickCommand);
         mainCommand.registerSubCommand("setrotation", setRotationCommand);
         mainCommand.registerSubCommand("convert", convertCommand);
     }
@@ -265,6 +274,8 @@ public class Neo21Holograms implements PlatformHologramManager {
         moveVerticalCommand.register(event.getDispatcher());
         backlightCommand.register(event.getDispatcher());
         backgroundCommand.register(event.getDispatcher());
+        displayCommand.register(event.getDispatcher());
+        clickCommand.register(event.getDispatcher());
         setRotationCommand.register(event.getDispatcher());
         convertCommand.register(event.getDispatcher());
         
@@ -288,6 +299,9 @@ public class Neo21Holograms implements PlatformHologramManager {
         com.strictgaming.elite.holograms.neo21.util.UtilPlaceholder.setServerStartTime();
         this.checkForPlaceholders();
         try {
+            // Before anything is spawned, clear click hitboxes a previous run left behind.
+            HologramManager.sweepOrphanedInteractions();
+
             HologramManager.load();
             LOGGER.info("Holograms loaded successfully");
         } catch (Exception e) {
@@ -309,6 +323,23 @@ public class Neo21Holograms implements PlatformHologramManager {
      * blocked inside a block write, so they could outlive the event and keep touching the world
      * while Minecraft was already saving and unloading chunks.
      */
+    /**
+     * Turns a right-click on a hologram hitbox into its configured command.
+     *
+     * <p>The hitbox is a real entity, so this is an ordinary interaction event - no packet
+     * interception or mixin needed. Anything that is not one of ours falls straight through.
+     */
+    @SubscribeEvent
+    public void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
+        if (event.getLevel().isClientSide() || !(event.getEntity() instanceof ServerPlayer player)) {
+            return;
+        }
+
+        if (HologramManager.handleInteractionClick(player, event.getTarget())) {
+            event.setCanceled(true);
+        }
+    }
+
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
         LOGGER.info("Server stopping - despawning holograms and saving");

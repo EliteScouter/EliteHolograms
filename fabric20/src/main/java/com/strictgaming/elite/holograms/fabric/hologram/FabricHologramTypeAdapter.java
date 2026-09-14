@@ -1,12 +1,14 @@
 package com.strictgaming.elite.holograms.fabric.hologram;
 
 import com.strictgaming.elite.holograms.fabric.hologram.entity.HologramLineRenderer;
+import com.strictgaming.elite.holograms.fabric.hologram.entity.HologramTextDisplay;
 import com.strictgaming.elite.holograms.fabric.util.UtilWorld;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import com.strictgaming.elite.holograms.fabric.util.UtilBacklight;
 import com.google.common.collect.Lists;
 import com.google.gson.*;
+import net.minecraft.world.entity.Display;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
@@ -67,6 +69,17 @@ public class FabricHologramTypeAdapter implements JsonSerializer<FabricHologram>
         // readable and hand-editable.
         object.addProperty("backgroundColour", String.format("#%06X", hologram.getBackgroundColour()));
         object.addProperty("backgroundOpacity", hologram.getBackgroundOpacity());
+
+        // Text display presentation. Brightness is written as -1 for "lit by the world",
+        // matching the sentinel the rest of the code uses.
+        object.addProperty("scale", hologram.getScale());
+        object.addProperty("brightness", hologram.getBrightness());
+        object.addProperty("billboard", hologram.getBillboard().getSerializedName());
+
+        if (hologram.getClickCommand() != null) {
+            object.addProperty("clickCommand", hologram.getClickCommand());
+            object.addProperty("clickAsConsole", hologram.isClickAsConsole());
+        }
 
         // Include hologram type metadata for specialized holograms
         if (hologram instanceof ItemHologram) {
@@ -144,6 +157,27 @@ public class FabricHologramTypeAdapter implements JsonSerializer<FabricHologram>
                     ? object.get("backgroundOpacity").getAsInt()
                     : FabricHologram.DEFAULT_BACKGROUND_OPACITY;
 
+            // All three are absent for holograms saved before they were configurable, and
+            // read back as the look those holograms already had.
+            float scale = object.has("scale")
+                    ? object.get("scale").getAsFloat()
+                    : HologramTextDisplay.DEFAULT_SCALE;
+            int brightness = object.has("brightness")
+                    ? object.get("brightness").getAsInt()
+                    : HologramTextDisplay.BRIGHTNESS_AUTO;
+            Display.BillboardConstraints billboard = Display.BillboardConstraints.FIXED;
+
+            if (object.has("billboard")) {
+                String raw = object.get("billboard").getAsString();
+
+                for (Display.BillboardConstraints candidate : Display.BillboardConstraints.values()) {
+                    if (candidate.getSerializedName().equalsIgnoreCase(raw)) {
+                        billboard = candidate;
+                        break;
+                    }
+                }
+            }
+
             String hologramType = object.has("type") ? object.get("type").getAsString() : "basic";
             FabricHologram hologram;
 
@@ -158,6 +192,10 @@ public class FabricHologramTypeAdapter implements JsonSerializer<FabricHologram>
             }
 
             hologram.restoreBackgroundState(backgroundColour, backgroundOpacity);
+            hologram.restorePresentationState(scale, brightness, billboard);
+            hologram.restoreClickState(
+                    object.has("clickCommand") ? object.get("clickCommand").getAsString() : null,
+                    object.has("clickAsConsole") && object.get("clickAsConsole").getAsBoolean());
 
             // Restore backlight state (does not place block yet - spawn() will do that)
             boolean backlightEnabled = object.has("backlightEnabled") && object.get("backlightEnabled").getAsBoolean();

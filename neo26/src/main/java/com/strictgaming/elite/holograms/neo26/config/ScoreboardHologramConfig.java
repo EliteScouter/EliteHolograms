@@ -67,6 +67,11 @@ public class ScoreboardHologramConfig {
                 d.displayType = holo.getDisplayType().getSerializedName();
                 d.yaw = holo.getYaw();
                 d.pitch = holo.getPitch();
+                d.scale = holo.getScale();
+                d.brightness = holo.getBrightness();
+                d.billboard = holo.getBillboard().getSerializedName();
+                d.clickCommand = holo.getClickCommand();
+                d.clickAsConsole = holo.isClickAsConsole();
                 d.backgroundColour = String.format("#%06X", holo.getBackgroundColour());
                 d.backgroundOpacity = holo.getBackgroundOpacity();
                 configData.add(d);
@@ -139,6 +144,14 @@ public class ScoreboardHologramConfig {
         public String displayType;
         public float yaw;
         public float pitch;
+
+        // Presentation and click settings. All absent for boards saved before they existed,
+        // which read back as the look and behaviour those boards already had.
+        public Float scale;
+        public Integer brightness;
+        public String billboard;
+        public String clickCommand;
+        public boolean clickAsConsole = false;
 
         // Background behind a fixed board's text. Null for boards saved before
         // backgrounds were configurable, which read back as 25% black.
