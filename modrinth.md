@@ -8,6 +8,26 @@ The Fabric build requires **Fabric API**. The Forge and NeoForge builds need not
 
 For full details, see the [Wiki](https://github.com/EliteScouter/EliteHolograms/wiki).
 
+## New in 1.3.0
+
+*   **Clickable holograms** – `/eh click <id> set <command...>` makes a hologram run a command when a player right-clicks it, and `console <command...>` runs it elevated for warps and kits players cannot run themselves. `%player%` is replaced with the clicker's name. Anything that used to be a sign and a pressure plate can now be a hologram. Works on fixed *and* player-facing holograms, needs no client mod, and `console` is gated on the admin permission so it cannot be used to hand out operator commands. *Not available on Forge 1.19.2.*
+
+*   **`/eh display <id> scale <0.1-10>`** – resize a fixed hologram's text. Line spacing grows with the scale, so a scaled-up hologram never overlaps its own lines.
+
+*   **`/eh display <id> brightness <0-15|auto>`** – light the text regardless of the surrounding light level. `15` makes a hologram readable at night **without placing a single block in the world**, which for most people is what backlights were for.
+
+*   **`/eh display <id> billboard <fixed|vertical|horizontal|center>`** – control how a fixed hologram turns. `vertical` is the one to know: the text follows the player horizontally but never tilts, so it stays readable from any direction without lying on its back when someone flies overhead.
+
+*   **Fixed: scoreboard holograms lost their styling on restart** – leaderboards are stored in their own file, and the Forge 1.20.1 and Fabric editions never wrote background settings there, so a restyled board reverted to the default on restart. Boards now keep their background, scale, brightness, billboard and click command like any other hologram.
+
+## New in 1.2.1
+
+*   **`/eh background <id> ...`** – restyle the panel behind a fixed hologram's text. Vanilla draws it as 25% opaque black; now `colour <name or #RRGGBB>` recolours it, `opacity <0-100>` sets how solid it is, `none` removes it entirely for floating text with no box, and `reset` restores the vanilla look.
+
+*   **Forge 1.19.2 command parity** – `/eh backlight`, `/eh settheme`, `/eh list` and `/eh movevertical` were being registered twice on that edition, and whichever registration ran last won, so several commands reported "Unknown command" despite shipping. All 23 subcommands now resolve against a single registry.
+
+*   **Fixed: `fixed` and `facing` were swallowed into hologram text** – `/eh create shop fixed Welcome` produced a hologram reading "fixed Welcome". Both keywords are now recognised on every create command.
+
 ## New in 1.2.0
 
 *   **Fabric 1.20.1 edition** – Elite Holograms now runs on Fabric with the same feature set as the Forge 1.20.1 build: holograms, fixed holograms, item holograms, animated lines, scoreboard leaderboards, themes, backlights, placeholders, and every command. It requires Fabric API, is server-side only, and reads the same hologram config format, so a world can move between the Forge and Fabric builds without converting anything.
@@ -52,6 +72,10 @@ For full details, see the [Wiki](https://github.com/EliteScouter/EliteHolograms/
 
 *   **Fixed Holograms** – Anchor a hologram to a rotation so it reads like a wall sign (1.20.1 and newer).
 
+*   **Clickable Holograms** – Run a command when a player right-clicks a hologram, as the player or elevated as the console (1.20.1 and newer).
+
+*   **Display Control** – Scale a fixed hologram's text, light it to any brightness with no blocks placed, recolour the panel behind it, and choose how it turns towards the viewer.
+
 *   **Position Control** – Create at your location or at explicit coordinates, teleport to any hologram, and nudge vertically with `/eh movevertical`.
 
 *   **Advanced Permissions** – Works with **LuckPerms** and **FTB Ranks**, with OP level 2 fallback and granular nodes.
@@ -93,6 +117,18 @@ Every create command takes an optional `fixed` or `facing` keyword immediately a
 *   `/eh convert <id> fixed|face` – switch a hologram between fixed and player-facing
 
 *   `/eh setrotation <id> <yaw> [pitch]` – aim a fixed hologram (yaw 0 south, 90 west, 180 north, 270 east)
+
+*   `/eh background <id> <colour|opacity|none|reset>` – restyle the panel behind a fixed hologram's text
+
+*   `/eh display <id> <scale|brightness|billboard|reset>` – resize, light, or change how a fixed hologram turns
+
+**Interaction**
+
+*   `/eh click <id> set <command...>` – run a command as the clicking player
+
+*   `/eh click <id> console <command...>` – run it elevated (needs the admin permission)
+
+*   `/eh click <id> none` – stop the hologram being clickable
 
 **Position**
 

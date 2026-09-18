@@ -12,6 +12,9 @@ It is server-side only: players join with a vanilla client and still see everyth
 - Move holograms vertically with precise offsets (e.g., up/down 1.5 blocks).
 - **Fixed and player-facing display types** - anchor a hologram to a yaw and pitch so it reads like a wall sign, or let it turn to face each viewer (the default).
 - **Backlights** - light a hologram with a column of invisible full-bright `minecraft:light` blocks so it stays readable at night, without overwriting player builds.
+- **Clickable holograms** - run a command when a player right-clicks a hologram, as the player or as the console. Works on both display types.
+- **Display settings for fixed holograms** - scale the text, light it to any brightness without placing blocks, and choose how it turns towards the viewer.
+- **Configurable background panel** - recolour the box behind a fixed hologram's text, change how solid it is, or remove it entirely.
 - **Scoreboard holograms** - display top players from any scoreboard objective, with named themes for styling.
 - **Comprehensive built-in placeholder system** with server and player-specific variables, including `%player_rank%`.
 - **Advanced permission system** with support for LuckPerms, FTB Ranks, or operator (OP level 2) fallback.
@@ -29,12 +32,12 @@ Full documentation is available in the [Wiki](https://github.com/EliteScouter/El
 
 | Module | Minecraft | Loader | Minimum loader build | Java | Mod version |
 | ------ | --------- | ------ | -------------------- | ---- | ----------- |
-| `forge19` | 1.19.2 | Forge | 43 | 17 | `1.19.2-1.2.0` |
-| `forge20` | 1.20.1 | Forge | 47 | 17 | `1.20.1-1.2.0` |
-| `fabric20` | 1.20.1 | Fabric | Loader 0.15.0 | 17 | `1.20.1-1.2.0` |
-| `neo21` | 1.21.1 | NeoForge | 21.1.0 | 21 | `1.21.1-1.2.0` |
-| `neo26` | 26.1.2 | NeoForge | 26.1.2.30-beta | 25 | `26.1.2-1.2.0` |
-| `neo262` | 26.2 | NeoForge | 26.2.0.57 | 25 | `26.2-1.2.0` |
+| `forge19` | 1.19.2 | Forge | 43 | 17 | `1.19.2-1.3.0` |
+| `forge20` | 1.20.1 | Forge | 47 | 17 | `1.20.1-1.3.0` |
+| `fabric20` | 1.20.1 | Fabric | Loader 0.15.0 | 17 | `1.20.1-1.3.0` |
+| `neo21` | 1.21.1 | NeoForge | 21.1.0 | 21 | `1.21.1-1.3.0` |
+| `neo26` | 26.1.2 | NeoForge | 26.1.2.30-beta | 25 | `26.1.2-1.3.0` |
+| `neo262` | 26.2 | NeoForge | 26.2.0.57 | 25 | `26.2-1.3.0` |
 
 The **Fabric edition requires [Fabric API](https://modrinth.com/mod/fabric-api)**. The Forge and NeoForge editions have no additional dependencies.
 
@@ -155,6 +158,78 @@ backlights all carry over:
 > no-op because every 1.19.2 hologram is already player-facing. Nothing is created when you ask
 > for `fixed`, so a command copied from a newer server never silently produces the wrong thing.
 
+### The Background Panel
+
+Vanilla draws a fixed hologram's text on a 25% opaque black panel - the dark box behind the
+letters. `/eh background` restyles it:
+
+```
+/eh background shop_sign colour #1E90FF
+/eh background shop_sign opacity 60
+/eh background shop_sign none
+/eh background shop_sign reset
+```
+
+`colour` takes a named colour or a `#RRGGBB` hex value and tab-completes the names. `opacity`
+runs from `0` (invisible) to `100` (solid). `none` removes the panel entirely, leaving text
+floating with no box, and `reset` restores the vanilla look.
+
+### Size, Lighting and Billboarding
+
+`/eh display` controls how a fixed hologram is drawn:
+
+```
+/eh display shop_sign scale 2.5
+/eh display shop_sign brightness 15
+/eh display shop_sign billboard vertical
+/eh display shop_sign reset
+```
+
+* **`scale <0.1-10>`** resizes the text. Line spacing grows with the scale, so a scaled-up
+  hologram does not overlap its own lines, and the top line stays where the hologram is.
+* **`brightness <0-15|auto>`** lights the text regardless of the surrounding light level.
+  `15` makes a hologram readable at night **without placing a single block in the world**,
+  which is what most people were using `/eh backlight` for. `auto` restores world lighting.
+* **`billboard <fixed|vertical|horizontal|center>`** controls how the hologram turns towards
+  the viewer. `vertical` is the one worth knowing: the text follows the player horizontally
+  but never tilts, so it stays readable from any direction without lying on its back when
+  someone flies overhead. `fixed` is the default and does not turn at all.
+* **`reset`** restores all three at once.
+
+These settings apply to fixed holograms only. A player-facing hologram's text is an armor stand
+nameplate, which the client sizes, turns and lights itself - the server has no say in it. The
+values are still stored, and take effect the moment you run `/eh convert <id> fixed`.
+
+### Clickable Holograms
+
+A hologram can run a command when a player right-clicks it:
+
+```
+/eh click warp_sign console tp %player% 100 64 -200
+/eh click shop_sign set trigger openshop
+/eh click shop_sign none
+```
+
+* **`set <command...>`** runs the command **as the clicking player**, with their permissions.
+* **`console <command...>`** runs it **elevated**, for a warp or a kit the player could not
+  normally run themselves.
+* **`none`** turns clicking off again.
+* `%player%` anywhere in the command is replaced with the clicking player's name.
+
+> **`console` requires `eliteholograms.admin`**, not the `eliteholograms.edit` node that covers
+> the rest of the command. Running a click command elevated would otherwise let anyone who can
+> edit holograms hand themselves operator commands through a sign.
+
+Clicking works on **both fixed and player-facing holograms**. It is backed by an invisible
+`minecraft:interaction` entity placed over the text, which is why it needs no client mod on any
+loader. The hitbox is created when the hologram spawns for a player and removed when it
+despawns, so the hologram has to be in range for clicking to do anything. Those hitboxes are
+never saved to the world, so they cannot accumulate.
+
+> **Forge 1.19.2:** clickable holograms are not available. `minecraft:interaction` was added in
+> Minecraft 1.19.4, and there is no packet-only substitute, so that edition has no `/eh click`
+> command at all.
+
 ### Scoreboard Holograms
 
 Create a hologram that renders entries from a scoreboard objective (works with online and offline player data):
@@ -189,6 +264,10 @@ readable at night. `height` is the number of blocks in the column, from `1` to `
 `3`. Only air and water cells are lit, so existing builds are never overwritten. Backlights follow
 the hologram when it moves, persist across restarts, and are removed when the hologram is deleted.
 
+If the hologram is **fixed**, `/eh display <id> brightness 15` is usually the better option: it
+lights the text itself without placing any blocks at all. Backlights remain the right tool for
+player-facing holograms, for Forge 1.19.2, and when you want the surrounding area lit too.
+
 ### Move Hologram Vertically
 
 ```
@@ -207,13 +286,14 @@ Elite Holograms features a flexible permission system:
 - **Granular Nodes:** Assign specific permissions for different actions. The base node is `eliteholograms`.
   - `eliteholograms.create` - Creating holograms (`/eh create`, `/eh createat`, `/eh createitem`, `/eh createscoreboard`, `/eh copy`, `/eh settheme`).
   - `eliteholograms.delete` - Deleting holograms (`/eh delete`).
-  - `eliteholograms.edit` - Modifying existing holograms (`/eh addline`, `/eh setline`, `/eh removeline`, `/eh insertline`, `/eh animateline`, `/eh movehere`, `/eh moveto`, `/eh movevertical`, `/eh convert`, `/eh setrotation`).
+  - `eliteholograms.edit` - Modifying existing holograms (`/eh addline`, `/eh setline`, `/eh removeline`, `/eh insertline`, `/eh animateline`, `/eh movehere`, `/eh moveto`, `/eh movevertical`, `/eh convert`, `/eh setrotation`, `/eh background`, `/eh display`, `/eh click set`, `/eh click none`).
   - `eliteholograms.list` - Listing all holograms (`/eh list`). Also required for the base `/eh` command.
   - `eliteholograms.info` - Viewing detailed hologram information (`/eh info`).
   - `eliteholograms.near` - Listing nearby holograms (`/eh near`).
   - `eliteholograms.teleport` - Teleporting to holograms (`/eh teleport`).
   - `eliteholograms.backlight` - Toggling hologram backlights (`/eh backlight`).
-  - `eliteholograms.admin` - Administrative actions like `/eh reload`.
+  - `eliteholograms.admin` - Administrative actions (`/eh reload`), and `/eh click <id> console <command>`.
+- **Elevated clicks are gated separately.** `/eh click console` runs its command with server permissions, so it needs `eliteholograms.admin` rather than `eliteholograms.edit`. Without that split, anyone who could edit a hologram could hand themselves operator commands through a clickable sign.
 - **Console & Command Blocks:** Always have full permission to execute hologram commands.
 
 For a detailed guide on setting up permissions, please see `PERMISSIONS.md`.
@@ -260,7 +340,7 @@ unshaded one without Adventure bundled.
 Holograms and configuration are stored under the server or instance `config` directory. Alongside the
 main hologram store, two files are written for scoreboard support:
 
-- `scoreboard_holograms.json` - the scoreboard boards themselves, including their theme name, backlight state, and column height.
+- `scoreboard_holograms.json` - the scoreboard boards themselves, including their theme name, backlight state, and column height, plus the background, scale, brightness, billboard and click command so a styled board comes back the same way after a restart.
 - `scoreboard_themes.json` - the named themes, created pre-populated on first run. Once it exists it is never overwritten, so your edits are preserved; delete it to restore the starters. A `defaultTheme` key controls which theme new boards use when none is specified.
 
 The exact config directory name currently differs between editions, so check the paths the mod logs

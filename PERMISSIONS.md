@@ -11,15 +11,26 @@ EliteHolograms supports modern permission systems like **LuckPerms** and **FTB R
 
 | Permission Node | Description | Commands |
 |----------------|-------------|----------|
-| `eliteholograms.create` | Create new holograms | `/eh create` |
+| `eliteholograms.create` | Create new holograms | `/eh create`, `/eh createat`, `/eh createitem`, `/eh createscoreboard`, `/eh copy`, `/eh settheme` |
 | `eliteholograms.delete` | Delete holograms | `/eh delete` |
-| `eliteholograms.edit` | Edit hologram content | `/eh addline`, `/eh setline`, `/eh removeline`, `/eh insertline`, `/eh movehere`, `/eh movevertical`, `/eh convert`, `/eh setrotation`, `/eh background`, `/eh display`, `/eh click` |
-| `eliteholograms.list` | List holograms | `/eh list` |
+| `eliteholograms.edit` | Edit hologram content and appearance | `/eh addline`, `/eh setline`, `/eh removeline`, `/eh insertline`, `/eh animateline`, `/eh movehere`, `/eh moveto`, `/eh movevertical`, `/eh convert`, `/eh setrotation`, `/eh background`, `/eh display`, `/eh click set`, `/eh click none` |
+| `eliteholograms.list` | List holograms, and use the base `/eh` command at all | `/eh list` |
 | `eliteholograms.info` | View hologram info | `/eh info` |
 | `eliteholograms.near` | View nearby holograms | `/eh near` |
 | `eliteholograms.teleport` | Teleport to holograms | `/eh teleport` |
 | `eliteholograms.backlight` | Toggle hologram backlights | `/eh backlight` |
-| `eliteholograms.admin` | Administrative commands | `/eh reload` |
+| `eliteholograms.admin` | Administrative commands, and running a click command as console | `/eh reload`, `/eh click <id> console <command>` |
+
+> **Two nodes to be careful with.**
+>
+> `eliteholograms.list` also gates the base `/eh` literal, so a player needs it *in addition to*
+> whichever node their subcommand uses. Granting `eliteholograms.create` on its own does nothing.
+>
+> `/eh click <id> console <command>` deliberately requires `eliteholograms.admin` rather than
+> `eliteholograms.edit`, because it runs its command with server permissions. If it used the edit
+> node, anyone trusted to write hologram text could attach `op <themselves>` to a hologram and
+> click it. `/eh click <id> set` is the safe form - it runs as the clicking player, with only
+> that player's own permissions - and stays on the edit node.
 
 ## Permission Groups (Recommended)
 
