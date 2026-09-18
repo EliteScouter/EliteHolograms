@@ -17,6 +17,7 @@
 ### Fixed
 
 * **Scoreboard holograms did not keep their background settings.** Boards persist to their own `scoreboard_holograms.json` rather than to `holograms.json`, and the Forge 1.20.1 and Fabric editions never wrote the background colour and opacity there, so a restyled board reverted to 25% black on restart. All editions now persist the full set - background, scale, brightness, billboard and click command - for scoreboard holograms as well as regular ones
+* **`/eh movevertical` could be run by any player on Forge 1.20.1 and Fabric.** Every other subcommand declares the permission node it needs when its brigadier literal is built, but `movevertical` was registered and given arguments without ever being added to that chain, and its handler class carried no check of its own. The only gate left was the one on the base `/eh` literal, which is `eliteholograms.list` - a node every user of the mod needs - so anyone who could run `/eh` at all could move any hologram vertically. It now requires `eliteholograms.edit` like the rest of the editing commands, which is what the documentation already described. The Forge 1.19.2 and all three NeoForge editions build their commands differently and were never affected
 
 ### Notes
 
@@ -24,6 +25,7 @@
 * **`/eh click <id> console ...` requires the admin permission**, not the edit permission that covers the rest of the command. Running a click command elevated would otherwise let anyone who can edit holograms hand themselves operator commands through a sign
 * Click hitboxes are real entities, so they are saved with the chunk. They are removed on shutdown, and any left behind by a crash are swept on the next startup, so they cannot accumulate
 * Forge 1.19.2 is unaffected by all of this - it has no text displays, so there is nothing to scale, light, turn or click
+* The Forge 1.20.1 and Fabric command builders now **fail closed**: a subcommand that reaches the end of the permission chain without naming a node defaults to requiring `eliteholograms.admin` rather than inheriting only the base `/eh` check. That is the bug class `movevertical` fell into, and this makes it impossible to reintroduce by omission
 
 ## All Editions - 1.2.1 - Hologram backgrounds & Forge 1.19.2 command parity - 2026-09-06
 

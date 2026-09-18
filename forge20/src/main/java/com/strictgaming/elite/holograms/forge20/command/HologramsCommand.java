@@ -134,7 +134,8 @@ public class HologramsCommand {
             } else if (name.equals("near")) {
                 subCommand.requires(UtilPermissions::canNear);
             } else if (name.equals("addline") || name.equals("setline") || name.equals("insertline") || 
-                       name.equals("removeline") || name.equals("movehere") || name.equals("moveto") || name.equals("animateline")) {
+                       name.equals("removeline") || name.equals("movehere") || name.equals("moveto") || 
+                       name.equals("movevertical") || name.equals("animateline")) {
                 subCommand.requires(UtilPermissions::canEdit);
             } else if (name.equals("copy")) {
                 subCommand.requires(UtilPermissions::canCreate); // Copy requires create permission
@@ -144,6 +145,14 @@ public class HologramsCommand {
                     || name.equals("display") || name.equals("click")) {
                 subCommand.requires(UtilPermissions::canEdit);
             } else if (name.equals("reload")) {
+                subCommand.requires(UtilPermissions::canAdmin);
+            } else {
+                // Every subcommand above names its own node, so anything reaching here was
+                // added without one. Defaulting to admin fails closed: a new command is
+                // locked down until it is listed, rather than silently inheriting only the
+                // base /eh check and becoming usable by anyone who can run the mod at all.
+                // That is how movevertical went unguarded - it was registered and given
+                // arguments, but never added to this chain.
                 subCommand.requires(UtilPermissions::canAdmin);
             }
             
