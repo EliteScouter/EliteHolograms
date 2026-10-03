@@ -1,6 +1,6 @@
 # Elite Holograms
 
-A lightweight and powerful Minecraft mod for creating and managing holographic displays in-game. Inspired by AdvancedHolograms, Elite Holograms runs on Forge, Fabric, and NeoForge across six editions with a shared feature set and command set.
+A lightweight and powerful Minecraft mod for creating and managing holographic displays in-game. Inspired by AdvancedHolograms, Elite Holograms runs on Forge, Fabric, and NeoForge across seven editions with a shared feature set and command set.
 
 It is server-side only: players join with a vanilla client and still see everything. It also works standalone in single-player worlds and modpacks.
 
@@ -32,11 +32,12 @@ Full documentation is available in the [Wiki](https://github.com/EliteScouter/El
 | `forge19` | 1.19.2 | Forge | 43 | 17 | `1.19.2-1.2.0` |
 | `forge20` | 1.20.1 | Forge | 47 | 17 | `1.20.1-1.2.0` |
 | `fabric20` | 1.20.1 | Fabric | Loader 0.15.0 | 17 | `1.20.1-1.2.0` |
+| `fabric21` | 1.21.1 | Fabric | Loader 0.16.0 | 21 | `1.21.1-1.2.0` |
 | `neo21` | 1.21.1 | NeoForge | 21.1.0 | 21 | `1.21.1-1.2.0` |
 | `neo26` | 26.1.2 | NeoForge | 26.1.2.30-beta | 25 | `26.1.2-1.2.0` |
 | `neo262` | 26.2 | NeoForge | 26.2.0.57 | 25 | `26.2-1.2.0` |
 
-The **Fabric edition requires [Fabric API](https://modrinth.com/mod/fabric-api)**. The Forge and NeoForge editions have no additional dependencies.
+The **Fabric editions require [Fabric API](https://modrinth.com/mod/fabric-api)**. The Forge and NeoForge editions have no additional dependencies.
 
 All editions share the same config format and command set, so a world can move between them without converting anything. The one exception is fixed holograms, which need Minecraft 1.20.1 or newer (see the note below).
 
@@ -219,7 +220,7 @@ For a detailed guide on setting up permissions, please see `PERMISSIONS.md`.
 
 1. Download the build matching your loader and Minecraft version from [CurseForge](https://www.curseforge.com/minecraft/mc-mods/elite-holograms) or [Modrinth](https://modrinth.com/mod/elite-holograms).
 2. Place the JAR file in your `mods` folder. A dedicated server, a single-player instance, and a modpack all work the same way.
-3. **Fabric only:** also install [Fabric API](https://modrinth.com/mod/fabric-api). The Fabric edition will not load without it.
+3. **Fabric only:** also install [Fabric API](https://modrinth.com/mod/fabric-api). The Fabric editions will not load without it.
 4. *(Optional)* Install LuckPerms or FTB Ranks for granular permissions on a server.
 5. Restart the server or launch the game.
 6. Use `/eh create` to start creating holograms!
@@ -233,12 +234,13 @@ The root Gradle build covers `api`, `forge19`, and `forge20`:
 ```
 
 The Fabric and NeoForge editions are standalone Gradle builds with their own wrappers, because they
-need different Gradle and JDK versions (Loom 1.7.x pins `fabric20` to Gradle 8.8 exactly, and the
+need different Gradle and JDK versions (Loom 1.7.x pins `fabric20` and `fabric21` to Gradle 8.8 exactly, and the
 26.x editions target Java 25). Build each from its own directory, for example:
 
 ```
 cd neo262 && ./gradlew build
 cd fabric20 && ./gradlew build
+cd fabric21 && ./gradlew build
 ```
 
 Output jars land in each module's `build/libs`. Use the unclassified jar; the `-slim` variant is the

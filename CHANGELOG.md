@@ -1,5 +1,15 @@
 # Changelog
 
+## Fabric 1.21.1 - 1.2.0 - New edition - 2026-10-03
+
+### Added
+
+* **New Fabric 1.21.1 edition** (`fabric21`). A port of the Fabric 1.20.1 edition to Minecraft 1.21.1 on Java 21, with the same feature set as the Fabric 1.20.1 and NeoForge 1.21.1 editions - holograms, fixed holograms, item holograms, animated lines, scoreboard leaderboards, themes, backlights, placeholders and every command. It requires Fabric API, is server-side only, and reads the same `config/elite-holograms` files, so a world can move between the 1.20.1 and 1.21.1 Fabric editions or from NeoForge 1.21.1 without converting anything. Permissions work through LuckPerms, falling back to operator level 2
+
+### Notes
+
+* Built standalone like `fabric20` (Gradle 8.8, Loom 1.7.4, Mojang mappings). The bundled Adventure library is relocated under the mod's own package so it cannot clash with other mods that ship Adventure
+
 ## Forge 1.19.2 - 1.2.1 - Command parity - 2026-08-28
 
 ### Fixed

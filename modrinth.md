@@ -2,15 +2,17 @@
 
 **Elite Holograms** is a lightweight, server-side or single-player Minecraft mod for creating, managing, and customizing floating text (holograms). Perfect for server info, leaderboards, waypoints, dynamic stats, instructions, and decorative text.
 
-Inspired by Advanced Holograms. Supports Forge (1.19.2, 1.20.1), Fabric (1.20.1), and NeoForge (1.21.1, 26.1, 26.2).
+Inspired by Advanced Holograms. Supports Forge (1.19.2, 1.20.1), Fabric (1.20.1, 1.21.1), and NeoForge (1.21.1, 26.1, 26.2).
 
-The Fabric build requires **Fabric API**. The Forge and NeoForge builds need nothing extra.
+The Fabric builds require **Fabric API**. The Forge and NeoForge builds need nothing extra.
 
 For full details, see the [Wiki](https://github.com/EliteScouter/EliteHolograms/wiki).
 
 ## New in 1.2.0
 
 *   **Fabric 1.20.1 edition** – Elite Holograms now runs on Fabric with the same feature set as the Forge 1.20.1 build: holograms, fixed holograms, item holograms, animated lines, scoreboard leaderboards, themes, backlights, placeholders, and every command. It requires Fabric API, is server-side only, and reads the same hologram config format, so a world can move between the Forge and Fabric builds without converting anything.
+
+*   **Fabric 1.21.1 edition** – The same Fabric build, now also for Minecraft 1.21.1 on Java 21. Identical features and commands to the Fabric 1.20.1 and NeoForge 1.21.1 builds, requires Fabric API, and reads the same config files.
 
 *   **NeoForge 26.2 edition** – Full feature parity on Minecraft 26.2, built against NeoForge 26.2.0.57 on Java 25.
 
@@ -62,7 +64,7 @@ For full details, see the [Wiki](https://github.com/EliteScouter/EliteHolograms/
 
 *   **Performance-Optimized** – Separate manager thread, graceful shutdown, minimal overhead.
 
-*   **Cross-Platform & Server-Side Only** – Forge 1.19.2, Forge 1.20.1, Fabric 1.20.1, NeoForge 1.21.1, NeoForge 26.1, and NeoForge 26.2. Players join with a vanilla client, and the mod also works on its own in single-player.
+*   **Cross-Platform & Server-Side Only** – Forge 1.19.2, Forge 1.20.1, Fabric 1.20.1, Fabric 1.21.1, NeoForge 1.21.1, NeoForge 26.1, and NeoForge 26.2. Players join with a vanilla client, and the mod also works on its own in single-player.
 
 ## Quick Command Reference
 
@@ -144,7 +146,7 @@ No external API needed. Placeholders update in real time, including per-viewer p
 
 2.  Drop the JAR into your `mods` folder. Your single-player instance, modpack, or server all work the same way.
 
-3.  **Fabric only:** also install Fabric API. The Fabric build will not load without it.
+3.  **Fabric only:** also install Fabric API. The Fabric builds will not load without it.
 
 4.  *(Optional)* Install LuckPerms or FTB Ranks for granular permissions on a server.
 
@@ -156,4 +158,4 @@ No external API needed. Placeholders update in real time, including per-viewer p
 
 ![Elite Holograms in action](https://media.forgecdn.net/attachments/description/1245528/description_8c6f023a-5b8a-4470-bb65-8b75075a540a.png)
 
-Designed for Forge 1.19.2 / 1.20.1, Fabric 1.20.1, and NeoForge 1.21.1 / 26.1 / 26.2.
+Designed for Forge 1.19.2 / 1.20.1, Fabric 1.20.1 / 1.21.1, and NeoForge 1.21.1 / 26.1 / 26.2.
