@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.Optional;
 
 /**
- * /eh settheme <id> <theme> - restyles an existing scoreboard hologram with a different theme.
+ * /eh settheme <id> <theme> restyles an existing scoreboard hologram with a different theme.
  */
 public class HologramsSetThemeCommand implements HologramsCommand.SubCommand, Command<CommandSourceStack> {
 

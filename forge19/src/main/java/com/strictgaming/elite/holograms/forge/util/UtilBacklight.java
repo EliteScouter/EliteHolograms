@@ -71,8 +71,8 @@ public final class UtilBacklight {
     /**
      * Places a vertical column of invisible light blocks. The column begins at
      * the ground directly below {@code bottomY} (found by scanning) and is made
-     * tall enough to cover the whole hologram - from the ground up through
-     * {@code topY} (the top line) - using {@code height} as a minimum so larger
+     * tall enough to cover the whole hologram, from the ground up through
+     * {@code topY} (the top line), using {@code height} as a minimum so larger
      * values extend the column further up. Cells already holding solid world
      * content are skipped so the column never clobbers player builds.
      *
@@ -185,7 +185,7 @@ public final class UtilBacklight {
 
     /**
      * @return {@code true} if {@code state} is air, water, or an existing light
-     * block - i.e. something the backlight may freely overwrite.
+     * block, i.e. something the backlight may freely overwrite.
      */
     private static boolean isReplaceable(BlockState state) {
         return state.isAir()

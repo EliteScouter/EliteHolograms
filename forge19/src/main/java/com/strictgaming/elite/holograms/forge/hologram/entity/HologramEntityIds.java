@@ -7,8 +7,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * players.
  *
  * <p>The IDs sit far below anything the server itself allocates so they cannot collide with
- * real entities. A single counter is used across every hologram entity type - text lines and
- * item stands - because separate per-class counters eventually walk into each other: the line
+ * real entities. A single counter is used across every hologram entity type (text lines and
+ * item stands), because separate per-class counters eventually walk into each other: the line
  * counter started at {@code -1000} and the item stand counter at {@code -5000}, so a world with
  * more than four thousand hologram lines would hand the same ID to both, making the client
  * apply one entity's data to the other.

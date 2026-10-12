@@ -9,12 +9,12 @@ package com.strictgaming.elite.holograms.neo21.config;
  *
  * <p>Supported tokens:</p>
  * <ul>
- *     <li>{@code {objective}} - the objective name (header)</li>
- *     <li>{@code {count}} - the configured top count (header)</li>
- *     <li>{@code {rank}} - the player's position, 1-based (player rows)</li>
- *     <li>{@code {player}} - the player's name (player rows)</li>
- *     <li>{@code {score}} - the raw score value (player rows)</li>
- *     <li>{@code {time}} - the score formatted as a duration, for time-based objectives (player rows)</li>
+ *     <li>{@code {objective}}: the objective name (header)</li>
+ *     <li>{@code {count}}: the configured top count (header)</li>
+ *     <li>{@code {rank}}: the player's position, 1-based (player rows)</li>
+ *     <li>{@code {player}}: the player's name (player rows)</li>
+ *     <li>{@code {score}}: the raw score value (player rows)</li>
+ *     <li>{@code {time}}: the score formatted as a duration, for time-based objectives (player rows)</li>
  * </ul>
  */
 public class ScoreboardTheme {

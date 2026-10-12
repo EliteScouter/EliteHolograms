@@ -158,7 +158,7 @@ public interface HologramLineRenderer {
 
     /**
      * Sets how this line turns towards the viewer. No-op for backings with no choice in the
-     * matter - a nameplate always faces the camera.
+     * matter: a nameplate always faces the camera.
      *
      * @param billboard the billboard constraint to apply
      */

@@ -6,7 +6,7 @@ import net.minecraft.server.permissions.Permissions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-// LuckPerms API imports (optional - will be available if LuckPerms is installed)
+// LuckPerms API imports (optional, available when LuckPerms is installed)
 import net.luckperms.api.LuckPerms;
 import net.luckperms.api.LuckPermsProvider;
 import net.luckperms.api.model.user.User;
@@ -98,18 +98,18 @@ public class UtilPermissions {
         
         if (isLuckPermsActuallyLoaded()) {
             permissionSystemDetected = true;
-            LOGGER.info("LuckPerms detected and loaded - using permission nodes");
+            LOGGER.info("LuckPerms detected and loaded, using permission nodes");
             return;
         }
 
         try {
             Class.forName("dev.ftb.mods.ftbranks.api.FTBRanksAPI");
             permissionSystemDetected = true;
-            LOGGER.info("FTB Ranks detected - using permission nodes");
+            LOGGER.info("FTB Ranks detected, using permission nodes");
             return;
         } catch (ClassNotFoundException ignored) {}
         
-        LOGGER.info("No permission system detected - using OP fallback");
+        LOGGER.info("No permission system detected, using OP fallback");
         permissionSystemDetected = false;
     }
 

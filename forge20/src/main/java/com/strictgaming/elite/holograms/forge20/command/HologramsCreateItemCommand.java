@@ -18,7 +18,7 @@ public class HologramsCreateItemCommand {
     }
 
     /**
-     * Execute the command with an explicit display type. Only the text lines honour it - the
+     * Execute the command with an explicit display type. Only the text lines honour it; the
      * floating item is an armor stand head slot and renders the same either way.
      */
     public int executeCommand(CommandContext<CommandSourceStack> context, String[] args,

@@ -111,10 +111,10 @@ public class UtilPlaceholder {
             // Replace %tps% with server TPS (approximation)
             if (result.contains("%tps%")) {
                 try {
-                    // Try to get TPS - this might not be available in all versions
+                    // Try to get TPS, which might not be available in all versions
                     double tps = 20.0; // Default fallback
                     
-                    // Simple approach - if server is running smoothly, assume 20 TPS
+                    // Simple approach: if the server is running smoothly, assume 20 TPS
                     // In practice, you'd need more sophisticated TPS tracking
                     result = result.replace("%tps%", String.format("%.1f", tps));
                 } catch (Exception e) {

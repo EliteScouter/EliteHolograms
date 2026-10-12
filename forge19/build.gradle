@@ -4,7 +4,7 @@ buildscript {
         maven { url = 'https://maven.minecraftforge.net/' }
     }
     dependencies {
-        // Pin version — dynamic 5.1.+ can hang forever resolving maven metadata
+        // Pin version: dynamic 5.1.+ can hang forever resolving maven metadata
         classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '5.1.77'
     }
 }
@@ -82,10 +82,10 @@ dependencies {
     // Core dependencies that will be included in the JAR
     compileOnly group: 'org.spongepowered', name: 'configurate-yaml', version: '4.0.0'
     
-    // GSON is already provided by Forge - don't embed
+    // GSON is already provided by Forge, so don't embed it
     compileOnly group: 'com.google.code.gson', name: 'gson', version: '2.10.1'
     
-    // Permission system APIs (compileOnly - they're provided by the server)
+    // Permission system APIs (compileOnly, since the server provides them)
     compileOnly 'net.luckperms:api:5.4'
     
     // Adventure MiniMessage for gradient text support (with transitive dependency exclusions)
@@ -167,7 +167,7 @@ shadowJar {
     }
 }
 
-// Regular jar task - not used but kept for compatibility
+// Regular jar task, not used but kept for compatibility
 jar {
     archiveClassifier = 'slim'
     manifest {
@@ -182,7 +182,7 @@ jar {
     }
 }
 
-// Fix reobf dependency - use shadowJar output
+// Fix reobf dependency to use the shadowJar output
 reobf {
     shadowJar {}
 }
