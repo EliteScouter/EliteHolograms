@@ -82,6 +82,13 @@ shadowJar {
     }
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
+    // Fabric mods share one classpath, so an unrelocated copy of Adventure can be loaded in
+    // place of another mod's newer one and crash it with a NoSuchMethodError. Moving ours
+    // under the mod's own package keeps the two apart. mergeServiceFiles rewrites the
+    // META-INF/services entries to match, which Adventure needs to find its JSON
+    // serializer at runtime. Found and fixed in the Fabric 1.21.1 port by b0hle (#15).
+    relocate 'net.kyori', 'com.strictgaming.elite.holograms.libs.net.kyori'
+    mergeServiceFiles()
     // Nothing here is a Fabric mod, so drop any stray module metadata.
     exclude 'META-INF/maven/**'
     exclude 'META-INF/*.SF'
