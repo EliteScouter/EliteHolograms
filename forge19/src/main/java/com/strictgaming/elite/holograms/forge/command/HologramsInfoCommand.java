@@ -59,7 +59,7 @@ public class HologramsInfoCommand implements Command<CommandSourceStack> {
         ForgeHologram forgeHologram = (ForgeHologram) hologram;
         Vec3 position = forgeHologram.getPosition();
         
-        // Display hologram information with updated styling - without right borders
+        // Display hologram information with updated styling, without right borders
         source.sendSystemMessage(UtilChatColour.parse("&3&l┌─ &b&lHologram Information: &f" + id + " &3&l──────────┐"));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &bWorld: &f" + UtilWorld.getName(forgeHologram.getWorld())));
         source.sendSystemMessage(UtilChatColour.parse("&3│ &bPosition: &f" + 

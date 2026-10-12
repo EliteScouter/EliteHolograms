@@ -5,7 +5,7 @@ buildscript {
         maven { url = 'https://plugins.gradle.org/m2/' }
     }
     dependencies {
-        // Pin version — dynamic 5.1.+ can hang forever resolving maven metadata
+        // Pin version: dynamic 5.1.+ can hang forever resolving maven metadata
         classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '5.1.77'
     }
 }
@@ -77,7 +77,7 @@ configurations {
     embed
     implementation.extendsFrom(embed)
     // Dev runs load classes through Forge's module layers, which only see libraries added
-    // this way - so without it runServer fails on the first class from the api module or
+    // this way, so without it runServer fails on the first class from the api module or
     // Adventure. The release jar bundles them itself through shadowJar and is unaffected.
     minecraftLibrary.extendsFrom(embed)
 }
@@ -89,7 +89,7 @@ dependencies {
     // Core dependencies that will be included in the JAR
     compileOnly group: 'org.spongepowered', name: 'configurate-yaml', version: '4.0.0'
     
-    // GSON is already provided by Forge - use 'implementation' instead of 'embed'
+    // GSON is already provided by Forge, so use 'implementation' instead of 'embed'
     implementation group: 'com.google.code.gson', name: 'gson', version: '2.10.1'
     
     // Exclude GSON from Adventure to prevent conflicts
@@ -106,7 +106,7 @@ dependencies {
         exclude group: 'com.google.code.gson', module: 'gson'
     }
     
-    // Permission system APIs (compileOnly - they're provided by the server)
+    // Permission system APIs (compileOnly, since the server provides them)
     compileOnly 'net.luckperms:api:5.4'
     
     // Our own API module
@@ -161,7 +161,7 @@ shadowJar {
     }
 }
 
-// Regular jar task - not used but kept for compatibility
+// Regular jar task, not used but kept for compatibility
 jar {
     archiveClassifier = 'slim'
     manifest {
@@ -176,7 +176,7 @@ jar {
     }
 }
 
-// Fix reobf dependency - use shadowJar output
+// Fix reobf dependency to use the shadowJar output
 reobf {
     shadowJar {}
 }

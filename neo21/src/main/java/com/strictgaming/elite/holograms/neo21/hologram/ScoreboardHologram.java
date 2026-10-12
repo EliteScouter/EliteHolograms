@@ -286,7 +286,7 @@ public class ScoreboardHologram extends NeoForgeHologram {
             }
         }
 
-        // Update display without saving — scoreboard lines are computed, not user content.
+        // Update display without saving. Scoreboard lines are computed, not user content.
         // The scoreboard config is saved separately by HologramManager.
         updateHologramContentNoSave(() -> {
             getLinesContentInternal().clear();

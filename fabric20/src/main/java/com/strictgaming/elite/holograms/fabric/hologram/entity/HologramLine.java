@@ -49,7 +49,7 @@ public class HologramLine implements HologramLineRenderer {
             // "marker", which does not exist in the 1.20.1 mappings (the flag lives in
             // DATA_CLIENT_FLAGS). That reflection failed on every line creation and,
             // with debug logging on, flooded the console with NoSuchFieldException
-            // stack traces - especially for scoreboard holograms, which rebuild every
+            // stack traces, especially for scoreboard holograms, which rebuild every
             // line on each refresh. Enabling marker would also drop the rendered name
             // by roughly the armor stand's height, breaking the existing line spacing,
             // so it is intentionally left off.
