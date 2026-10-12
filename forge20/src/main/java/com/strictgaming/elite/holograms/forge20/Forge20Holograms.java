@@ -120,7 +120,7 @@ public class Forge20Holograms implements PlatformHologramManager {
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        LOGGER.info("Server starting - initializing hologram manager");
+        LOGGER.info("Server starting, initializing hologram manager");
         
         try {
             this.config = new HologramsConfig();
@@ -141,23 +141,29 @@ public class Forge20Holograms implements PlatformHologramManager {
         try {
             Class.forName("com.envyful.papi.forge.ForgePlaceholderAPI");
             this.placeholders = true;
-            LOGGER.info("External Placeholder API found - placeholders enabled with external support");
+            LOGGER.info("External Placeholder API found, placeholders enabled with external support");
         } catch (ClassNotFoundException e) {
             this.placeholders = true; // Always enable our built-in placeholders
-            LOGGER.info("Using built-in placeholder system - placeholders enabled");
+            LOGGER.info("Using built-in placeholder system, placeholders enabled");
         }
     }
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
-        LOGGER.info("Server started - loading holograms");
+        LOGGER.info("Server started, loading holograms");
         
         // Initialize placeholder server start time for uptime tracking
         UtilPlaceholder.setServerStartTime();
 
-        // Before anything is spawned, clear click hitboxes a previous run left behind.
-        HologramManager.sweepOrphanedInteractions();
-        
+        // Before anything is spawned, clear click hitboxes a previous run left behind. Guarded
+        // on its own: if it threw, the load below would never run and nothing edited this
+        // session could be saved.
+        try {
+            HologramManager.sweepOrphanedInteractions();
+        } catch (Exception e) {
+            LOGGER.error("Error clearing leftover click hitboxes", e);
+        }
+
         try {
             HologramManager.load();
             LOGGER.info("Holograms loaded successfully");
@@ -177,7 +183,7 @@ public class Forge20Holograms implements PlatformHologramManager {
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
-        LOGGER.info("Server stopping - shutting down hologram manager");
+        LOGGER.info("Server stopping, shutting down hologram manager");
         
         // Stop the background thread first so it cannot mutate state during save
         HologramManager.shutdown();
@@ -199,6 +205,10 @@ public class Forge20Holograms implements PlatformHologramManager {
                 LOGGER.error("Error despawning hologram {} during shutdown: {}", hologram.getId(), e.getMessage());
             }
         }
+
+        // Everything is on disk. Refuse any save still queued from before, and let a
+        // single-player game open its next world with an empty registry.
+        HologramManager.close();
     }
 
     @SubscribeEvent
@@ -211,7 +221,7 @@ public class Forge20Holograms implements PlatformHologramManager {
     /**
      * Turns a right-click on a hologram hitbox into its configured command.
      *
-     * <p>The hitbox is a real entity, so this is an ordinary interaction event - no packet
+     * <p>The hitbox is a real entity, so this is an ordinary interaction event, with no packet
      * interception or mixin needed. Anything that is not one of ours falls straight through.
      */
     @SubscribeEvent

@@ -37,11 +37,14 @@ public class ForgeHologram implements Hologram {
     private Vec3 position;
     private int range;
 
-    private final List<HologramLine> lines = Lists.newArrayList();
+    // Read by the hologram manager thread and the async saver while the server thread edits
+    // it, so a plain list could throw mid-iteration, aborting that save, and leaving the
+    // edit on disk only once something else saved.
+    private final List<HologramLine> lines = new CopyOnWriteArrayList<>();
     private final List<UUID> nearbyPlayers = new CopyOnWriteArrayList<>();
     private long tickCount = 0;
 
-    // Backlight state - places invisible minecraft:light blocks at the hologram
+    // Backlight state: places invisible minecraft:light blocks at the hologram
     private boolean backlightEnabled = false;
     private int backlightLevel = UtilBacklight.DEFAULT_LEVEL;
     private transient List<BlockPos> backlightPositions = new ArrayList<>();
@@ -103,9 +106,16 @@ public class ForgeHologram implements Hologram {
         this.addLine(line, true);
     }
 
-    private void addLine(String line, boolean save) {
+    /**
+     * Appends a line, saving only when asked to.
+     *
+     * <p>Protected so a scoreboard board can re-render its computed lines without queuing a
+     * full save of every hologram for each one, on every score change.
+     */
+    protected void addLine(String line, boolean save) {
         if (!ServerLifecycleHooks.getCurrentServer().isSameThread()) {
-            UtilConcurrency.runSync(() -> this.addLine(line));
+            // Pass the flag through. This used to call addLine(line), which always saved.
+            UtilConcurrency.runSync(() -> this.addLine(line, save));
             return;
         }
 
@@ -374,7 +384,7 @@ public class ForgeHologram implements Hologram {
     public void refreshVisibility() {
         System.out.println("[EliteHolograms] Refreshing visibility for hologram: " + this.id);
         
-        // Clear the nearby players list - this will force the hologram manager
+        // Clear the nearby players list. This will force the hologram manager
         // to recalculate which players should see this hologram
         this.nearbyPlayers.clear();
         

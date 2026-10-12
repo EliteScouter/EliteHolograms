@@ -72,7 +72,7 @@ public class NeoForgeHologram implements Hologram {
     private int backgroundColour = DEFAULT_BACKGROUND_COLOUR;
     private int backgroundOpacity = DEFAULT_BACKGROUND_OPACITY;
 
-    // Text display presentation. Only meaningful on a fixed hologram - an armor stand
+    // Text display presentation. Only meaningful on a fixed hologram, since an armor stand
     // nameplate is drawn by the client at a fixed size, always facing the camera, and lit
     // by the world, none of which the server can override.
     private float scale = HologramTextDisplay.DEFAULT_SCALE;
@@ -93,7 +93,7 @@ public class NeoForgeHologram implements Hologram {
     private final List<UUID> nearbyPlayers = Collections.synchronizedList(new ArrayList<>());
     private boolean spawned = false;
 
-    // Backlight state - places invisible minecraft:light blocks at the hologram
+    // Backlight state: places invisible minecraft:light blocks at the hologram
     private boolean backlightEnabled = false;
     private int backlightLevel = UtilBacklight.DEFAULT_LEVEL;
     private List<BlockPos> backlightPositions = new ArrayList<>();
@@ -678,7 +678,7 @@ public class NeoForgeHologram implements Hologram {
         double textTop = this.y + TextDisplayHologramLine.textTopOffset();
         double bottomY = textTop - height;
 
-        // Width cannot be measured server-side - the font lives on the client - so this is
+        // Width cannot be measured server-side (the font lives on the client), so this is
         // a readable-looking box derived from the longest line, clamped so a very long line
         // does not produce a hitbox players bump into from across the room.
         double width = Math.max(1.0D, Math.min(8.0D, longestLineLength() * 0.11D * this.scale));
@@ -949,7 +949,12 @@ public class NeoForgeHologram implements Hologram {
                 return level;
             }
         }
-        return ServerLifecycleHooks.getCurrentServer().overworld();
+        // A named world that is not loaded, such as a modded dimension whose mod is gone. This
+        // used to fall back to the overworld, which placed the hologram's backlight blocks and
+        // click hitbox there at its coordinates, as real blocks and a real entity. Nobody can
+        // see the hologram anyway (visibility compares world names), so treat the world as
+        // absent. The name is kept and saved, and the hologram works again once it is back.
+        return null;
     }
 
     private void saveToConfig() {

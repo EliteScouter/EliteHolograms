@@ -106,7 +106,7 @@ public class ForgeHolograms {
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        LOGGER.info("Server starting - initializing hologram manager");
+        LOGGER.info("Server starting, initializing hologram manager");
         
         // Record server start time for uptime placeholder
         UtilPlaceholder.recordServerStart();
@@ -130,15 +130,15 @@ public class ForgeHolograms {
         
         try {
             Class.forName("com.envyful.papi.forge.ForgePlaceholderAPI");
-            LOGGER.info("External Placeholder API found - external placeholders also enabled");
+            LOGGER.info("External Placeholder API found, external placeholders also enabled");
         } catch (ClassNotFoundException e) {
-            LOGGER.info("External Placeholder API not found - using built-in placeholders only");
+            LOGGER.info("External Placeholder API not found, using built-in placeholders only");
         }
     }
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
-        LOGGER.info("Server started - loading holograms");
+        LOGGER.info("Server started, loading holograms");
         try {
             HologramManager.load();
             LOGGER.info("Holograms loaded successfully");
@@ -157,7 +157,7 @@ public class ForgeHolograms {
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
-        LOGGER.info("Server stopping - shutting down hologram manager");
+        LOGGER.info("Server stopping, shutting down hologram manager");
         
         // First shutdown the background thread to prevent interference
         HologramManager.shutdown();
@@ -179,6 +179,10 @@ public class ForgeHolograms {
                 LOGGER.error("Error despawning hologram {} during shutdown: {}", hologram.getId(), e.getMessage());
             }
         }
+
+        // Everything is on disk. Refuse any save still queued from before, and let a
+        // single-player game open its next world with an empty registry.
+        HologramManager.close();
     }
 
     @SubscribeEvent

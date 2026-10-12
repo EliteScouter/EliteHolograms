@@ -104,6 +104,10 @@ configurations {
     runtimeClasspath.extendsFrom localRuntime
     shadow
     implementation.extendsFrom shadow
+    // Dev runs load the mod's unshaded classes, so the bundled libraries have to be put on
+    // the run classpath separately - without this runServer fails on the first Adventure
+    // class. The release jar bundles them itself and is unaffected.
+    additionalRuntimeClasspath.extendsFrom shadow
 }
 
 dependencies {

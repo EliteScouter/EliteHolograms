@@ -59,7 +59,7 @@ public class TextDisplayHologramLine implements HologramLineRenderer {
      * How far above a line slot that line's text is actually drawn.
      *
      * <p>The backing entity sits at the slot, but the text renders a nameplate height
-     * above it - which is the whole point of {@link #textOffset(float)}. Anything that
+     * above it, which is the whole point of {@link #textOffset(float)}. Anything that
      * needs to line something up with the visible text, rather than with the entity, has
      * to add this. It does not vary with scale: the offset above shrinks as the scale
      * grows precisely so the text top stays put.
@@ -305,7 +305,7 @@ public class TextDisplayHologramLine implements HologramLineRenderer {
      * Changes this line's background colour.
      *
      * <p>The colour lives in the display's synched data rather than in the text payload, so
-     * viewers only see it after a settings snapshot - {@link #sendSettingsSnapshot(ServerPlayer)}.
+     * viewers only see it after a settings snapshot (see {@link #sendSettingsSnapshot(ServerPlayer)}).
      *
      * @param argb the packed ARGB background; alpha 0 hides the background entirely
      */

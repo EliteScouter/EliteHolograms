@@ -185,12 +185,16 @@ public class Neo21Holograms implements PlatformHologramManager {
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        LOGGER.info("Server starting - initializing hologram manager");
+        LOGGER.info("Server starting, initializing hologram manager");
         
         try {
+            // Only locate the file here. The holograms themselves are read once, by
+            // HologramManager.load() when the server has started, under the load lock and
+            // with saving suspended. Reading them here as well loaded everything twice, and
+            // the first pass ran without that protection: every hologram it built queued a
+            // save that could snapshot the registry half way through loading.
             this.config = new HologramsConfig();
-            this.config.load();
-            LOGGER.info("Config loaded successfully");
+            LOGGER.info("Config located successfully");
         } catch (IOException e) {
             LOGGER.error("Error loading config", e);
         }
@@ -286,22 +290,28 @@ public class Neo21Holograms implements PlatformHologramManager {
         try {
             Class.forName("com.envyful.papi.forge.ForgePlaceholderAPI");
             this.placeholders = true;
-            LOGGER.info("External Placeholder API found - placeholders enabled with external support");
+            LOGGER.info("External Placeholder API found, placeholders enabled with external support");
         } catch (ClassNotFoundException e) {
             this.placeholders = true; 
-            LOGGER.info("Using built-in placeholder system - placeholders enabled");
+            LOGGER.info("Using built-in placeholder system, placeholders enabled");
         }
     }
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
-        LOGGER.info("Server started - loading holograms");
+        LOGGER.info("Server started, loading holograms");
         com.strictgaming.elite.holograms.neo21.util.UtilPlaceholder.setServerStartTime();
         this.checkForPlaceholders();
+        // Before anything is spawned, clear click hitboxes a previous run left behind. Guarded
+        // on its own: if it threw, the load below would never run and nothing edited this
+        // session could be saved.
         try {
-            // Before anything is spawned, clear click hitboxes a previous run left behind.
             HologramManager.sweepOrphanedInteractions();
+        } catch (Exception e) {
+            LOGGER.error("Error clearing leftover click hitboxes", e);
+        }
 
+        try {
             HologramManager.load();
             LOGGER.info("Holograms loaded successfully");
         } catch (Exception e) {
@@ -315,7 +325,7 @@ public class Neo21Holograms implements PlatformHologramManager {
      * <p>This deliberately runs inline on the server thread. Despawning removes real
      * {@code minecraft:light} blocks from the world and sends packets to still-connected
      * players, neither of which is safe off the server thread, and {@link ServerStoppingEvent}
-     * fires before the world is saved - so the work has to complete here or the light blocks
+     * fires before the world is saved, so the work has to complete here or the light blocks
      * leak into the save file.
      *
      * <p>An earlier version handed this to two nested worker threads with join timeouts. Those
@@ -326,7 +336,7 @@ public class Neo21Holograms implements PlatformHologramManager {
     /**
      * Turns a right-click on a hologram hitbox into its configured command.
      *
-     * <p>The hitbox is a real entity, so this is an ordinary interaction event - no packet
+     * <p>The hitbox is a real entity, so this is an ordinary interaction event, with no packet
      * interception or mixin needed. Anything that is not one of ours falls straight through.
      */
     @SubscribeEvent
@@ -342,7 +352,7 @@ public class Neo21Holograms implements PlatformHologramManager {
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
-        LOGGER.info("Server stopping - despawning holograms and saving");
+        LOGGER.info("Server stopping, despawning holograms and saving");
 
         for (Hologram hologram : HologramManager.getHolograms().values()) {
             try {
@@ -361,6 +371,10 @@ public class Neo21Holograms implements PlatformHologramManager {
         } catch (Exception e) {
             LOGGER.error("Error saving holograms during shutdown", e);
         }
+
+        // Everything is on disk. Refuse any save still queued from before, and let a
+        // single-player game open its next world with an empty registry.
+        HologramManager.close();
     }
 
     @SubscribeEvent

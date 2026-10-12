@@ -89,15 +89,15 @@ public class HologramTextDisplay extends Display.TextDisplay {
      * Applies the display settings shared by every hologram line: a fixed billboard so the
      * text keeps the hologram's rotation, centred text, and no wrapping.
      *
-     * <p>The remaining vanilla defaults already match how a nameplate looks - 25% black
-     * background, no shadow, not see-through - so they are left alone.
+     * <p>The remaining vanilla defaults already match how a nameplate looks: 25% black
+     * background, no shadow, not see-through, so they are left alone.
      */
     public void applyHologramDefaults() {
         applySettings();
 
         // Resolve the text field now rather than lazily on the first packet build. Discovery
         // writes a probe value into this entity, and buildTextData is documented not to mutate
-        // it - doing the discovery there would leave the probe text sitting in the entity for
+        // it, and doing the discovery there would leave the probe text sitting in the entity for
         // the next viewer's spawn snapshot to pick up. Clearing it here also means a line whose
         // text is never set renders empty rather than showing the probe.
         setHologramText(Component.empty());
@@ -171,7 +171,7 @@ public class HologramTextDisplay extends Display.TextDisplay {
      *
      * <p>Every field is written every time on purpose. From 26.1 vanilla reads these with
      * {@code getIntOr}/{@code getByteOr}, which means a tag that omits a key resets that key to
-     * its default rather than leaving it alone - so a partial write here would silently wipe a
+     * its default rather than leaving it alone, so a partial write here would silently wipe a
      * custom background. Writing the full state keeps the behaviour identical on 1.21.1, where
      * the same read is conditional on the key being present.
      */
@@ -190,8 +190,8 @@ public class HologramTextDisplay extends Display.TextDisplay {
         tag.putInt("background", this.backgroundArgb);
         tag.put("transformation", buildTransformationTag());
 
-        // Brightness is the one setting vanilla models as "absent means no override" - it
-        // explicitly nulls the override when the key is missing - so auto is written by
+        // Brightness is the one setting vanilla models as "absent means no override" (it
+        // explicitly nulls the override when the key is missing), so auto is written by
         // leaving the key out rather than by writing a value.
         if (this.brightness != BRIGHTNESS_AUTO) {
             CompoundTag light = new CompoundTag();
@@ -292,7 +292,7 @@ public class HologramTextDisplay extends Display.TextDisplay {
      * <p>The field defaults to an empty component, so it only shows up in
      * {@link SynchedEntityData#getNonDefaultValues()} once something has been written to it.
      * A probe value is written through the save-data path, then the single entry using the
-     * component serializer is picked out - on a text display, the text is the only such field.
+     * component serializer is picked out: on a text display, the text is the only such field.
      */
     private EntityDataAccessor<Component> discoverTextAccessor() {
         // Built from the full settings tag so the probe write cannot reset any other field.
@@ -314,7 +314,7 @@ public class HologramTextDisplay extends Display.TextDisplay {
             }
         }
 
-        LOGGER.error("Could not resolve the text display text field - fixed holograms will render blank. "
+        LOGGER.error("Could not resolve the text display text field, so fixed holograms will render blank. "
                 + "This build of Elite Holograms may not match the running Minecraft version.");
         return null;
     }

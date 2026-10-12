@@ -151,7 +151,7 @@ public class HologramsCommand {
                 // added without one. Defaulting to admin fails closed: a new command is
                 // locked down until it is listed, rather than silently inheriting only the
                 // base /eh check and becoming usable by anyone who can run the mod at all.
-                // That is how movevertical went unguarded - it was registered and given
+                // That is how movevertical went unguarded: it was registered and given
                 // arguments, but never added to this chain.
                 subCommand.requires(UtilPermissions::canAdmin);
             }
@@ -727,7 +727,7 @@ public class HologramsCommand {
             LOGGER.debug("Available commands: {}", String.join(", ", subCommands.keySet()));
         }
         
-        // Clean the name - standard formatting for our commands
+        // Clean the name using the standard formatting for our commands
         String cleanName = name.toLowerCase().trim();
         
         // Try to find the command with different name formats

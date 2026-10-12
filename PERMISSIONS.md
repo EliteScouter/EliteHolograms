@@ -1,4 +1,4 @@
-# EliteHolograms - Permission System
+# EliteHolograms Permission System
 
 EliteHolograms supports modern permission systems like **LuckPerms** and **FTB Ranks**, with automatic fallback to vanilla OP system.
 
@@ -29,8 +29,8 @@ EliteHolograms supports modern permission systems like **LuckPerms** and **FTB R
 > `/eh click <id> console <command>` deliberately requires `eliteholograms.admin` rather than
 > `eliteholograms.edit`, because it runs its command with server permissions. If it used the edit
 > node, anyone trusted to write hologram text could attach `op <themselves>` to a hologram and
-> click it. `/eh click <id> set` is the safe form - it runs as the clicking player, with only
-> that player's own permissions - and stays on the edit node.
+> click it. `/eh click <id> set` is the safe form: it runs as the clicking player, with only
+> that player's own permissions, and stays on the edit node.
 
 ## Permission Groups (Recommended)
 
@@ -127,10 +127,10 @@ Console/Command blocks always have **full access** regardless of permission sett
 
 ## Supported Permission Systems
 
-- ✅ **LuckPerms** - Full support
-- ✅ **FTB Ranks** - Full support  
-- ✅ **Vanilla OP** - Fallback support
-- 🔄 **Other systems** - Can be added upon request
+- **LuckPerms:** full support
+- **FTB Ranks:** full support  
+- **Vanilla OP:** fallback support
+- **Other systems:** can be added on request
 
 ## Migration
 
@@ -141,4 +141,4 @@ Console/Command blocks always have **full access** regardless of permission sett
 4. Remove OP from players who should only have limited access
 
 ### Security Note
-Permission nodes provide **granular control** - much safer than giving full OP access! 
+Permission nodes provide **granular control**, which is much safer than giving full OP access. 

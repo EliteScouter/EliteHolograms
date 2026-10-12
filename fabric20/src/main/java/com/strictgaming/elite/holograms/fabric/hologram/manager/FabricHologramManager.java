@@ -34,9 +34,15 @@ public class FabricHologramManager implements PlatformHologramManager {
     @Override
     public void reload() throws IOException {
         try {
-            // Save synchronously under SAVE_LOAD_LOCK before clearing/reloading.
-            // Async saves that read HOLOGRAMS after clear() used to write [] and wipe the file.
-            HologramManager.saveSync();
+            // Flush memory to disk first so nothing edited in game is lost, unless a file was
+            // edited by hand, in which case flushing would overwrite the very edit this reload
+            // is meant to pick up. Every in-game edit is already saved as it happens, so
+            // skipping the flush then costs nothing.
+            if (HologramManager.storesChangedOnDisk()) {
+                LOGGER.info("Hologram files were edited outside the game, loading those edits");
+            } else {
+                HologramManager.saveSync();
+            }
 
             FabricHolograms.getInstance().getConfig().load();
             // load() despawns, clears, and reloads from disk under the same lock

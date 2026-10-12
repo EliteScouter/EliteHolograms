@@ -123,7 +123,7 @@ public interface HologramLineRenderer {
     }
     /**
      * Sets the background colour of this line. No-op for backings whose background the server
-     * cannot control - an armor stand nameplate is drawn with the viewer's own chat background
+     * cannot control: an armor stand nameplate is drawn with the viewer's own chat background
      * opacity, which is a client setting.
      *
      * @param argb the packed ARGB background; alpha 0 hides the background entirely
@@ -140,7 +140,7 @@ public interface HologramLineRenderer {
     default void sendSettingsSnapshot(ServerPlayer player) {
     }
     /**
-     * Resizes this line. No-op for backings that cannot be scaled - an armor stand nameplate is
+     * Resizes this line. No-op for backings that cannot be scaled, such as an armor stand nameplate is
      * always drawn at a fixed size by the client.
      *
      * @param scale the uniform scale; 1.0 is the natural size

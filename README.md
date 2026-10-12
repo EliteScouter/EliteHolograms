@@ -10,19 +10,19 @@ It is server-side only: players join with a vanilla client and still see everyth
 - Manage multiple lines (add, insert, remove, set).
 - Position control (create at your location or at explicit coordinates, teleport to holograms).
 - Move holograms vertically with precise offsets (e.g., up/down 1.5 blocks).
-- **Fixed and player-facing display types** - anchor a hologram to a yaw and pitch so it reads like a wall sign, or let it turn to face each viewer (the default).
-- **Backlights** - light a hologram with a column of invisible full-bright `minecraft:light` blocks so it stays readable at night, without overwriting player builds.
-- **Clickable holograms** - run a command when a player right-clicks a hologram, as the player or as the console. Works on both display types.
-- **Display settings for fixed holograms** - scale the text, light it to any brightness without placing blocks, and choose how it turns towards the viewer.
-- **Configurable background panel** - recolour the box behind a fixed hologram's text, change how solid it is, or remove it entirely.
-- **Scoreboard holograms** - display top players from any scoreboard objective, with named themes for styling.
+- **Fixed and player-facing display types:** anchor a hologram to a yaw and pitch so it reads like a wall sign, or let it turn to face each viewer (the default).
+- **Backlights:** light a hologram with a column of invisible full-bright `minecraft:light` blocks so it stays readable at night, without overwriting player builds.
+- **Clickable holograms:** run a command when a player right-clicks a hologram, as the player or as the console. Works on both display types.
+- **Display settings for fixed holograms:** scale the text, light it to any brightness without placing blocks, and choose how it turns towards the viewer.
+- **Configurable background panel:** recolour the box behind a fixed hologram's text, change how solid it is, or remove it entirely.
+- **Scoreboard holograms:** display top players from any scoreboard objective, with named themes for styling.
 - **Comprehensive built-in placeholder system** with server and player-specific variables, including `%player_rank%`.
 - **Advanced permission system** with support for LuckPerms, FTB Ranks, or operator (OP level 2) fallback.
 - Easy-to-use commands with **tab completion** and intuitive syntax.
 - Performance optimized for servers with **proper shutdown handling** and efficient hologram rendering.
-- **Rich text formatting** - RGB gradients, hex colors, and rainbows using MiniMessage, plus legacy `&` codes.
-- **Animations** - cycle text lines with custom intervals.
-- **Item displays** - show floating items with text.
+- **Rich text formatting:** RGB gradients, hex colors, and rainbows using MiniMessage, plus legacy `&` codes.
+- **Animations:** cycle text lines with custom intervals.
+- **Item displays:** show floating items with text.
 
 ## Documentation
 
@@ -50,23 +50,23 @@ Elite Holograms includes a built-in placeholder system that updates in real-time
 ### Server Placeholders
 
 These show the same information for all players:
-- `%players%` - Current online player count.
-- `%maxplayers%` - Server maximum players.
-- `%tps%` - Server TPS (Ticks Per Second).
-- `%uptime%` - Server uptime in HH:MM:SS format.
-- `%memory%` - Memory usage in "used/max MB (percentage%)" format.
-- `%server_time%` - Real world time in HH:MM:SS format.
+- `%players%`: Current online player count.
+- `%maxplayers%`: Server maximum players.
+- `%tps%`: Server TPS (Ticks Per Second).
+- `%uptime%`: Server uptime in HH:MM:SS format.
+- `%memory%`: Memory usage in "used/max MB (percentage%)" format.
+- `%server_time%`: Real world time in HH:MM:SS format.
 
 ### Player-Specific Placeholders
 
 These show different information for each player viewing the hologram:
-- `%player%` - Player's display name.
-- `%player_rank%` - Player's rank (from LuckPerms/FTB Ranks, or "OP"/"Player").
-- `%player_health%` - Current/max health (e.g., "20.0/20.0").
-- `%player_level%` - Experience level.
-- `%player_world%` - World name (Overworld/Nether/End/custom).
-- `%player_coords%` - X, Y, Z coordinates.
-- `%player_gamemode%` - Game mode (Creative/Survival/Adventure/Spectator).
+- `%player%`: Player's display name.
+- `%player_rank%`: Player's rank (from LuckPerms/FTB Ranks, or "OP"/"Player").
+- `%player_health%`: Current/max health (e.g., "20.0/20.0").
+- `%player_level%`: Experience level.
+- `%player_world%`: World name (Overworld/Nether/End/custom).
+- `%player_coords%`: X, Y, Z coordinates.
+- `%player_gamemode%`: Game mode (Creative/Survival/Adventure/Spectator).
 
 ### Example Usage
 
@@ -108,19 +108,21 @@ These show different information for each player viewing the hologram:
 | `/eh click <id> <set\|console <command>\|none>` | Run a command when a player clicks the hologram | `.edit` (`.admin` for `console`) |
 | `/eh backlight <id> <on\|off\|toggle> [height 1-10]` | Light a hologram with a column of invisible light blocks | `.backlight` |
 | `/eh teleport <id>`         | Teleport to a hologram                       | `.teleport`            |
-| `/eh reload`                | Reload holograms and scoreboard themes from storage | `.admin`        |
+| `/eh reload`                | Reload holograms and scoreboard themes from storage, including hand edits to the files | `.admin` |
 
 All commands support **tab completion** for hologram IDs and relevant parameters. The base permission is `eliteholograms`. For example, to use `/eh create`, a player would need `eliteholograms.create`.
 
 Note that the base `/eh` literal itself requires `eliteholograms.list`, so a player needs that node in addition to whichever specific node the subcommand uses.
 
+The console and command blocks can run every command except those that act at the caller's own position: `create`, `createitem`, `createscoreboard`, `copy`, `movehere`, `near` and `teleport`. From the console, use `createat` and `moveto` instead.
+
 ### Fixed vs. Player-Facing Holograms
 
 Holograms come in two display types:
 
-* **`facing`** (the default) - the classic look. The text always turns to face each player, so it
+* **`facing`** (the default): the classic look. The text always turns to face each player, so it
   reads correctly from any angle.
-* **`fixed`** - the text is anchored to a yaw and pitch and stays put, like a sign hung on a wall.
+* **`fixed`:** the text is anchored to a yaw and pitch and stays put, like a sign hung on a wall.
   Everyone sees it from the same angle, which is what you want for holograms mounted flat against
   a build, a shop wall, or a portal frame.
 
@@ -137,10 +139,10 @@ A new fixed hologram is automatically turned to face you. To aim it yourself, or
 /eh setrotation shop_sign 90 -15
 ```
 
-Yaw follows the in-game convention - `0` faces south, `90` west, `180` north, `270` east. Pitch
+Yaw follows the in-game convention: `0` faces south, `90` west, `180` north, `270` east. Pitch
 runs from `-90` (tilted up) to `90` (tilted down); leave it out to keep the hologram level.
 
-Already have a hologram you want to pin down? Convert it in place - lines, animations, items and
+Already have a hologram you want to pin down? Convert it in place. Its lines, animations, items and
 backlights all carry over:
 
 ```
@@ -160,7 +162,7 @@ backlights all carry over:
 
 ### The Background Panel
 
-Vanilla draws a fixed hologram's text on a 25% opaque black panel - the dark box behind the
+Vanilla draws a fixed hologram's text on a 25% opaque black panel, which is the dark box behind the
 letters. `/eh background` restyles it:
 
 ```
@@ -197,7 +199,7 @@ floating with no box, and `reset` restores the vanilla look.
 * **`reset`** restores all three at once.
 
 These settings apply to fixed holograms only. A player-facing hologram's text is an armor stand
-nameplate, which the client sizes, turns and lights itself - the server has no say in it. The
+nameplate, which the client sizes, turns and lights itself, so the server has no say in it. The
 values are still stored, and take effect the moment you run `/eh convert <id> fixed`.
 
 ### Clickable Holograms
@@ -284,15 +286,15 @@ Elite Holograms features a flexible permission system:
 - **Supported Systems:** Automatically detects and integrates with LuckPerms and FTB Ranks.
 - **Fallback:** If no supported permission mod is found, commands default to requiring operator (OP level 2) status.
 - **Granular Nodes:** Assign specific permissions for different actions. The base node is `eliteholograms`.
-  - `eliteholograms.create` - Creating holograms (`/eh create`, `/eh createat`, `/eh createitem`, `/eh createscoreboard`, `/eh copy`, `/eh settheme`).
-  - `eliteholograms.delete` - Deleting holograms (`/eh delete`).
-  - `eliteholograms.edit` - Modifying existing holograms (`/eh addline`, `/eh setline`, `/eh removeline`, `/eh insertline`, `/eh animateline`, `/eh movehere`, `/eh moveto`, `/eh movevertical`, `/eh convert`, `/eh setrotation`, `/eh background`, `/eh display`, `/eh click set`, `/eh click none`).
-  - `eliteholograms.list` - Listing all holograms (`/eh list`). Also required for the base `/eh` command.
-  - `eliteholograms.info` - Viewing detailed hologram information (`/eh info`).
-  - `eliteholograms.near` - Listing nearby holograms (`/eh near`).
-  - `eliteholograms.teleport` - Teleporting to holograms (`/eh teleport`).
-  - `eliteholograms.backlight` - Toggling hologram backlights (`/eh backlight`).
-  - `eliteholograms.admin` - Administrative actions (`/eh reload`), and `/eh click <id> console <command>`.
+  - `eliteholograms.create`: Creating holograms (`/eh create`, `/eh createat`, `/eh createitem`, `/eh createscoreboard`, `/eh copy`, `/eh settheme`).
+  - `eliteholograms.delete`: Deleting holograms (`/eh delete`).
+  - `eliteholograms.edit`: Modifying existing holograms (`/eh addline`, `/eh setline`, `/eh removeline`, `/eh insertline`, `/eh animateline`, `/eh movehere`, `/eh moveto`, `/eh movevertical`, `/eh convert`, `/eh setrotation`, `/eh background`, `/eh display`, `/eh click set`, `/eh click none`).
+  - `eliteholograms.list`: Listing all holograms (`/eh list`). Also required for the base `/eh` command.
+  - `eliteholograms.info`: Viewing detailed hologram information (`/eh info`).
+  - `eliteholograms.near`: Listing nearby holograms (`/eh near`).
+  - `eliteholograms.teleport`: Teleporting to holograms (`/eh teleport`).
+  - `eliteholograms.backlight`: Toggling hologram backlights (`/eh backlight`).
+  - `eliteholograms.admin`: Administrative actions (`/eh reload`), and `/eh click <id> console <command>`.
 - **Elevated clicks are gated separately.** `/eh click console` runs its command with server permissions, so it needs `eliteholograms.admin` rather than `eliteholograms.edit`. Without that split, anyone who could edit a hologram could hand themselves operator commands through a clickable sign.
 - **Console & Command Blocks:** Always have full permission to execute hologram commands.
 
@@ -331,21 +333,42 @@ unshaded one without Adventure bundled.
 
 - Optimized background thread management for placeholder updates and hologram visibility.
 - Proper server shutdown handling to prevent hanging and ensure data is saved.
-- Hologram JSON is written to a temporary file and then replaced, so a crash mid-write will not leave a truncated file.
+- Crash-safe storage: every save is written to a temporary file, flushed to disk and swapped in atomically, with the previous version kept as a backup. See [Storage & Config](#storage--config).
 - Efficient placeholder processing with robust error handling.
 - Memory-conscious hologram rendering.
 
 ## Storage & Config
 
-Holograms and configuration are stored under the server or instance `config` directory. Alongside the
-main hologram store, two files are written for scoreboard support:
+Holograms and configuration are stored under the server or instance `config` directory:
 
-- `scoreboard_holograms.json` - the scoreboard boards themselves, including their theme name, backlight state, and column height, plus the background, scale, brightness, billboard and click command so a styled board comes back the same way after a restart.
-- `scoreboard_themes.json` - the named themes, created pre-populated on first run. Once it exists it is never overwritten, so your edits are preserved; delete it to restore the starters. A `defaultTheme` key controls which theme new boards use when none is specified.
+| Edition | Folder |
+| ------- | ------ |
+| Forge 1.19.2 | `config/eliteholograms/` |
+| Forge 1.20.1, Fabric 1.20.1 | `config/elite-holograms/` |
+| NeoForge 1.21.1, 26.1, 26.2 | `config/eliteholograms/` |
 
-The exact config directory name currently differs between editions, so check the paths the mod logs
-on first start rather than assuming. The Forge 1.20.1 and Fabric editions read a `storage_location`
-setting from their config file if you want to point them somewhere specific.
+The Forge 1.20.1 and Fabric editions read a `storage_location` setting from `config.json` in that
+folder if you want to point them somewhere else.
+
+- `holograms.json`: every regular and item hologram.
+
+- `scoreboard_holograms.json`: the scoreboard boards themselves, including their theme name, backlight state, and column height, plus the background, scale, brightness, billboard and click command so a styled board comes back the same way after a restart.
+- `scoreboard_themes.json`: the named themes, created pre-populated on first run. Once it exists it is never overwritten, so your edits are preserved, even one with a typo in it, in which case the built-in themes are used until you fix it and run `/eh reload`. Delete it to restore the starters. A `defaultTheme` key controls which theme new boards use when none is specified.
+
+### How your holograms are protected
+
+- **Saves cannot leave a half-written file.** Each save writes a complete temporary file, flushes it
+  to disk and swaps it in with one atomic move, so a crash, kill or power cut leaves either the old
+  version or the new one.
+- **The previous version is kept** as `holograms.json.bak` and `scoreboard_holograms.json.bak`. If a
+  file is ever found damaged, it is restored from its backup automatically on the next start.
+- **A damaged file is never overwritten.** It is copied aside as `<name>.corrupt-<timestamp>` first, so
+  whatever it held can still be recovered by hand.
+- **Holograms in a world that isn't loaded are kept, not deleted.** If a hologram or board belongs to a
+  dimension that is missing (a modded dimension whose mod was removed, say), it stays in the file
+  untouched and loads again once that world is back. The log names each one.
+- **Hand edits are safe.** You can edit either JSON file while the server is running and apply it
+  with `/eh reload`; the mod notices the file changed and loads your edit instead of saving over it.
 
 ## License
 

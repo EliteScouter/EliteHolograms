@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import java.util.UUID;
 
@@ -60,7 +61,7 @@ public class ForgeHologram implements Hologram {
     private int backgroundColour = DEFAULT_BACKGROUND_COLOUR;
     private int backgroundOpacity = DEFAULT_BACKGROUND_OPACITY;
 
-    // Text display presentation. Only meaningful on a fixed hologram - an armor stand
+    // Text display presentation. Only meaningful on a fixed hologram, since an armor stand
     // nameplate is drawn by the client at a fixed size, always facing the camera, and lit
     // by the world, none of which the server can override.
     private float scale = HologramTextDisplay.DEFAULT_SCALE;
@@ -72,7 +73,7 @@ public class ForgeHologram implements Hologram {
     private boolean clickAsConsole = false;
     private transient HologramInteraction interaction;
 
-    // Backlight state - places invisible minecraft:light blocks at the hologram
+    // Backlight state: places invisible minecraft:light blocks at the hologram
     private boolean backlightEnabled = false;
     private int backlightLevel = UtilBacklight.DEFAULT_LEVEL;
     private transient List<BlockPos> backlightPositions = new ArrayList<>();
@@ -90,8 +91,12 @@ public class ForgeHologram implements Hologram {
         this.displayType = displayType == null ? HologramDisplayType.FACING : displayType;
         this.yaw = normaliseYaw(yaw);
         this.pitch = clampPitch(pitch);
-        this.lines = Lists.newArrayList();
-        this.nearbyPlayers = Lists.newArrayList();
+        // Both are read by the hologram manager thread and the async saver while the server
+        // thread edits them, so a plain list could throw mid-iteration, aborting that save,
+        // and leaving the edit on disk only once something else saved. Copy-on-write suits
+        // them: a handful of entries, read constantly, written rarely.
+        this.lines = new CopyOnWriteArrayList<>();
+        this.nearbyPlayers = new CopyOnWriteArrayList<>();
 
         // Add to HologramManager
         HologramManager.addHologram(this);
@@ -231,6 +236,27 @@ public class ForgeHologram implements Hologram {
             return;
         }
 
+        this.appendLine(text);
+
+        // Ensure that the hologram is saved immediately after adding a line
+        HologramManager.save();
+    }
+
+    /**
+     * Appends a line and shows it to nearby players, without saving.
+     *
+     * <p>For lines that are computed rather than written by a user. A scoreboard board
+     * re-renders every one of its lines whenever a score changes, and those lines are not
+     * what gets stored. Going through {@link #addLine} there queued a full save of every
+     * hologram for each line, on every score change.
+     *
+     * @param text the line's text
+     */
+    protected void appendLine(String text) {
+        if (text == null) {
+            return;
+        }
+
         // Create a hologram line for the current display type and set its text
         HologramLineRenderer line = createLine(lineY(this.lines.size()), text);
 
@@ -256,9 +282,6 @@ public class ForgeHologram implements Hologram {
                 line.updateForPlayer(player);
             }
         }
-        
-        // Ensure that the hologram is saved immediately after adding a line
-        HologramManager.save();
     }
 
     @Override
@@ -1014,7 +1037,7 @@ public class ForgeHologram implements Hologram {
         double textTop = this.position.y + TextDisplayHologramLine.textTopOffset();
         double bottomY = textTop - height;
 
-        // Width cannot be measured server-side - the font lives on the client - so this is a
+        // Width cannot be measured server-side (the font lives on the client), so this is a
         // readable-looking box derived from the longest line, clamped so a very long line
         // does not produce a hitbox players bump into from across the room.
         double width = Math.max(1.0D, Math.min(8.0D, longestLineLength() * 0.11D * this.scale));

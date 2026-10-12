@@ -33,7 +33,7 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
 
         for (HologramLineRenderer line : hologram.getLines()) {
             // Asking the line for its frames rather than type-checking one implementation keeps
-            // animated lines working on both display types - a fixed hologram's animated lines
+            // animated lines working on both display types, since a fixed hologram's animated lines
             // are a different class but serialise identically.
             List<String> lineFrames = line.getFrames();
 
@@ -197,7 +197,7 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
                     object.has("clickCommand") ? object.get("clickCommand").getAsString() : null,
                     object.has("clickAsConsole") && object.get("clickAsConsole").getAsBoolean());
 
-            // Restore backlight state (does not place block yet - spawn() will do that)
+            // Restore backlight state (does not place block yet, spawn() does that)
             boolean backlightEnabled = object.has("backlightEnabled") && object.get("backlightEnabled").getAsBoolean();
             int backlightLevel = object.has("backlightLevel") ? object.get("backlightLevel").getAsInt() : UtilBacklight.DEFAULT_LEVEL;
             hologram.restoreBacklightState(backlightEnabled, backlightLevel);

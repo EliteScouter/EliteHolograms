@@ -34,13 +34,13 @@ public class HologramsInfoCommand implements Command<CommandSourceStack> {
             return 0;
         }
         
-        ServerPlayer player = context.getSource().getPlayerOrException();
+        CommandSourceStack source = context.getSource();
         String id = args[0];
         
         Hologram hologram = HologramManager.getById(id);
         
         if (hologram == null) {
-            player.sendSystemMessage(Component.literal("§c§l(!) §cHologram with ID '§f" + id + "§c' not found!"));
+            source.sendSystemMessage(Component.literal("§c§l(!) §cHologram with ID '§f" + id + "§c' not found!"));
             return 0;
         }
         
@@ -56,23 +56,23 @@ public class HologramsInfoCommand implements Command<CommandSourceStack> {
             }
             
             // Display hologram information
-            player.sendSystemMessage(Component.literal("§3§l┌─§b§lHologram Info: §f" + id + " §3§l──────┐"));
-            player.sendSystemMessage(Component.literal("§3│ §bWorld: §f" + worldName));
-            player.sendSystemMessage(Component.literal("§3│ §bLocation: §f" + 
+            source.sendSystemMessage(Component.literal("§3§l┌─§b§lHologram Info: §f" + id + " §3§l──────┐"));
+            source.sendSystemMessage(Component.literal("§3│ §bWorld: §f" + worldName));
+            source.sendSystemMessage(Component.literal("§3│ §bLocation: §f" + 
                 String.format("%.2f, %.2f, %.2f", location[0], location[1], location[2])));
-            player.sendSystemMessage(Component.literal("§3│ §bLines: §f" + lineCount));
+            source.sendSystemMessage(Component.literal("§3│ §bLines: §f" + lineCount));
 
             if (hologram instanceof com.strictgaming.elite.holograms.forge20.hologram.ForgeHologram infoHologram) {
-                player.sendSystemMessage(Component.literal("§3│ §bDisplay: §f"
+                source.sendSystemMessage(Component.literal("§3│ §bDisplay: §f"
                         + infoHologram.getDisplayType().getSerializedName()));
 
                 if (infoHologram.getDisplayType()
                         == com.strictgaming.elite.holograms.forge20.hologram.HologramDisplayType.FIXED) {
-                    player.sendSystemMessage(Component.literal("§3│ §bRotation: §f"
+                    source.sendSystemMessage(Component.literal("§3│ §bRotation: §f"
                             + String.format("yaw %.1f, pitch %.1f",
                                     infoHologram.getYaw(), infoHologram.getPitch())));
 
-                    player.sendSystemMessage(Component.literal("§3│ §bBackground: §f"
+                    source.sendSystemMessage(Component.literal("§3│ §bBackground: §f"
                             + (infoHologram.getBackgroundOpacity() == 0
                                     ? "hidden"
                                     : String.format("#%06X at %d%%",
@@ -86,21 +86,21 @@ public class HologramsInfoCommand implements Command<CommandSourceStack> {
                 ForgeHologram forgeHologram = (ForgeHologram) hologram;
                 
                 if (!forgeHologram.getLines().isEmpty()) {
-                    player.sendSystemMessage(Component.literal("§3│"));
-                    player.sendSystemMessage(Component.literal("§3│ §b§lLine Content:"));
+                    source.sendSystemMessage(Component.literal("§3│"));
+                    source.sendSystemMessage(Component.literal("§3│ §b§lLine Content:"));
                     
                     for (int i = 0; i < forgeHologram.getLines().size(); i++) {
                         String lineText = forgeHologram.getLines().get(i).getText();
-                        player.sendSystemMessage(UtilChatColour.parse("§3│ §f" + i + ": §7" + lineText));
+                        source.sendSystemMessage(UtilChatColour.parse("§3│ §f" + i + ": §7" + lineText));
                     }
                 }
             }
             
-            player.sendSystemMessage(Component.literal("§3§l└─────────────────┘"));
+            source.sendSystemMessage(Component.literal("§3§l└─────────────────┘"));
             return Command.SINGLE_SUCCESS;
         } catch (Exception e) {
             LOGGER.error("Error displaying hologram info", e);
-            player.sendSystemMessage(Component.literal("§c§l(!) §cError displaying hologram info: §f" + e.getMessage()));
+            source.sendSystemMessage(Component.literal("§c§l(!) §cError displaying hologram info: §f" + e.getMessage()));
             return 0;
         }
     }

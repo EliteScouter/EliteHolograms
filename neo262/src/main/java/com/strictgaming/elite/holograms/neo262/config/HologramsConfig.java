@@ -6,13 +6,12 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.reflect.TypeToken;
 import com.strictgaming.elite.holograms.api.hologram.Hologram;
-import com.strictgaming.elite.holograms.neo262.Neo262Holograms;
 import com.strictgaming.elite.holograms.neo262.hologram.HologramManager;
 import com.strictgaming.elite.holograms.neo262.hologram.ItemHologram;
 import com.strictgaming.elite.holograms.neo262.hologram.implementation.NeoForgeHologram;
 import com.strictgaming.elite.holograms.neo262.hologram.ScoreboardHologram;
+import com.strictgaming.elite.holograms.neo262.util.UtilFiles;
 
 import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
@@ -20,180 +19,237 @@ import com.mojang.logging.LogUtils;
 import net.neoforged.neoforge.server.ServerLifecycleHooks;
 
 import java.io.IOException;
-import java.io.Reader;
-import java.io.Writer;
-import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Configuration for holograms
  */
 public class HologramsConfig {
-    
+
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting()
             .serializeNulls()
             .create();
-    
+
     private Path configFile;
     private Path configDir;
-    
+
+    /**
+     * Entries in the file that could not be turned into a hologram, kept exactly as they were
+     * read and written back on every save.
+     *
+     * <p>Before this, one entry that failed to load stopped the loop, so every hologram after
+     * it in the file was skipped too, and the next save, written from memory, erased them all.
+     */
+    private final Map<String, JsonElement> unresolved = new LinkedHashMap<>();
+
+    /** False until the file has been read, so nothing can be written over data not yet seen. */
+    private boolean loaded = false;
+
+    /** Whether the last load found a readable file, as opposed to none or a damaged one. */
+    private boolean foundData = false;
+
+    /** The file's modification time as of our last read or write, to spot hand edits. */
+    private FileTime lastKnownModified;
+
     public HologramsConfig() throws IOException {
         setupDirectories();
     }
-    
+
     private void setupDirectories() throws IOException {
         Path serverDirectory = ServerLifecycleHooks.getCurrentServer().getServerDirectory();
         configDir = serverDirectory.resolve("config").resolve("eliteholograms");
-        
+
         if (!Files.exists(configDir)) {
             Files.createDirectories(configDir);
         }
-        
+
+        // Deliberately not created here: an empty placeholder written now would shadow the
+        // backup that loading falls back to if the real file has gone missing.
         configFile = configDir.resolve("holograms.json");
-        if (!Files.exists(configFile)) {
-            Files.createFile(configFile);
-            Files.writeString(configFile, "{}");
-        }
     }
-    
+
     public void load() throws IOException {
         loadHologramsIntoManager();
     }
-    
-    public void loadHologramsIntoManager() throws IOException {
+
+    public synchronized void loadHologramsIntoManager() {
         LOGGER.info("Loading holograms into manager from " + configFile.toAbsolutePath());
-        
-        try (Reader reader = Files.newBufferedReader(configFile)) {
-            Type type = new TypeToken<Map<String, HologramData>>() {}.getType();
-            Map<String, HologramData> hologramDataMap = GSON.fromJson(reader, type);
-            
-            if (hologramDataMap == null) {
-                LOGGER.warn("No holograms found in config for manager loading.");
+        this.unresolved.clear();
+        this.foundData = false;
+
+        try {
+            JsonElement root = UtilFiles.readJson(configFile, "holograms");
+
+            if (root == null) {
+                LOGGER.info("No saved holograms found");
                 return;
             }
-            
-            for (Map.Entry<String, HologramData> entry : hologramDataMap.entrySet()) {
-                String id = entry.getKey();
-                HologramData data = entry.getValue();
-                
-                List<Object> linesContent = new ArrayList<>();
-                if (data.lines != null) {
-                    for (JsonElement element : data.lines) {
-                        if (element.isJsonObject()) {
-                            // Animated line
-                            JsonObject obj = element.getAsJsonObject();
-                            if (obj.has("type") && "animated".equals(obj.get("type").getAsString())) {
-                                int interval = obj.has("interval") ? obj.get("interval").getAsInt() : 1;
-                                JsonArray framesArray = obj.getAsJsonArray("frames");
-                                List<String> frames = new ArrayList<>();
-                                for (JsonElement frame : framesArray) {
-                                    frames.add(frame.getAsString());
-                                }
-                                linesContent.add(new NeoForgeHologram.AnimatedLineData(frames, interval));
-                            } else {
-                                linesContent.add(element.toString()); // Fallback
-                            }
-                        } else {
-                            linesContent.add(element.getAsString());
-                        }
-                    }
-                }
-                
-                // Convert linesContent to String list for constructor, then set content
-                List<String> stringLines = new ArrayList<>();
-                for (Object obj : linesContent) {
-                     if (obj instanceof NeoForgeHologram.AnimatedLineData) {
-                         List<String> f = ((NeoForgeHologram.AnimatedLineData) obj).frames;
-                         stringLines.add(f.isEmpty() ? "" : f.get(0));
-                     } else {
-                         stringLines.add(obj.toString());
-                     }
-                }
-                
-                NeoForgeHologram hologram;
-                if (data.item != null && !data.item.isEmpty()) {
-                    LOGGER.info("Loading hologram {} as ItemHologram with item: {}", id, data.item);
-                    hologram = new ItemHologram(
-                        id, data.world, data.x, data.y, data.z, data.item, stringLines
-                    );
-                } else {
-                    LOGGER.info("Loading hologram {} as standard NeoForgeHologram (no item data found)", id);
-                    hologram = new NeoForgeHologram(
-                        id, data.world, data.x, data.y, data.z, stringLines
-                    );
-                }
-                
-                // Restore the display type before the content, since setLinesContent rebuilds
-                // the line entities and needs to know which kind to build.
-                hologram.restoreDisplayState(
-                        com.strictgaming.elite.holograms.neo262.hologram.HologramDisplayType.fromStringOrDefault(
-                                data.displayType,
-                                com.strictgaming.elite.holograms.neo262.hologram.HologramDisplayType.FACING),
-                        data.yaw, data.pitch);
 
-                hologram.restoreBackgroundState(
-                        parseColour(data.backgroundColour, com.strictgaming.elite.holograms.neo262.hologram.implementation.NeoForgeHologram.DEFAULT_BACKGROUND_COLOUR),
-                        data.backgroundOpacity == null
-                                ? com.strictgaming.elite.holograms.neo262.hologram.implementation.NeoForgeHologram.DEFAULT_BACKGROUND_OPACITY
-                                : data.backgroundOpacity);
-
-                hologram.restorePresentationState(
-                        data.scale == null
-                                ? com.strictgaming.elite.holograms.neo262.hologram.entity.HologramTextDisplay.DEFAULT_SCALE
-                                : data.scale,
-                        data.brightness == null
-                                ? com.strictgaming.elite.holograms.neo262.hologram.entity.HologramTextDisplay.BRIGHTNESS_AUTO
-                                : data.brightness,
-                        parseBillboard(data.billboard));
-
-                hologram.restoreClickState(data.clickCommand, data.clickAsConsole);
-
-                // Restore complex content
-                hologram.setLinesContent(linesContent);
-
-                // Restore backlight state (does not save)
-                hologram.restoreBacklightState(data.backlightEnabled,
-                        data.backlightLevel <= 0 ? com.strictgaming.elite.holograms.neo262.util.UtilBacklight.DEFAULT_LEVEL : data.backlightLevel);
-
-                // Don't spawn yet - let the HologramManager handle it
-                LOGGER.debug("Loaded hologram into manager: " + id);
-                HologramManager.addHologram(hologram);
+            if (!root.isJsonObject()) {
+                LOGGER.error("{} does not contain a map of holograms", configFile.getFileName());
+                UtilFiles.quarantine(configFile, "holograms");
+                return;
             }
-        } catch (Exception e) {
-            LOGGER.error("Error loading holograms into manager from config", e);
-            // Files.writeString(configFile, "{}"); // Don't auto-reset, might lose data if just a bad read
+
+            this.foundData = true;
+
+            for (Map.Entry<String, JsonElement> entry : root.getAsJsonObject().entrySet()) {
+                String id = entry.getKey();
+
+                try {
+                    HologramData data = GSON.fromJson(entry.getValue(), HologramData.class);
+
+                    if (data == null) {
+                        throw new IllegalStateException("the entry is empty");
+                    }
+
+                    loadHologram(id, data);
+                } catch (Exception e) {
+                    // Each hologram registers itself as it is constructed, so one that failed
+                    // part way may already be in the manager with default settings. Saving that
+                    // would overwrite the good copy on disk; take it out and keep the original.
+                    HologramManager.discardPartial(id);
+                    this.unresolved.put(id, entry.getValue());
+                    LOGGER.error("Keeping hologram '{}' in {} without loading it: it could not be read",
+                            id, configFile.getFileName(), e);
+                }
+            }
+        } finally {
+            this.loaded = true;
+            this.lastKnownModified = UtilFiles.lastModified(configFile);
         }
     }
-    
+
+    /**
+     * Builds one hologram from its saved form and registers it with the manager.
+     */
+    private void loadHologram(String id, HologramData data) {
+        List<Object> linesContent = new ArrayList<>();
+        if (data.lines != null) {
+            for (JsonElement element : data.lines) {
+                if (element.isJsonObject()) {
+                    // Animated line
+                    JsonObject obj = element.getAsJsonObject();
+                    if (obj.has("type") && "animated".equals(obj.get("type").getAsString())) {
+                        int interval = obj.has("interval") ? obj.get("interval").getAsInt() : 1;
+                        JsonArray framesArray = obj.getAsJsonArray("frames");
+                        List<String> frames = new ArrayList<>();
+                        for (JsonElement frame : framesArray) {
+                            frames.add(frame.getAsString());
+                        }
+                        linesContent.add(new NeoForgeHologram.AnimatedLineData(frames, interval));
+                    } else {
+                        linesContent.add(element.toString()); // Fallback
+                    }
+                } else {
+                    linesContent.add(element.getAsString());
+                }
+            }
+        }
+
+        // Convert linesContent to String list for constructor, then set content
+        List<String> stringLines = new ArrayList<>();
+        for (Object obj : linesContent) {
+             if (obj instanceof NeoForgeHologram.AnimatedLineData) {
+                 List<String> f = ((NeoForgeHologram.AnimatedLineData) obj).frames;
+                 stringLines.add(f.isEmpty() ? "" : f.get(0));
+             } else {
+                 stringLines.add(obj.toString());
+             }
+        }
+
+        NeoForgeHologram hologram;
+        if (data.item != null && !data.item.isEmpty()) {
+            LOGGER.info("Loading hologram {} as ItemHologram with item: {}", id, data.item);
+            hologram = new ItemHologram(
+                id, data.world, data.x, data.y, data.z, data.item, stringLines
+            );
+        } else {
+            LOGGER.info("Loading hologram {} as standard NeoForgeHologram (no item data found)", id);
+            hologram = new NeoForgeHologram(
+                id, data.world, data.x, data.y, data.z, stringLines
+            );
+        }
+
+        // Restore the display type before the content, since setLinesContent rebuilds
+        // the line entities and needs to know which kind to build.
+        hologram.restoreDisplayState(
+                com.strictgaming.elite.holograms.neo262.hologram.HologramDisplayType.fromStringOrDefault(
+                        data.displayType,
+                        com.strictgaming.elite.holograms.neo262.hologram.HologramDisplayType.FACING),
+                data.yaw, data.pitch);
+
+        hologram.restoreBackgroundState(
+                parseColour(data.backgroundColour, com.strictgaming.elite.holograms.neo262.hologram.implementation.NeoForgeHologram.DEFAULT_BACKGROUND_COLOUR),
+                data.backgroundOpacity == null
+                        ? com.strictgaming.elite.holograms.neo262.hologram.implementation.NeoForgeHologram.DEFAULT_BACKGROUND_OPACITY
+                        : data.backgroundOpacity);
+
+        hologram.restorePresentationState(
+                data.scale == null
+                        ? com.strictgaming.elite.holograms.neo262.hologram.entity.HologramTextDisplay.DEFAULT_SCALE
+                        : data.scale,
+                data.brightness == null
+                        ? com.strictgaming.elite.holograms.neo262.hologram.entity.HologramTextDisplay.BRIGHTNESS_AUTO
+                        : data.brightness,
+                parseBillboard(data.billboard));
+
+        hologram.restoreClickState(data.clickCommand, data.clickAsConsole);
+
+        // Restore complex content
+        hologram.setLinesContent(linesContent);
+
+        // Restore backlight state (does not save)
+        hologram.restoreBacklightState(data.backlightEnabled,
+                data.backlightLevel <= 0 ? com.strictgaming.elite.holograms.neo262.util.UtilBacklight.DEFAULT_LEVEL : data.backlightLevel);
+
+        // Don't spawn yet. The HologramManager handles it
+        LOGGER.debug("Loaded hologram into manager: " + id);
+        HologramManager.addHologram(hologram);
+    }
+
     public void save() throws IOException {
         saveHologramsFromManager(HologramManager.getHolograms());
     }
-    
-    public void saveHologramsFromManager(Map<String, Hologram> holograms) throws IOException {
+
+    public synchronized void saveHologramsFromManager(Map<String, Hologram> holograms) throws IOException {
+        if (!this.loaded) {
+            LOGGER.warn("Not saving holograms: {} has not been read yet", configFile.getFileName());
+            return;
+        }
+
         LOGGER.info("Saving {} holograms from manager to {}", holograms.size(), configFile.toAbsolutePath());
-        
-        Map<String, HologramData> hologramDataMap = new HashMap<>();
-        
-        for (Map.Entry<String, Hologram> entry : holograms.entrySet()) {
-            String id = entry.getKey();
-            Hologram hologram = entry.getValue();
+
+        JsonObject out = new JsonObject();
+        Set<String> written = new HashSet<>();
+
+        for (Hologram hologram : holograms.values()) {
             if (hologram instanceof ScoreboardHologram) {
                 continue;
             }
-            
+
+            // The hologram's own ID rather than its registry key, so the case it was created
+            // with is what gets stored.
+            String id = hologram.getId();
+
             HologramData data = new HologramData();
             data.world = hologram.getWorld();
             data.x = hologram.getX();
             data.y = hologram.getY();
             data.z = hologram.getZ();
-            
+
             if (hologram instanceof ItemHologram) {
                 data.item = ((ItemHologram) hologram).getItemId();
                 LOGGER.debug("Saving hologram {} as ItemHologram with item: {}", id, data.item);
@@ -215,7 +271,7 @@ public class HologramsConfig {
                 data.clickCommand = nf.getClickCommand();
                 data.clickAsConsole = nf.isClickAsConsole();
             }
-            
+
             data.lines = new ArrayList<>();
             if (hologram instanceof NeoForgeHologram) {
                 List<Object> content = ((NeoForgeHologram) hologram).getLinesContent();
@@ -240,26 +296,48 @@ public class HologramsConfig {
                     data.lines.add(new com.google.gson.JsonPrimitive(line));
                 }
             }
-            
-            hologramDataMap.put(id, data);
+
+            out.add(id, GSON.toJsonTree(data));
+            written.add(id.toLowerCase(Locale.ROOT));
         }
-        
-        try (Writer writer = Files.newBufferedWriter(configFile)) {
-            GSON.toJson(hologramDataMap, writer);
+
+        for (Map.Entry<String, JsonElement> kept : this.unresolved.entrySet()) {
+            // A hologram created since, under the same ID, replaces the one we could not load.
+            if (written.contains(kept.getKey().toLowerCase(Locale.ROOT))) {
+                continue;
+            }
+
+            out.add(kept.getKey(), kept.getValue());
+        }
+
+        try {
+            UtilFiles.writeAtomically(configFile, GSON.toJson(out));
+            this.lastKnownModified = UtilFiles.lastModified(configFile);
             LOGGER.debug("Successfully saved holograms from manager.");
         } catch (IOException e) {
             LOGGER.error("Failed to save holograms from manager to config", e);
             throw e;
         }
     }
-    
+
     /**
-     * Reads a "#RRGGBB" colour from the config.
-     *
-     * @param value        the stored value, may be null on configs written before backgrounds existed
-     * @param defaultValue the colour to use when the value is missing or malformed
-     * @return the RGB colour
+     * @return whether the last load found a readable file: false when there was no file, or
+     *         only a damaged one, as opposed to a file that validly lists no holograms
      */
+    public synchronized boolean foundData() {
+        return this.foundData;
+    }
+
+    /**
+     * Whether the file has been changed by something other than this mod since it was last read
+     * or written (in practice, edited by hand).
+     *
+     * @return true if the file on disk is not the one we last saw
+     */
+    public synchronized boolean changedOnDisk() {
+        return !Objects.equals(UtilFiles.lastModified(configFile), this.lastKnownModified);
+    }
+
     /**
      * Reads a billboard name from the config.
      *
@@ -278,6 +356,13 @@ public class HologramsConfig {
         return Display.BillboardConstraints.FIXED;
     }
 
+    /**
+     * Reads a "#RRGGBB" colour from the config.
+     *
+     * @param value        the stored value, may be null on configs written before backgrounds existed
+     * @param defaultValue the colour to use when the value is missing or malformed
+     * @return the RGB colour
+     */
     public static int parseColour(String value, int defaultValue) {
         if (value == null || value.isEmpty()) {
             return defaultValue;

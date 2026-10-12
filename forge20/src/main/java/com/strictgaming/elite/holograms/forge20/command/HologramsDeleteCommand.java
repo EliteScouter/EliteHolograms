@@ -16,18 +16,18 @@ public class HologramsDeleteCommand implements Command<CommandSourceStack> {
 
     @Override
     public int run(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        ServerPlayer player = context.getSource().getPlayerOrException();
+        CommandSourceStack source = context.getSource();
         String name = context.getArgument("id", String.class);
         
         Hologram hologram = HologramManager.getById(name);
         
         if (hologram == null) {
-            player.sendSystemMessage(Component.literal("§cA hologram with that name doesn't exist!"));
+            source.sendSystemMessage(Component.literal("§cA hologram with that name doesn't exist!"));
             return 0;
         }
         
         hologram.delete();
-        player.sendSystemMessage(Component.literal("§aHologram '" + name + "' deleted successfully!"));
+        source.sendSystemMessage(Component.literal("§aHologram '" + name + "' deleted successfully!"));
         
         return Command.SINGLE_SUCCESS;
     }
@@ -41,18 +41,18 @@ public class HologramsDeleteCommand implements Command<CommandSourceStack> {
             return 0;
         }
         
-        ServerPlayer player = context.getSource().getPlayerOrException();
+        CommandSourceStack source = context.getSource();
         String name = args[0];
         
         Hologram hologram = HologramManager.getById(name);
         
         if (hologram == null) {
-            player.sendSystemMessage(Component.literal("§cA hologram with that name doesn't exist!"));
+            source.sendSystemMessage(Component.literal("§cA hologram with that name doesn't exist!"));
             return 0;
         }
         
         hologram.delete();
-        player.sendSystemMessage(Component.literal("§aHologram '" + name + "' deleted successfully!"));
+        source.sendSystemMessage(Component.literal("§aHologram '" + name + "' deleted successfully!"));
         
         return Command.SINGLE_SUCCESS;
     }

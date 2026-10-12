@@ -76,6 +76,10 @@ repositories {
 configurations {
     embed
     implementation.extendsFrom(embed)
+    // Dev runs load classes through Forge's module layers, which only see libraries added
+    // this way - so without it runServer fails on the first class from the api module or
+    // Adventure. The release jar bundles them itself through shadowJar and is unaffected.
+    minecraftLibrary.extendsFrom(embed)
 }
 
 dependencies {

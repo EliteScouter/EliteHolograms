@@ -38,12 +38,18 @@ public class HologramManager implements Runnable {
 
     private static final Map<String, ForgeHologram> HOLOGRAMS = Maps.newConcurrentMap();
 
-    private static HologramSaver saver;
+    private static JsonHologramSaver saver;
     private static ScoreboardHologramConfig scoreboardConfig;
-    private static boolean shutdown = false;
+    private static volatile boolean shutdown = false;
     private static Thread managerThread;
-    private static long lastScoreboardSave = 0;
-    private static final long SCOREBOARD_SAVE_COOLDOWN = 5000; // 5 seconds cooldown
+    /**
+     * True from the end of a load until shutdown, and saves are refused outside that window.
+     * Before the load a save would overwrite holograms that have not been read yet; after
+     * shutdown it would write a registry that is being torn down.
+     */
+    private static volatile boolean acceptingSaves = false;
+    /** The player listener is registered once per JVM, not once per server start. */
+    private static boolean listenerRegistered = false;
     /** Serializes save/load so async saves cannot overwrite the file after clear/reload. */
     private static final Object SAVE_LOAD_LOCK = new Object();
     /** When true, save()/saveSync() are no-ops so deserialize-triggered saves cannot wipe the file. */
@@ -54,11 +60,24 @@ public class HologramManager implements Runnable {
     }
 
     public static void preInit() {
+        // Reset after the previous session's shutdown. Without this, the second world opened
+        // in a single-player game got a manager thread that saw the old shutdown flag, exited
+        // on its first check, and never showed a single hologram. A previous thread that is
+        // still winding down was interrupted, so it exits on its next sleep regardless.
+        shutdown = false;
         managerThread = new Thread(new HologramManager());
+        managerThread.setName("HologramManager-Thread");
+        managerThread.setDaemon(true);
         managerThread.start();
 
-        new PlayerEventListener();
-        saver = (HologramSaver) new JsonHologramSaver(ForgeHolograms.getInstance().getConfig().getStorageLocation());
+        if (!listenerRegistered) {
+            // A single-player game starts a new server for every world it opens, so
+            // registering here unguarded stacked another listener onto the bus each time.
+            new PlayerEventListener();
+            listenerRegistered = true;
+        }
+
+        saver = new JsonHologramSaver(ForgeHolograms.getInstance().getConfig().getStorageLocation());
         // Ensure we pass the DIRECTORY for scoreboard config, not the JSON file path
         File storagePath = new File(ForgeHolograms.getInstance().getConfig().getStorageLocation());
         File configDir = storagePath.isDirectory() ? storagePath : storagePath.getParentFile();
@@ -89,22 +108,31 @@ public class HologramManager implements Runnable {
                 // Save a snapshot of the currently loaded holograms
                 Map<String, ForgeHologram> existingHolograms = new HashMap<>(HOLOGRAMS);
 
-                // Load from the saver (may construct holograms that call save() — suppressed while loading)
+                // Load from the saver (may construct holograms that call save(), which is suppressed while loading)
                 Map<String, Hologram> loadedHolograms = saver.load();
 
-                if (loadedHolograms.isEmpty() && !existingHolograms.isEmpty()) {
-                    LOGGER.info("No holograms loaded from file, but we have " + existingHolograms.size() + " in memory - preserving existing");
+                if (loadedHolograms.isEmpty() && !existingHolograms.isEmpty() && !saver.foundData()) {
+                    // The file is missing or unreadable, and a damaged one has already been copied
+                    // aside. What is in memory is the best copy left, so keep it and write it
+                    // back rather than replacing it with nothing. A file that validly lists no
+                    // holograms is not this case: that is how the store is emptied on purpose.
+                    LOGGER.warn("holograms.json could not be read, keeping the {} holograms already loaded",
+                            existingHolograms.size());
                     loading = false;
-                    if (saver != null) {
-                        saver.save(Lists.newArrayList(existingHolograms.values()));
-                        forceSaveScoreboardHolograms();
-                    }
+                    acceptingSaves = true;
+                    saver.save(Lists.newArrayList(existingHolograms.values()));
+                    forceSaveScoreboardHolograms();
                     return;
                 }
 
                 // Clear then re-add so memory matches the file (despawn first if server is up)
                 if (ServerLifecycleHooks.getCurrentServer() != null) {
-                    for (ForgeHologram h : HOLOGRAMS.values()) {
+                    // Reading the file constructed replacements, and each one registered itself
+                    // over the live hologram with its ID. Despawning the registry here would
+                    // therefore despawn the new, never-spawned objects and strand the old ones:
+                    // still drawn for players and still holding their backlight blocks.
+                    // Despawn what was actually on screen.
+                    for (ForgeHologram h : existingHolograms.values()) {
                         h.despawn();
                     }
                 }
@@ -134,6 +162,7 @@ public class HologramManager implements Runnable {
                 loadScoreboardHolograms();
             } finally {
                 loading = false;
+                acceptingSaves = true;
             }
         }
     }
@@ -146,6 +175,10 @@ public class HologramManager implements Runnable {
         synchronized (SAVE_LOAD_LOCK) {
             if (loading) {
                 LOGGER.debug("Skipping saveSync while holograms are loading");
+                return;
+            }
+            if (!acceptingSaves) {
+                LOGGER.debug("Skipping saveSync outside a loaded session");
                 return;
             }
             if (saver == null) {
@@ -164,17 +197,19 @@ public class HologramManager implements Runnable {
     }
 
     public static void save() {
-        if (loading) {
+        if (loading || !acceptingSaves) {
             return;
         }
         UtilConcurrency.runAsync(() -> {
             synchronized (SAVE_LOAD_LOCK) {
-                if (loading || saver == null) {
+                // Re-checked under the lock: shutdown may have closed the session while
+                // this was queued.
+                if (loading || !acceptingSaves || saver == null) {
                     return;
                 }
                 try {
                     saver.save(Lists.newArrayList(HOLOGRAMS.values()));
-                    saveScoreboardHolograms();
+                    forceSaveScoreboardHolograms();
                 } catch (Exception e) {
                     LOGGER.error("Failed to save holograms", e);
                 }
@@ -224,21 +259,17 @@ public class HologramManager implements Runnable {
     }
 
     /**
-     * Save scoreboard holograms to separate config file (rate-limited). Caller must hold SAVE_LOAD_LOCK.
-     */
-    private static void saveScoreboardHolograms() {
-        long currentTime = System.currentTimeMillis();
-        if (currentTime - lastScoreboardSave < SCOREBOARD_SAVE_COOLDOWN) {
-            return;
-        }
-        forceSaveScoreboardHolograms();
-    }
-
-    /**
-     * Force-save scoreboard holograms (no cooldown). Caller must hold SAVE_LOAD_LOCK.
+     * Saves every scoreboard hologram. Caller must hold SAVE_LOAD_LOCK.
+     *
+     * <p>There used to be a five second cooldown here, which silently dropped a second edit to
+     * a board made within five seconds of the first. It only reached the disk at shutdown, so
+     * a crash lost it. The cooldown existed to absorb board refreshes, which no longer save.
+     *
+     * <p>Writes even when no boards are left, which is how deleting the last one reaches the
+     * disk. That is only safe because the file is never written before it has been read.
      */
     public static void forceSaveScoreboardHolograms() {
-        if (scoreboardConfig == null) {
+        if (scoreboardConfig == null || !scoreboardConfig.isLoaded()) {
             return;
         }
         List<ScoreboardHologram> scoreboardHolograms = Lists.newArrayList();
@@ -247,20 +278,48 @@ public class HologramManager implements Runnable {
                 scoreboardHolograms.add((ScoreboardHologram) hologram);
             }
         }
-        if (!scoreboardHolograms.isEmpty()) {
-            scoreboardConfig.save(scoreboardHolograms);
-            lastScoreboardSave = System.currentTimeMillis();
-            LOGGER.debug("Saved {} scoreboard holograms", scoreboardHolograms.size());
-        }
+        scoreboardConfig.save(scoreboardHolograms);
+        LOGGER.debug("Saved {} scoreboard holograms", scoreboardHolograms.size());
     }
     
     /**
-     * Save scoreboard holograms to separate config file (synchronous - for shutdown)
+     * Save scoreboard holograms to separate config file (synchronous, for shutdown)
      */
     public static void saveScoreboardHologramsSync() {
         synchronized (SAVE_LOAD_LOCK) {
             forceSaveScoreboardHolograms();
             LOGGER.info("Saved scoreboard holograms during shutdown");
+        }
+    }
+
+    /**
+     * Ends the session. Call after the final shutdown save.
+     *
+     * <p>Saves are refused from here on, so an async save queued before shutdown cannot run
+     * afterwards. The registry is emptied because a single-player game keeps this class
+     * loaded between worlds, and the next world must not inherit holograms bound to this
+     * one's levels.
+     */
+    public static void close() {
+        synchronized (SAVE_LOAD_LOCK) {
+            acceptingSaves = false;
+            HOLOGRAMS.clear();
+        }
+    }
+
+    /**
+     * Whether either store was edited by hand since the mod last read or wrote it.
+     *
+     * <p>{@code /eh reload} uses this to decide whether to write memory to disk first. It
+     * used to do so unconditionally, which meant a hand edit was overwritten by the very
+     * command meant to load it.
+     *
+     * @return true if either file differs from the one the mod last saw
+     */
+    public static boolean storesChangedOnDisk() {
+        synchronized (SAVE_LOAD_LOCK) {
+            return (saver != null && saver.changedOnDisk())
+                    || (scoreboardConfig != null && scoreboardConfig.changedOnDisk());
         }
     }
     
@@ -277,13 +336,18 @@ public class HologramManager implements Runnable {
                 // Find the world
                 Level world = findWorldByName(data.worldName);
                 if (world == null) {
-                    LOGGER.warn("Could not find world '{}' for scoreboard hologram '{}'", data.worldName, data.id);
+                    // Skipping it outright would erase it from disk on the next save.
+                    scoreboardConfig.keepUnresolved(data, "its world '" + data.worldName
+                            + "' is not loaded. It will load again once that world is available");
                     continue;
                 }
                 
                 // Check if hologram already exists
                 if (getById(data.id) != null) {
-                    LOGGER.debug("Scoreboard hologram '{}' already exists, skipping", data.id);
+                    if (!(getById(data.id) instanceof ScoreboardHologram)) {
+                        scoreboardConfig.keepUnresolved(data,
+                                "a regular hologram already uses the ID '" + data.id + "'");
+                    }
                     continue;
                 }
                 
@@ -313,7 +377,22 @@ public class HologramManager implements Runnable {
                 LOGGER.info("Recreated scoreboard hologram '{}' for objective '{}'", data.id, data.objectiveName);
                 
             } catch (Exception e) {
-                LOGGER.error("Error recreating scoreboard hologram '{}': {}", data.id, e.getMessage());
+                LOGGER.error("Error recreating scoreboard hologram '{}'", data.id, e);
+
+                // The constructor registers the board before it is fully configured, so a
+                // failure part way leaves a half-built one behind, and saving that would
+                // overwrite the good copy on disk with default settings. Take it back out and
+                // keep the original instead.
+                Hologram partial = getById(data.id);
+                if (partial instanceof ScoreboardHologram board) {
+                    try {
+                        board.despawn();
+                    } catch (Exception ignored) {
+                        // Best effort; it is being discarded either way.
+                    }
+                    removeHologram(board);
+                }
+                scoreboardConfig.keepUnresolved(data, "it could not be rebuilt (" + e.getMessage() + ")");
             }
         }
     }

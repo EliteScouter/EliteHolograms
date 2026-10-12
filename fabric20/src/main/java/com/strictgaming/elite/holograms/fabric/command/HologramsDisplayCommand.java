@@ -32,7 +32,7 @@ import java.util.Locale;
  * tab-completion list stays readable.
  *
  * <p>None of them apply to a player-facing hologram. Its text is an armor stand nameplate, which
- * the client draws at a fixed size, always turned towards the camera, and lit by the world - the
+ * the client draws at a fixed size, always turned towards the camera, and lit by the world, so the
  * server has no say in any of it. The values are still stored so they take effect if the hologram
  * is later converted.
  */

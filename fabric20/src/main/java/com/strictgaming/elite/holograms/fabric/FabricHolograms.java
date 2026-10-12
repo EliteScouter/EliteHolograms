@@ -58,7 +58,7 @@ import java.io.IOException;
  * Fabric entry point for Elite Holograms.
  *
  * <p>This is the counterpart to the Forge {@code Forge20Holograms} class. The mod is entirely
- * server-side - holograms are packet-only entities the server sends to vanilla clients - so it
+ * server-side (holograms are packet-only entities the server sends to vanilla clients), so it
  * registers as a plain {@link ModInitializer} rather than a dedicated-server one, which means it
  * also works in single-player and on LAN worlds.
  */
@@ -151,7 +151,7 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
     }
 
     private void onServerStarting() {
-        LOGGER.info("Server starting - initializing hologram manager");
+        LOGGER.info("Server starting, initializing hologram manager");
 
         try {
             this.config = new HologramsConfig();
@@ -166,12 +166,18 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
     }
 
     private void onServerStarted() {
-        LOGGER.info("Server started - loading holograms");
+        LOGGER.info("Server started, loading holograms");
 
         UtilPlaceholder.setServerStartTime();
 
-        // Before anything is spawned, clear click hitboxes a previous run left behind.
-        HologramManager.sweepOrphanedInteractions();
+        // Before anything is spawned, clear click hitboxes a previous run left behind. Guarded
+        // on its own: if it threw, the load below would never run and nothing edited this
+        // session could be saved.
+        try {
+            HologramManager.sweepOrphanedInteractions();
+        } catch (Exception e) {
+            LOGGER.error("Error clearing leftover click hitboxes", e);
+        }
 
         try {
             HologramManager.load();
@@ -192,7 +198,7 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
     }
 
     private void onServerStopping() {
-        LOGGER.info("Server stopping - shutting down hologram manager");
+        LOGGER.info("Server stopping, shutting down hologram manager");
 
         // Stop the background thread first so it cannot mutate state during save
         HologramManager.shutdown();
@@ -214,6 +220,10 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
                 LOGGER.error("Error despawning hologram {} during shutdown: {}", hologram.getId(), e.getMessage());
             }
         }
+
+        // Everything is on disk. Refuse any save still queued from before, and let a
+        // single-player game open its next world with an empty registry.
+        HologramManager.close();
     }
 
     /**
@@ -264,10 +274,10 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
         try {
             Class.forName("eu.pb4.placeholders.api.Placeholders");
             this.placeholders = true;
-            LOGGER.info("External Placeholder API found - placeholders enabled with external support");
+            LOGGER.info("External Placeholder API found, placeholders enabled with external support");
         } catch (ClassNotFoundException e) {
             this.placeholders = true; // Always enable our built-in placeholders
-            LOGGER.info("Using built-in placeholder system - placeholders enabled");
+            LOGGER.info("Using built-in placeholder system, placeholders enabled");
         }
     }
 

@@ -108,6 +108,15 @@ dependencies {
     
     // Our own API module
     embed project(':api')
+
+    // Dev runs only. Forge's module layers only see libraries declared as minecraftLibrary,
+    // so without these runServer fails on the first Adventure class. The api module is left
+    // out on purpose: this edition also carries those packages in its own sources, and
+    // declaring both splits the package. The release jar is built from embed and is
+    // unaffected.
+    configurations.embed.dependencies.findAll { it.group == 'net.kyori' }.each {
+        minecraftLibrary(it.copy())
+    }
 }
 
 // Process resources

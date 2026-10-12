@@ -20,7 +20,7 @@ public class HologramsAnimateLineCommand implements Command<CommandSourceStack> 
 
     @Override
     public int run(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        // Not used - we use executeCommand instead
+        // Not used. We use executeCommand instead
         return 0;
     }
     
@@ -37,7 +37,7 @@ public class HologramsAnimateLineCommand implements Command<CommandSourceStack> 
             return 0;
         }
         
-        ServerPlayer player = context.getSource().getPlayerOrException();
+        CommandSourceStack source = context.getSource();
         String id = args[0];
         
         // Parse line number
@@ -45,7 +45,7 @@ public class HologramsAnimateLineCommand implements Command<CommandSourceStack> 
         try {
             lineNumber = Integer.parseInt(args[1]);
         } catch (NumberFormatException e) {
-            player.sendSystemMessage(Component.literal("§cLine number must be a valid number!"));
+            source.sendSystemMessage(Component.literal("§cLine number must be a valid number!"));
             return 0;
         }
         
@@ -54,18 +54,18 @@ public class HologramsAnimateLineCommand implements Command<CommandSourceStack> 
         try {
             interval = Integer.parseInt(args[2]);
             if (interval < 1) {
-                player.sendSystemMessage(Component.literal("§cInterval must be at least 1 second!"));
+                source.sendSystemMessage(Component.literal("§cInterval must be at least 1 second!"));
                 return 0;
             }
         } catch (NumberFormatException e) {
-            player.sendSystemMessage(Component.literal("§cInterval must be a valid number (seconds)!"));
+            source.sendSystemMessage(Component.literal("§cInterval must be a valid number (seconds)!"));
             return 0;
         }
         
         // Get hologram
         ForgeHologram hologram = (ForgeHologram) HologramManager.getById(id);
         if (hologram == null) {
-            player.sendSystemMessage(Component.literal("§cNo hologram with ID '" + id + "' exists!"));
+            source.sendSystemMessage(Component.literal("§cNo hologram with ID '" + id + "' exists!"));
             return 0;
         }
         
@@ -80,8 +80,8 @@ public class HologramsAnimateLineCommand implements Command<CommandSourceStack> 
         
         String[] frameArray = framesText.toString().split("\\|");
         if (frameArray.length < 2) {
-            player.sendSystemMessage(Component.literal("§cYou must provide at least 2 frames separated by | character!"));
-            player.sendSystemMessage(Component.literal("§7Example: &aFrame 1|&bFrame 2|&cFrame 3"));
+            source.sendSystemMessage(Component.literal("§cYou must provide at least 2 frames separated by | character!"));
+            source.sendSystemMessage(Component.literal("§7Example: &aFrame 1|&bFrame 2|&cFrame 3"));
             return 0;
         }
         
@@ -89,10 +89,10 @@ public class HologramsAnimateLineCommand implements Command<CommandSourceStack> 
         
         try {
             hologram.setLineAnimated(lineNumber, frames, interval);
-            player.sendSystemMessage(Component.literal("§aLine " + lineNumber + " of hologram '" + id + "' is now animated!"));
-            player.sendSystemMessage(Component.literal("§7" + frames.size() + " frames, " + interval + " second interval"));
+            source.sendSystemMessage(Component.literal("§aLine " + lineNumber + " of hologram '" + id + "' is now animated!"));
+            source.sendSystemMessage(Component.literal("§7" + frames.size() + " frames, " + interval + " second interval"));
         } catch (Exception e) {
-            player.sendSystemMessage(Component.literal("§cError: " + e.getMessage()));
+            source.sendSystemMessage(Component.literal("§cError: " + e.getMessage()));
             return 0;
         }
         
