@@ -5,6 +5,9 @@ import com.strictgaming.elite.holograms.api.manager.HologramFactory;
 import com.strictgaming.elite.holograms.api.manager.PlatformHologramManager;
 import com.strictgaming.elite.holograms.neo262.command.CommandFactory;
 import com.strictgaming.elite.holograms.neo262.command.HologramsAnimateLineCommand;
+import com.strictgaming.elite.holograms.neo262.command.HologramsBackgroundCommand;
+import com.strictgaming.elite.holograms.neo262.command.HologramsClickCommand;
+import com.strictgaming.elite.holograms.neo262.command.HologramsDisplayCommand;
 import com.strictgaming.elite.holograms.neo262.command.HologramsBacklightCommand;
 import com.strictgaming.elite.holograms.neo262.command.HologramsCommand;
 import com.strictgaming.elite.holograms.neo262.command.HologramsCreateCommand;
@@ -49,6 +52,7 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.living.LivingEvent;
@@ -61,7 +65,14 @@ import java.io.IOException;
 public class Neo262Holograms implements PlatformHologramManager {
 
     public static final String MOD_ID = "eliteholograms";
-    public static final String VERSION = "26.2-1.2.0";
+    /**
+     * Read from the jar manifest rather than repeated here, where it drifted out of step
+     * with gradle.properties. Falls back to a label in a dev environment, where there is
+     * no manifest to read.
+     */
+    public static final String VERSION = Neo262Holograms.class.getPackage().getImplementationVersion() != null
+            ? Neo262Holograms.class.getPackage().getImplementationVersion()
+            : "dev";
     private static final Logger LOGGER = LogUtils.getLogger();
 
     private static Neo262Holograms instance;
@@ -95,6 +106,9 @@ public class Neo262Holograms implements PlatformHologramManager {
     private HologramsSetThemeCommand setThemeCommand;
     private HologramsMoveVerticalCommand moveVerticalCommand;
     private HologramsBacklightCommand backlightCommand;
+    private HologramsBackgroundCommand backgroundCommand;
+    private HologramsDisplayCommand displayCommand;
+    private HologramsClickCommand clickCommand;
     private HologramsSetRotationCommand setRotationCommand;
     private HologramsConvertCommand convertCommand;
 
@@ -131,6 +145,9 @@ public class Neo262Holograms implements PlatformHologramManager {
         setThemeCommand = new HologramsSetThemeCommand();
         moveVerticalCommand = new HologramsMoveVerticalCommand();
         backlightCommand = new HologramsBacklightCommand();
+        backgroundCommand = new HologramsBackgroundCommand();
+        displayCommand = new HologramsDisplayCommand();
+        clickCommand = new HologramsClickCommand();
         setRotationCommand = new HologramsSetRotationCommand();
         convertCommand = new HologramsConvertCommand();
         
@@ -156,6 +173,9 @@ public class Neo262Holograms implements PlatformHologramManager {
         mainCommand.registerSubCommand("settheme", setThemeCommand);
         mainCommand.registerSubCommand("movevertical", moveVerticalCommand);
         mainCommand.registerSubCommand("backlight", backlightCommand);
+        mainCommand.registerSubCommand("background", backgroundCommand);
+        mainCommand.registerSubCommand("display", displayCommand);
+        mainCommand.registerSubCommand("click", clickCommand);
         mainCommand.registerSubCommand("setrotation", setRotationCommand);
         mainCommand.registerSubCommand("convert", convertCommand);
     }
@@ -166,12 +186,16 @@ public class Neo262Holograms implements PlatformHologramManager {
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        LOGGER.info("Server starting - initializing hologram manager");
+        LOGGER.info("Server starting, initializing hologram manager");
         
         try {
+            // Only locate the file here. The holograms themselves are read once, by
+            // HologramManager.load() when the server has started, under the load lock and
+            // with saving suspended. Reading them here as well loaded everything twice, and
+            // the first pass ran without that protection: every hologram it built queued a
+            // save that could snapshot the registry half way through loading.
             this.config = new HologramsConfig();
-            this.config.load();
-            LOGGER.info("Config loaded successfully");
+            LOGGER.info("Config located successfully");
         } catch (IOException e) {
             LOGGER.error("Error loading config", e);
         }
@@ -203,6 +227,9 @@ public class Neo262Holograms implements PlatformHologramManager {
         setThemeCommand.register(event.getDispatcher());
         moveVerticalCommand.register(event.getDispatcher());
         backlightCommand.register(event.getDispatcher());
+        backgroundCommand.register(event.getDispatcher());
+        displayCommand.register(event.getDispatcher());
+        clickCommand.register(event.getDispatcher());
         setRotationCommand.register(event.getDispatcher());
         convertCommand.register(event.getDispatcher());
         
@@ -213,18 +240,27 @@ public class Neo262Holograms implements PlatformHologramManager {
         try {
             Class.forName("com.envyful.papi.forge.ForgePlaceholderAPI");
             this.placeholders = true;
-            LOGGER.info("External Placeholder API found - placeholders enabled with external support");
+            LOGGER.info("External Placeholder API found, placeholders enabled with external support");
         } catch (ClassNotFoundException e) {
             this.placeholders = true; 
-            LOGGER.info("Using built-in placeholder system - placeholders enabled");
+            LOGGER.info("Using built-in placeholder system, placeholders enabled");
         }
     }
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
-        LOGGER.info("Server started - loading holograms");
+        LOGGER.info("Server started, loading holograms");
         com.strictgaming.elite.holograms.neo262.util.UtilPlaceholder.setServerStartTime();
         this.checkForPlaceholders();
+        // Before anything is spawned, clear click hitboxes a previous run left behind. Guarded
+        // on its own: if it threw, the load below would never run and nothing edited this
+        // session could be saved.
+        try {
+            HologramManager.sweepOrphanedInteractions();
+        } catch (Exception e) {
+            LOGGER.error("Error clearing leftover click hitboxes", e);
+        }
+
         try {
             HologramManager.load();
             LOGGER.info("Holograms loaded successfully");
@@ -239,7 +275,7 @@ public class Neo262Holograms implements PlatformHologramManager {
      * <p>This deliberately runs inline on the server thread. Despawning removes real
      * {@code minecraft:light} blocks from the world and sends packets to still-connected
      * players, neither of which is safe off the server thread, and {@link ServerStoppingEvent}
-     * fires before the world is saved - so the work has to complete here or the light blocks
+     * fires before the world is saved, so the work has to complete here or the light blocks
      * leak into the save file.
      *
      * <p>An earlier version handed this to two nested worker threads with join timeouts. Those
@@ -247,9 +283,26 @@ public class Neo262Holograms implements PlatformHologramManager {
      * blocked inside a block write, so they could outlive the event and keep touching the world
      * while Minecraft was already saving and unloading chunks.
      */
+    /**
+     * Turns a right-click on a hologram hitbox into its configured command.
+     *
+     * <p>The hitbox is a real entity, so this is an ordinary interaction event, with no packet
+     * interception or mixin needed. Anything that is not one of ours falls straight through.
+     */
+    @SubscribeEvent
+    public void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
+        if (event.getLevel().isClientSide() || !(event.getEntity() instanceof ServerPlayer player)) {
+            return;
+        }
+
+        if (HologramManager.handleInteractionClick(player, event.getTarget())) {
+            event.setCanceled(true);
+        }
+    }
+
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
-        LOGGER.info("Server stopping - despawning holograms and saving");
+        LOGGER.info("Server stopping, despawning holograms and saving");
 
         for (Hologram hologram : HologramManager.getHolograms().values()) {
             try {
@@ -268,6 +321,10 @@ public class Neo262Holograms implements PlatformHologramManager {
         } catch (Exception e) {
             LOGGER.error("Error saving holograms during shutdown", e);
         }
+
+        // Everything is on disk. Refuse any save still queued from before, and let a
+        // single-player game open its next world with an empty registry.
+        HologramManager.close();
     }
 
     @SubscribeEvent

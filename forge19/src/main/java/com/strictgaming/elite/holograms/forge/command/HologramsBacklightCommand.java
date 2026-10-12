@@ -101,7 +101,7 @@ public class HologramsBacklightCommand implements Command<CommandSourceStack> {
 
         if (enable) {
             source.sendSystemMessage(UtilChatColour.parse(
-                    "&a&l(!) &aBacklight enabled for '&f" + id + "&a' - column height &f" + fh.getBacklightLevel() + "&a block(s)."));
+                    "&a&l(!) &aBacklight enabled for '&f" + id + "&a' with a column height of &f" + fh.getBacklightLevel() + "&a block(s)."));
         } else {
             source.sendSystemMessage(UtilChatColour.parse(
                     "&a&l(!) &aBacklight disabled for '&f" + id + "&a'."));

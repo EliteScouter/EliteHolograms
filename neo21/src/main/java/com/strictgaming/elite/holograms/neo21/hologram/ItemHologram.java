@@ -46,7 +46,7 @@ public class ItemHologram extends NeoForgeHologram {
                         List<String> lines, HologramDisplayType displayType, float yaw, float pitch) {
         super(id, world, x, y, z, lines, displayType, yaw, pitch);
         this.itemId = itemId;
-        // Don't init yet - constructor is called during load, before server level is available
+        // Don't init yet: the constructor is called during load, before server level is available
         LOGGER.debug("ItemHologram {} created, will initialize item stand on spawn.", id);
     }
     
@@ -188,7 +188,14 @@ public class ItemHologram extends NeoForgeHologram {
                 return level;
             }
         }
-        return ServerLifecycleHooks.getCurrentServer().overworld();
+        // A named world that is not loaded, such as a modded dimension whose mod is gone. This
+        // used to fall back to the overworld, which placed the hologram's backlight blocks and
+        // click hitbox there at its coordinates, as real blocks and a real entity. Nobody can
+        // see the hologram anyway (visibility compares world names), so treat the world as
+        // absent. The name is kept and saved, and the hologram works again once it is back.
+        return worldName == null || worldName.isEmpty()
+                ? ServerLifecycleHooks.getCurrentServer().overworld()
+                : null;
     }
 
     // Also need to override update() to ensure item is re-initialized if needed during full refresh

@@ -235,9 +235,10 @@ public class ScoreboardHologram extends ForgeHologram {
         }
         getLines().clear();
         
-        // Add new lines
+        // Add new lines. These are computed from the scores, not stored, so rendering them must
+        // not save. The board's settings are saved separately whenever they actually change.
         for (String line : newLines) {
-            addLine(line);
+            appendLine(line);
         }
     }
     

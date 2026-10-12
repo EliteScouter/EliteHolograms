@@ -7,7 +7,9 @@ import com.strictgaming.elite.holograms.neo21.hologram.HologramManager;
 import com.strictgaming.elite.holograms.neo21.hologram.entity.AnimatedHologramLine;
 import com.strictgaming.elite.holograms.neo21.hologram.entity.AnimatedTextDisplayHologramLine;
 import com.strictgaming.elite.holograms.neo21.hologram.entity.HologramEntityIds;
+import com.strictgaming.elite.holograms.neo21.hologram.entity.HologramInteraction;
 import com.strictgaming.elite.holograms.neo21.hologram.entity.HologramLine;
+import com.strictgaming.elite.holograms.neo21.hologram.entity.HologramTextDisplay;
 import com.strictgaming.elite.holograms.neo21.hologram.entity.HologramLineRenderer;
 import com.strictgaming.elite.holograms.neo21.hologram.entity.TextDisplayHologramLine;
 import com.strictgaming.elite.holograms.neo21.util.UtilBacklight;
@@ -22,6 +24,7 @@ import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.Level;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Display;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.server.ServerLifecycleHooks;
@@ -31,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.Map;
 import java.util.HashMap;
 import java.io.IOException;
@@ -55,6 +59,30 @@ public class NeoForgeHologram implements Hologram {
     private HologramDisplayType displayType = HologramDisplayType.FACING;
     private float yaw = 0.0F;
     private float pitch = 0.0F;
+
+    /** Vanilla's text display background is black, which is what hologram lines have always had. */
+    public static final int DEFAULT_BACKGROUND_COLOUR = 0x000000;
+
+    /** Vanilla's text display background is 25% opaque (alpha 64 of 255). */
+    public static final int DEFAULT_BACKGROUND_OPACITY = 25;
+
+    // Background of the text panel behind a fixed hologram's lines. Stored as an RGB
+    // colour plus an opacity percentage rather than one packed value so both halves can be
+    // set independently, and so the config stays readable.
+    private int backgroundColour = DEFAULT_BACKGROUND_COLOUR;
+    private int backgroundOpacity = DEFAULT_BACKGROUND_OPACITY;
+
+    // Text display presentation. Only meaningful on a fixed hologram, since an armor stand
+    // nameplate is drawn by the client at a fixed size, always facing the camera, and lit
+    // by the world, none of which the server can override.
+    private float scale = HologramTextDisplay.DEFAULT_SCALE;
+    private int brightness = HologramTextDisplay.BRIGHTNESS_AUTO;
+    private Display.BillboardConstraints billboard = Display.BillboardConstraints.FIXED;
+
+    // Click-to-run. The command is null when the hologram is not clickable.
+    private String clickCommand;
+    private boolean clickAsConsole = false;
+    private transient HologramInteraction interaction;
     
     // Content of lines: String or AnimatedLineData
     private List<Object> linesContent = new ArrayList<>();
@@ -65,7 +93,7 @@ public class NeoForgeHologram implements Hologram {
     private final List<UUID> nearbyPlayers = Collections.synchronizedList(new ArrayList<>());
     private boolean spawned = false;
 
-    // Backlight state - places invisible minecraft:light blocks at the hologram
+    // Backlight state: places invisible minecraft:light blocks at the hologram
     private boolean backlightEnabled = false;
     private int backlightLevel = UtilBacklight.DEFAULT_LEVEL;
     private List<BlockPos> backlightPositions = new ArrayList<>();
@@ -129,7 +157,7 @@ public class NeoForgeHologram implements Hologram {
             HologramLineRenderer line = createLine(level, content, currentY);
             
             hologramLines.add(line);
-            currentY -= LINE_SPACING;
+            currentY -= lineGap();
         }
 
         if (this.spawned) {
@@ -140,6 +168,10 @@ public class NeoForgeHologram implements Hologram {
                 }
             }
         }
+
+        // The clickable hitbox is sized and placed from the text block, so it has to be
+        // rebuilt whenever the lines change.
+        applyInteraction();
     }
     
     /**
@@ -159,7 +191,8 @@ public class NeoForgeHologram implements Hologram {
 
             if (fixed) {
                 return new AnimatedTextDisplayHologramLine(level, this.x, lineY, this.z,
-                        this.yaw, this.pitch, data.frames, intervalTicks);
+                        this.yaw, this.pitch, data.frames, intervalTicks, getBackgroundArgb(),
+                        this.scale, this.brightness, this.billboard);
             }
 
             ArmorStand armorStand = new ArmorStand(level, this.x, lineY, this.z);
@@ -174,7 +207,8 @@ public class NeoForgeHologram implements Hologram {
         String text = (content != null) ? content.toString() : "";
 
         if (fixed) {
-            return new TextDisplayHologramLine(level, this.x, lineY, this.z, this.yaw, this.pitch, text);
+            return new TextDisplayHologramLine(level, this.x, lineY, this.z, this.yaw, this.pitch, text,
+                    getBackgroundArgb(), this.scale, this.brightness, this.billboard);
         }
 
         return new HologramLine(level, this.x, lineY, this.z, text);
@@ -349,7 +383,7 @@ public class NeoForgeHologram implements Hologram {
         double currentY = this.y;
         for (HologramLineRenderer line : hologramLines) {
             line.setPosition(this.x, currentY, this.z);
-            currentY -= LINE_SPACING;
+            currentY -= lineGap();
         }
         
         if (spawned) {
@@ -395,6 +429,296 @@ public class NeoForgeHologram implements Hologram {
      */
     public float getPitch() {
         return this.pitch;
+    }
+
+    /**
+     * @return the RGB background colour used behind a fixed hologram's text
+     */
+    public int getBackgroundColour() {
+        return this.backgroundColour;
+    }
+
+    /**
+     * @return how opaque the background is, 0 (invisible) to 100 (solid)
+     */
+    public int getBackgroundOpacity() {
+        return this.backgroundOpacity;
+    }
+
+    /**
+     * @return the colour and opacity packed the way a text display wants them
+     */
+    public int getBackgroundArgb() {
+        int alpha = Math.round(this.backgroundOpacity * 255.0F / 100.0F);
+        return (alpha << 24) | (this.backgroundColour & 0xFFFFFF);
+    }
+
+    /**
+     * Sets the background behind a fixed hologram's text and pushes it to anyone watching.
+     *
+     * <p>Player-facing holograms are unaffected on screen: their text is an armor stand
+     * nameplate, whose background the client draws using the viewer's own chat background
+     * opacity. The value is still stored so it applies if the hologram is later converted.
+     *
+     * @param colour  the RGB colour
+     * @param opacity how opaque to draw it, 0 (invisible) to 100 (solid)
+     */
+    public void setBackground(int colour, int opacity) {
+        this.backgroundColour = colour & 0xFFFFFF;
+        this.backgroundOpacity = Math.max(0, Math.min(100, opacity));
+
+        int argb = getBackgroundArgb();
+
+        for (HologramLineRenderer line : hologramLines) {
+            line.setBackgroundArgb(argb);
+        }
+
+        if (spawned) {
+            for (UUID uuid : new ArrayList<>(nearbyPlayers)) {
+                ServerPlayer player = getPlayerByUUID(uuid);
+                if (player != null) {
+                    hologramLines.forEach(line -> line.sendSettingsSnapshot(player));
+                }
+            }
+        }
+
+        saveToConfig();
+    }
+
+    /**
+     * Restores the background from storage without saving. Called during load, before the line
+     * entities are built, so they pick the colour up on construction.
+     *
+     * @param colour  the persisted RGB colour
+     * @param opacity the persisted opacity percentage
+     */
+    public void restoreBackgroundState(int colour, int opacity) {
+        this.backgroundColour = colour & 0xFFFFFF;
+        this.backgroundOpacity = Math.max(0, Math.min(100, opacity));
+    }
+
+    /**
+     * @return the vertical distance between lines, widened in step with the scale so a
+     *         scaled-up hologram does not overlap its own lines
+     */
+    private double lineGap() {
+        return this.displayType == HologramDisplayType.FIXED
+                ? LINE_SPACING * this.scale
+                : LINE_SPACING;
+    }
+
+    /**
+     * @return the uniform scale applied to a fixed hologram text
+     */
+    public float getScale() {
+        return this.scale;
+    }
+
+    /**
+     * @return the light override, or {@link HologramTextDisplay#BRIGHTNESS_AUTO}
+     */
+    public int getBrightness() {
+        return this.brightness;
+    }
+
+    /**
+     * @return how a fixed hologram turns towards the viewer
+     */
+    public Display.BillboardConstraints getBillboard() {
+        return this.billboard;
+    }
+
+    /**
+     * Resizes a fixed hologram. Line spacing widens with the scale, so the lines are
+     * rebuilt rather than just re-sent.
+     *
+     * @param scale the uniform scale; 1.0 is the natural size
+     */
+    public void setScale(float scale) {
+        updateHologramContent(() -> this.scale = scale);
+    }
+
+    /**
+     * Overrides the light a fixed hologram text is drawn at.
+     *
+     * @param brightness 0-15, or {@link HologramTextDisplay#BRIGHTNESS_AUTO} for world light
+     */
+    public void setBrightness(int brightness) {
+        this.brightness = brightness;
+        pushLineSetting(line -> line.setBrightness(brightness));
+    }
+
+    /**
+     * Sets how a fixed hologram turns towards the viewer.
+     *
+     * @param billboard the billboard constraint to apply
+     */
+    public void setBillboard(Display.BillboardConstraints billboard) {
+        this.billboard = billboard;
+        pushLineSetting(line -> line.setBillboard(billboard));
+    }
+
+    /**
+     * Applies a display setting to every line and pushes it to anyone watching.
+     */
+    private void pushLineSetting(Consumer<HologramLineRenderer> change) {
+        hologramLines.forEach(change);
+
+        if (spawned) {
+            for (UUID uuid : new ArrayList<>(nearbyPlayers)) {
+                ServerPlayer player = getPlayerByUUID(uuid);
+                if (player != null) {
+                    hologramLines.forEach(line -> line.sendSettingsSnapshot(player));
+                }
+            }
+        }
+
+        saveToConfig();
+    }
+
+    /**
+     * Restores presentation settings from storage without saving. Called during load,
+     * before the line entities are built, so they pick these up on construction.
+     *
+     * @param scale      the persisted scale
+     * @param brightness the persisted light override
+     * @param billboard  the persisted billboard constraint
+     */
+    public void restorePresentationState(float scale, int brightness,
+                                         Display.BillboardConstraints billboard) {
+        this.scale = scale;
+        this.brightness = brightness;
+        this.billboard = billboard == null ? Display.BillboardConstraints.FIXED : billboard;
+    }
+
+    /**
+     * @return whether a clickable hitbox currently exists in the world for this hologram
+     */
+    public boolean hasClickHitbox() {
+        return this.interaction != null && this.interaction.isAlive();
+    }
+
+    /**
+     * @return the command run when a player clicks this hologram, or null when it is not
+     *         clickable
+     */
+    public String getClickCommand() {
+        return this.clickCommand;
+    }
+
+    /**
+     * @return whether the click command runs elevated rather than as the clicking player
+     */
+    public boolean isClickAsConsole() {
+        return this.clickAsConsole;
+    }
+
+    /**
+     * Makes this hologram run a command when clicked, or stops it doing so.
+     *
+     * @param command   the command to run without a leading slash, or null to clear it
+     * @param asConsole true to run it elevated rather than as the clicking player
+     */
+    public void setClickCommand(String command, boolean asConsole) {
+        this.clickCommand = (command == null || command.trim().isEmpty()) ? null : command.trim();
+        this.clickAsConsole = asConsole;
+        applyInteraction();
+        saveToConfig();
+    }
+
+    /**
+     * Restores click settings from storage without saving or touching the world.
+     *
+     * @param command   the persisted command
+     * @param asConsole the persisted execution mode
+     */
+    public void restoreClickState(String command, boolean asConsole) {
+        this.clickCommand = (command == null || command.trim().isEmpty()) ? null : command.trim();
+        this.clickAsConsole = asConsole;
+    }
+
+    /**
+     * Creates the clickable hitbox if it is missing.
+     *
+     * <p>The hitbox is a real entity, so it can only be added to a loaded chunk. A hologram
+     * away from spawn is in an unloaded chunk when the server starts, so the attempt made
+     * during load silently does nothing and the hologram comes back unclickable. Calling this
+     * as a player comes into range retries at the one moment the chunk is guaranteed loaded.
+     */
+    public void ensureClickHitbox() {
+        if (this.clickCommand != null && !hasClickHitbox()) {
+            applyInteraction();
+        }
+    }
+
+    /**
+     * Rebuilds the clickable hitbox to match the current text block.
+     *
+     * <p>Always clears first: the hitbox is sized from the line count and scale, so an edit
+     * that changes either has to replace it rather than move it.
+     */
+    private void applyInteraction() {
+        clearInteraction();
+
+        ServerLevel level = getServerLevel();
+
+        if (this.clickCommand == null || hologramLines.isEmpty() || level == null) {
+            return;
+        }
+
+        double gap = lineGap();
+        // The text hangs below the anchor, one line slot per line, and the bottom line
+        // extends a little further down than its own slot.
+        double height = ((hologramLines.size() - 1) * gap) + (0.25D * this.scale);
+
+        // The text is not drawn at the hologram position: every line renders a nameplate
+        // height above its own slot. The hitbox has to follow the visible text, or it
+        // ends up a couple of blocks low and only the bottom of a tall hologram is
+        // clickable.
+        double textTop = this.y + TextDisplayHologramLine.textTopOffset();
+        double bottomY = textTop - height;
+
+        // Width cannot be measured server-side (the font lives on the client), so this is
+        // a readable-looking box derived from the longest line, clamped so a very long line
+        // does not produce a hitbox players bump into from across the room.
+        double width = Math.max(1.0D, Math.min(8.0D, longestLineLength() * 0.11D * this.scale));
+
+        this.interaction = new HologramInteraction(level);
+        this.interaction.applySize((float) width, (float) Math.max(gap, height));
+        this.interaction.moveTo(this.x, bottomY, this.z, 0.0F, 0.0F);
+
+        level.addFreshEntity(this.interaction);
+        HologramManager.registerInteraction(this.interaction.getUUID(), this.id);
+    }
+
+    /**
+     * Removes the clickable hitbox from the world.
+     */
+    private void clearInteraction() {
+        if (this.interaction == null) {
+            return;
+        }
+
+        HologramManager.unregisterInteraction(this.interaction.getUUID());
+        this.interaction.discard();
+        this.interaction = null;
+    }
+
+    /**
+     * @return the character count of the longest line, used only to size the click hitbox
+     */
+    private int longestLineLength() {
+        int longest = 0;
+
+        for (HologramLineRenderer line : hologramLines) {
+            String text = line.getText();
+
+            if (text != null) {
+                longest = Math.max(longest, text.length());
+            }
+        }
+
+        return longest;
     }
 
     /**
@@ -465,6 +789,7 @@ public class NeoForgeHologram implements Hologram {
             });
         }
         applyBacklight();
+        applyInteraction();
         LOGGER.debug("Hologram {} marked as spawned/active.", id);
     }
 
@@ -489,6 +814,11 @@ public class NeoForgeHologram implements Hologram {
         if (!isPlayerInCorrectWorld(player)) return;
 
         LOGGER.debug("Spawning hologram {} for player {}", id, player.getName().getString());
+
+        // A player being in range means this chunk is loaded, which is the only point at
+        // which a click hitbox can actually be added to the world.
+        ensureClickHitbox();
+
         hologramLines.forEach(line -> line.spawnToPlayer(player));
         nearbyPlayers.add(player.getUUID());
     }
@@ -584,6 +914,7 @@ public class NeoForgeHologram implements Hologram {
     public void delete() {
         LOGGER.info("Deleting hologram: {}", id);
         clearBacklight();
+        clearInteraction();
         despawn();
         HologramManager.removeHologram(this.id);
     }
@@ -618,7 +949,12 @@ public class NeoForgeHologram implements Hologram {
                 return level;
             }
         }
-        return ServerLifecycleHooks.getCurrentServer().overworld();
+        // A named world that is not loaded, such as a modded dimension whose mod is gone. This
+        // used to fall back to the overworld, which placed the hologram's backlight blocks and
+        // click hitbox there at its coordinates, as real blocks and a real entity. Nobody can
+        // see the hologram anyway (visibility compares world names), so treat the world as
+        // absent. The name is kept and saved, and the hologram works again once it is back.
+        return null;
     }
 
     private void saveToConfig() {

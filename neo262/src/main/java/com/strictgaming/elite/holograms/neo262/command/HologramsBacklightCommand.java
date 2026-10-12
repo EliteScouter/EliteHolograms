@@ -110,7 +110,7 @@ public class HologramsBacklightCommand implements HologramsCommand.SubCommand {
         if (enable) {
             final int finalLevel = hologram.getBacklightLevel();
             source.sendSuccess(() -> Component.literal(
-                    "§aBacklight enabled for '§f" + id + "§a' - column height §f" + finalLevel + "§a block(s)."), true);
+                    "§aBacklight enabled for '§f" + id + "§a' with a column height of §f" + finalLevel + "§a block(s)."), true);
         } else {
             source.sendSuccess(() -> Component.literal(
                     "§aBacklight disabled for '§f" + id + "§a'."), true);

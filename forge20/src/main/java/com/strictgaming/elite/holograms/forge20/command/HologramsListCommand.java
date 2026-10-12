@@ -37,7 +37,7 @@ public class HologramsListCommand implements Command<CommandSourceStack> {
         
         source.sendSystemMessage(Component.literal("§e§l(!) §eHolograms on the server: §f" + holograms.size()));
         
-        // Sort holograms alphabetically - using new ArrayList to make it mutable
+        // Sort holograms alphabetically, using a new ArrayList to make it mutable
         holograms.sort((h1, h2) -> h1.getId().compareToIgnoreCase(h2.getId()));
         
         for (Hologram hologram : holograms) {

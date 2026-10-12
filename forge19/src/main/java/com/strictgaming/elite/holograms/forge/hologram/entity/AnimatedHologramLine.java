@@ -37,7 +37,7 @@ public class AnimatedHologramLine extends HologramLine {
     }
     
     /**
-     * Tick this animated line - updates frame if needed
+     * Tick this animated line, updating the frame if needed
      * @param currentTick Current server tick count
      * @return true if frame was updated
      */

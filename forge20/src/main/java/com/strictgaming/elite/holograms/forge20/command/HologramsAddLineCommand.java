@@ -28,7 +28,7 @@ public class HologramsAddLineCommand implements Command<CommandSourceStack> {
             return 0;
         }
         
-        ServerPlayer player = context.getSource().getPlayerOrException();
+        CommandSourceStack source = context.getSource();
         String id = args[0];
         
         StringBuilder text = new StringBuilder();
@@ -40,16 +40,16 @@ public class HologramsAddLineCommand implements Command<CommandSourceStack> {
         Hologram hologram = HologramManager.getById(id);
         
         if (hologram == null) {
-            player.sendSystemMessage(Component.literal("§c§l(!) §cHologram with ID '§f" + id + "§c' not found!"));
+            source.sendSystemMessage(Component.literal("§c§l(!) §cHologram with ID '§f" + id + "§c' not found!"));
             return 0;
         }
         
         try {
             hologram.addLine(lineText);
-            player.sendSystemMessage(Component.literal("§a§l(!) §aAdded line to hologram '§f" + id + "§a'!"));
+            source.sendSystemMessage(Component.literal("§a§l(!) §aAdded line to hologram '§f" + id + "§a'!"));
             return Command.SINGLE_SUCCESS;
         } catch (Exception e) {
-            player.sendSystemMessage(Component.literal("§c§l(!) §cError adding line: §f" + e.getMessage()));
+            source.sendSystemMessage(Component.literal("§c§l(!) §cError adding line: §f" + e.getMessage()));
             return 0;
         }
     }

@@ -108,6 +108,9 @@ public class HologramsCommand {
             case "movevertical":
             case "setrotation":
             case "convert":
+            case "background":
+            case "display":
+            case "click":
                 return UtilPermissions.EDIT;
             case "list":
                 return UtilPermissions.LIST;
@@ -167,6 +170,9 @@ public class HologramsCommand {
         source.sendSuccess(() -> Component.literal("§3│ §b/eh backlight <id> <on|off|toggle> [level 0-15]"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh setrotation <id> <yaw> [pitch]"), false);
         source.sendSuccess(() -> Component.literal("§3│ §b/eh convert <id> fixed|face"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh background <id> colour|opacity|none|reset"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh display <id> scale|brightness|billboard"), false);
+        source.sendSuccess(() -> Component.literal("§3│ §b/eh click <id> set|console <command>|none"), false);
         source.sendSuccess(() -> Component.literal("§3§l└─────────────────┘"), false);
         
         return 1;

@@ -17,11 +17,11 @@ public class HologramsRemoveLineCommand implements Command<CommandSourceStack> {
 
     @Override
     public int run(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        ServerPlayer player = context.getSource().getPlayerOrException();
+        CommandSourceStack source = context.getSource();
         String name = context.getArgument("name", String.class);
         int lineNumber = context.getArgument("line", Integer.class);
         
-        return executeCommand(player, name, lineNumber);
+        return executeCommand(source, name, lineNumber);
     }
     
     /**
@@ -34,37 +34,37 @@ public class HologramsRemoveLineCommand implements Command<CommandSourceStack> {
             return 0;
         }
         
-        ServerPlayer player = context.getSource().getPlayerOrException();
+        CommandSourceStack source = context.getSource();
         String name = args[0];
         int lineNumber;
         
         try {
             lineNumber = Integer.parseInt(args[1]);
         } catch (NumberFormatException e) {
-            player.sendSystemMessage(Component.literal("§cInvalid line number: " + args[1]));
+            source.sendSystemMessage(Component.literal("§cInvalid line number: " + args[1]));
             return 0;
         }
         
-        return executeCommand(player, name, lineNumber);
+        return executeCommand(source, name, lineNumber);
     }
     
     /**
      * Common implementation for both entry points
      */
-    private int executeCommand(ServerPlayer player, String name, int lineNumber) {
+    private int executeCommand(CommandSourceStack source, String name, int lineNumber) {
         Hologram hologram = HologramManager.getById(name);
         
         if (hologram == null) {
-            player.sendSystemMessage(Component.literal("§cNo hologram with that name exists!"));
+            source.sendSystemMessage(Component.literal("§cNo hologram with that name exists!"));
             return 0;
         }
         
         try {
             hologram.removeLine(lineNumber);
-            player.sendSystemMessage(Component.literal("§aRemoved line " + lineNumber + " from hologram '" + name + "'!"));
+            source.sendSystemMessage(Component.literal("§aRemoved line " + lineNumber + " from hologram '" + name + "'!"));
             return Command.SINGLE_SUCCESS;
         } catch (HologramException e) {
-            player.sendSystemMessage(Component.literal("§c" + e.getMessage()));
+            source.sendSystemMessage(Component.literal("§c" + e.getMessage()));
             return 0;
         }
     }

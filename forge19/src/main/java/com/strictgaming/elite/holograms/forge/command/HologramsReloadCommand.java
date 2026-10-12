@@ -28,9 +28,15 @@ public class HologramsReloadCommand implements Command<CommandSourceStack> {
         try {
             int oldCount = HologramManager.getAllHolograms().size();
 
-            // Save synchronously before reloading to avoid race condition
-            // where async save runs after the map is cleared, writing 0 holograms
-            HologramManager.saveSync();
+            // Flush memory to disk first so nothing edited in game is lost, unless a file was
+            // edited by hand, in which case flushing would overwrite the very edit this reload
+            // is meant to pick up. Every in-game edit is already saved as it happens.
+            if (HologramManager.storesChangedOnDisk()) {
+                source.sendSystemMessage(UtilChatColour.parse(
+                        "&e&l(!) &eHologram files were edited outside the game, loading those edits"));
+            } else {
+                HologramManager.saveSync();
+            }
 
             // load() handles despawn + clear + reload under SAVE_LOAD_LOCK
             HologramManager.load();

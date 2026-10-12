@@ -89,7 +89,7 @@ public class HologramsCreateAtCommand implements HologramsCommand.SubCommand {
             throw INVALID_COORDS.create();
         }
         
-        // Get world name (for now, use current world - world parameter can be added later)
+        // Get world name (for now, use the current world; a world parameter can be added later)
         String worldName = source.getLevel().dimension().identifier().toString();
         
         // Get text

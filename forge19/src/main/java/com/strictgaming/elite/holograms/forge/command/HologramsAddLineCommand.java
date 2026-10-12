@@ -16,19 +16,19 @@ public class HologramsAddLineCommand implements Command<CommandSourceStack> {
 
     @Override
     public int run(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
-        ServerPlayer player = context.getSource().getPlayerOrException();
+        CommandSourceStack source = context.getSource();
         String name = context.getArgument("name", String.class);
         String text = context.getArgument("text", String.class);
         
         Hologram hologram = HologramManager.getById(name);
         
         if (hologram == null) {
-            player.sendSystemMessage(Component.literal("§cNo hologram with that name exists!"));
+            source.sendSystemMessage(Component.literal("§cNo hologram with that name exists!"));
             return 0;
         }
         
         hologram.addLine(text);
-        player.sendSystemMessage(Component.literal("§aAdded line to hologram '" + name + "'!"));
+        source.sendSystemMessage(Component.literal("§aAdded line to hologram '" + name + "'!"));
         
         return Command.SINGLE_SUCCESS;
     }
@@ -42,7 +42,7 @@ public class HologramsAddLineCommand implements Command<CommandSourceStack> {
             return 0;
         }
         
-        ServerPlayer player = context.getSource().getPlayerOrException();
+        CommandSourceStack source = context.getSource();
         String name = args[0];
         
         StringBuilder text = new StringBuilder();
@@ -53,12 +53,12 @@ public class HologramsAddLineCommand implements Command<CommandSourceStack> {
         Hologram hologram = HologramManager.getById(name);
         
         if (hologram == null) {
-            player.sendSystemMessage(Component.literal("§cNo hologram with that name exists!"));
+            source.sendSystemMessage(Component.literal("§cNo hologram with that name exists!"));
             return 0;
         }
         
         hologram.addLine(text.toString().trim());
-        player.sendSystemMessage(Component.literal("§aAdded line to hologram '" + name + "'!"));
+        source.sendSystemMessage(Component.literal("§aAdded line to hologram '" + name + "'!"));
         
         return Command.SINGLE_SUCCESS;
     }

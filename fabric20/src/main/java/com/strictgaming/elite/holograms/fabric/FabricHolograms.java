@@ -7,7 +7,9 @@ import com.strictgaming.elite.holograms.api.manager.PlatformHologramManager;
 import com.strictgaming.elite.holograms.fabric.command.CommandFactory;
 import com.strictgaming.elite.holograms.fabric.command.HologramsAddLineCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsAnimateLineCommand;
+import com.strictgaming.elite.holograms.fabric.command.HologramsBackgroundCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsBacklightCommand;
+import com.strictgaming.elite.holograms.fabric.command.HologramsClickCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsConvertCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsCopyCommand;
@@ -16,6 +18,7 @@ import com.strictgaming.elite.holograms.fabric.command.HologramsCreateCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsCreateItemCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsCreateScoreboardCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsDeleteCommand;
+import com.strictgaming.elite.holograms.fabric.command.HologramsDisplayCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsInfoCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsInsertLineCommand;
 import com.strictgaming.elite.holograms.fabric.command.HologramsListCommand;
@@ -39,10 +42,13 @@ import com.strictgaming.elite.holograms.fabric.util.UtilServer;
 
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionResult;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -52,14 +58,21 @@ import java.io.IOException;
  * Fabric entry point for Elite Holograms.
  *
  * <p>This is the counterpart to the Forge {@code Forge20Holograms} class. The mod is entirely
- * server-side - holograms are packet-only entities the server sends to vanilla clients - so it
+ * server-side (holograms are packet-only entities the server sends to vanilla clients), so it
  * registers as a plain {@link ModInitializer} rather than a dedicated-server one, which means it
  * also works in single-player and on LAN worlds.
  */
 public class FabricHolograms implements ModInitializer, PlatformHologramManager {
 
     public static final String MOD_ID = "eliteholograms";
-    public static final String VERSION = "1.20.1-1.2.0";
+    /**
+     * Read from the jar manifest rather than repeated here, where it drifted out of step
+     * with gradle.properties. Falls back to a label in a dev environment, where there is
+     * no manifest to read.
+     */
+    public static final String VERSION = FabricHolograms.class.getPackage().getImplementationVersion() != null
+            ? FabricHolograms.class.getPackage().getImplementationVersion()
+            : "dev";
     private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
 
     private static FabricHolograms instance;
@@ -80,6 +93,7 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
 
         registerLifecycleEvents();
         registerPlayerEvents();
+        registerInteractionEvents();
         registerCommands();
     }
 
@@ -107,6 +121,24 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
         ServerTickEvents.END_SERVER_TICK.register(server -> HologramManager.tick());
     }
 
+    /**
+     * Turns a right-click on a hologram hitbox into its configured command.
+     *
+     * <p>The hitbox is a real entity, so Fabric's ordinary use-entity callback sees it and no
+     * packet interception or mixin is needed. Anything that is not one of ours falls through.
+     */
+    private void registerInteractionEvents() {
+        UseEntityCallback.EVENT.register((player, level, hand, entity, hitResult) -> {
+            if (level.isClientSide() || !(player instanceof ServerPlayer serverPlayer) || entity == null) {
+                return InteractionResult.PASS;
+            }
+
+            return HologramManager.handleInteractionClick(serverPlayer, entity)
+                    ? InteractionResult.SUCCESS
+                    : InteractionResult.PASS;
+        });
+    }
+
     private void registerPlayerEvents() {
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 HologramManager.onPlayerLogin(handler.getPlayer()));
@@ -119,7 +151,7 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
     }
 
     private void onServerStarting() {
-        LOGGER.info("Server starting - initializing hologram manager");
+        LOGGER.info("Server starting, initializing hologram manager");
 
         try {
             this.config = new HologramsConfig();
@@ -134,9 +166,18 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
     }
 
     private void onServerStarted() {
-        LOGGER.info("Server started - loading holograms");
+        LOGGER.info("Server started, loading holograms");
 
         UtilPlaceholder.setServerStartTime();
+
+        // Before anything is spawned, clear click hitboxes a previous run left behind. Guarded
+        // on its own: if it threw, the load below would never run and nothing edited this
+        // session could be saved.
+        try {
+            HologramManager.sweepOrphanedInteractions();
+        } catch (Exception e) {
+            LOGGER.error("Error clearing leftover click hitboxes", e);
+        }
 
         try {
             HologramManager.load();
@@ -157,7 +198,7 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
     }
 
     private void onServerStopping() {
-        LOGGER.info("Server stopping - shutting down hologram manager");
+        LOGGER.info("Server stopping, shutting down hologram manager");
 
         // Stop the background thread first so it cannot mutate state during save
         HologramManager.shutdown();
@@ -179,6 +220,10 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
                 LOGGER.error("Error despawning hologram {} during shutdown: {}", hologram.getId(), e.getMessage());
             }
         }
+
+        // Everything is on disk. Refuse any save still queued from before, and let a
+        // single-player game open its next world with an empty registry.
+        HologramManager.close();
     }
 
     /**
@@ -213,6 +258,9 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
             command.registerSubCommand("near", new HologramsNearCommand());
             command.registerSubCommand("movevertical", new HologramsMoveVerticalCommand());
             command.registerSubCommand("backlight", new HologramsBacklightCommand());
+            command.registerSubCommand("background", new HologramsBackgroundCommand());
+            command.registerSubCommand("display", new HologramsDisplayCommand());
+            command.registerSubCommand("click", new HologramsClickCommand());
             command.registerSubCommand("setrotation", new HologramsSetRotationCommand());
             command.registerSubCommand("convert", new HologramsConvertCommand());
 
@@ -226,10 +274,10 @@ public class FabricHolograms implements ModInitializer, PlatformHologramManager 
         try {
             Class.forName("eu.pb4.placeholders.api.Placeholders");
             this.placeholders = true;
-            LOGGER.info("External Placeholder API found - placeholders enabled with external support");
+            LOGGER.info("External Placeholder API found, placeholders enabled with external support");
         } catch (ClassNotFoundException e) {
             this.placeholders = true; // Always enable our built-in placeholders
-            LOGGER.info("Using built-in placeholder system - placeholders enabled");
+            LOGGER.info("Using built-in placeholder system, placeholders enabled");
         }
     }
 

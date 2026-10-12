@@ -159,7 +159,7 @@ public class UtilPlaceholder {
     }
 
     /**
-     * Calculate mean of tick times - not used in Neo21 due to API differences
+     * Calculate mean of tick times. Not used in Neo21 due to API differences
      */
     private static long mean(long[] values) {
         long sum = 0L;

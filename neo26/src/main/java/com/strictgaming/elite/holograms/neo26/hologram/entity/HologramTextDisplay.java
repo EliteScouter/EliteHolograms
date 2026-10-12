@@ -3,6 +3,8 @@ package com.strictgaming.elite.holograms.neo26.hologram.entity;
 import com.mojang.logging.LogUtils;
 
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.FloatTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -38,6 +40,34 @@ public class HologramTextDisplay extends Display.TextDisplay {
      */
     private static final int NO_WRAP_LINE_WIDTH = Integer.MAX_VALUE;
 
+    /**
+     * What vanilla gives a text display when nothing sets a background: 25% opaque black
+     * ({@code 0x40000000}). This is the look hologram lines have always had, so it stays the
+     * default and existing holograms are unaffected.
+     */
+    public static final int DEFAULT_BACKGROUND = 0x40000000;
+
+    /** Vanilla leaves a text display at its natural size. */
+    public static final float DEFAULT_SCALE = 1.0F;
+
+    /**
+     * Sentinel for "no brightness override", i.e. the text is lit by the world like any
+     * other entity. Vanilla models this as an absent tag rather than a value.
+     */
+    public static final int BRIGHTNESS_AUTO = -1;
+
+    /** Current ARGB background, applied on every settings write. */
+    private int backgroundArgb = DEFAULT_BACKGROUND;
+
+    /** Uniform scale applied through the transformation matrix. */
+    private float scale = DEFAULT_SCALE;
+
+    /** 0-15 light override applied to both block and sky light, or {@link #BRIGHTNESS_AUTO}. */
+    private int brightness = BRIGHTNESS_AUTO;
+
+    /** How the display turns towards the viewer. */
+    private Display.BillboardConstraints billboard = Display.BillboardConstraints.FIXED;
+
     /** Written once while locating the synched data field that holds the text. */
     private static final String PROBE_TEXT = "EliteHologramsProbe";
 
@@ -59,22 +89,143 @@ public class HologramTextDisplay extends Display.TextDisplay {
      * Applies the display settings shared by every hologram line: a fixed billboard so the
      * text keeps the hologram's rotation, centred text, and no wrapping.
      *
-     * <p>The remaining vanilla defaults already match how a nameplate looks - 25% black
-     * background, no shadow, not see-through - so they are left alone.
+     * <p>The remaining vanilla defaults already match how a nameplate looks: 25% black
+     * background, no shadow, not see-through, so they are left alone.
      */
     public void applyHologramDefaults() {
-        CompoundTag tag = new CompoundTag();
-        tag.putString("billboard", Display.BillboardConstraints.FIXED.getSerializedName());
-        tag.putString("alignment", Display.TextDisplay.Align.CENTER.getSerializedName());
-        tag.putInt("line_width", NO_WRAP_LINE_WIDTH);
-        applySaveData(tag);
+        applySettings();
 
         // Resolve the text field now rather than lazily on the first packet build. Discovery
         // writes a probe value into this entity, and buildTextData is documented not to mutate
-        // it - doing the discovery there would leave the probe text sitting in the entity for
+        // it, and doing the discovery there would leave the probe text sitting in the entity for
         // the next viewer's spawn snapshot to pick up. Clearing it here also means a line whose
         // text is never set renders empty rather than showing the probe.
         setHologramText(Component.empty());
+    }
+
+    /**
+     * @return the ARGB background currently applied to this display
+     */
+    public int getBackgroundArgb() {
+        return this.backgroundArgb;
+    }
+
+    /**
+     * Replaces the background colour and pushes it onto the entity.
+     *
+     * @param argb the packed ARGB background; alpha 0 hides the background entirely
+     */
+    public void setBackgroundArgb(int argb) {
+        this.backgroundArgb = argb;
+        applySettings();
+    }
+
+    /**
+     * @return the uniform scale applied to this display
+     */
+    public float getScale() {
+        return this.scale;
+    }
+
+    /**
+     * @param scale the uniform scale; 1.0 is the natural size
+     */
+    public void setScale(float scale) {
+        this.scale = scale;
+        applySettings();
+    }
+
+    /**
+     * @return the light override, or {@link #BRIGHTNESS_AUTO} when the world lights the text
+     */
+    public int getBrightness() {
+        return this.brightness;
+    }
+
+    /**
+     * @param brightness 0-15 to light the text regardless of its surroundings, or
+     *                   {@link #BRIGHTNESS_AUTO} to let the world light it
+     */
+    public void setBrightness(int brightness) {
+        this.brightness = brightness;
+        applySettings();
+    }
+
+    /**
+     * @return how this display turns towards the viewer
+     */
+    public Display.BillboardConstraints getBillboard() {
+        return this.billboard;
+    }
+
+    /**
+     * @param billboard how the display should turn towards the viewer
+     */
+    public void setBillboard(Display.BillboardConstraints billboard) {
+        this.billboard = billboard;
+        applySettings();
+    }
+
+    /**
+     * Writes the complete display configuration in one go.
+     *
+     * <p>Every field is written every time on purpose. From 26.1 vanilla reads these with
+     * {@code getIntOr}/{@code getByteOr}, which means a tag that omits a key resets that key to
+     * its default rather than leaving it alone, so a partial write here would silently wipe a
+     * custom background. Writing the full state keeps the behaviour identical on 1.21.1, where
+     * the same read is conditional on the key being present.
+     */
+    private void applySettings() {
+        applySaveData(buildSettingsTag());
+    }
+
+    /**
+     * @return a tag carrying this display's full configuration
+     */
+    private CompoundTag buildSettingsTag() {
+        CompoundTag tag = new CompoundTag();
+        tag.putString("billboard", this.billboard.getSerializedName());
+        tag.putString("alignment", Display.TextDisplay.Align.CENTER.getSerializedName());
+        tag.putInt("line_width", NO_WRAP_LINE_WIDTH);
+        tag.putInt("background", this.backgroundArgb);
+        tag.put("transformation", buildTransformationTag());
+
+        // Brightness is the one setting vanilla models as "absent means no override" (it
+        // explicitly nulls the override when the key is missing), so auto is written by
+        // leaving the key out rather than by writing a value.
+        if (this.brightness != BRIGHTNESS_AUTO) {
+            CompoundTag light = new CompoundTag();
+            light.putInt("block", this.brightness);
+            light.putInt("sky", this.brightness);
+            tag.put("brightness", light);
+        }
+
+        return tag;
+    }
+
+    /**
+     * Builds the transformation carrying this display scale.
+     *
+     * <p>Vanilla non-matrix transformation codec requires all four components, so the
+     * rotations and translation are written as identity values alongside the scale.
+     */
+    private CompoundTag buildTransformationTag() {
+        CompoundTag transformation = new CompoundTag();
+        transformation.put("translation", floats(0.0F, 0.0F, 0.0F));
+        transformation.put("left_rotation", floats(0.0F, 0.0F, 0.0F, 1.0F));
+        transformation.put("scale", floats(this.scale, this.scale, this.scale));
+        transformation.put("right_rotation", floats(0.0F, 0.0F, 0.0F, 1.0F));
+        return transformation;
+    }
+
+    private static ListTag floats(float... values) {
+        ListTag list = new ListTag();
+
+        for (float value : values) {
+            list.add(FloatTag.valueOf(value));
+        }
+
+        return list;
     }
 
     /**
@@ -141,13 +292,15 @@ public class HologramTextDisplay extends Display.TextDisplay {
      * <p>The field defaults to an empty component, so it only shows up in
      * {@link SynchedEntityData#getNonDefaultValues()} once something has been written to it.
      * A probe value is written through the save-data path, then the single entry using the
-     * component serializer is picked out - on a text display, the text is the only such field.
+     * component serializer is picked out: on a text display, the text is the only such field.
      */
     private EntityDataAccessor<Component> discoverTextAccessor() {
-        CompoundTag probe = new CompoundTag();
+        // Built from the full settings tag so the probe write cannot reset any other field.
+        // This matters from 26.1 on, where vanilla reads these with getIntOr/getByteOr and a
+        // missing key resets that setting rather than leaving it alone.
+        CompoundTag probe = buildSettingsTag();
         // The component codec accepts a bare string as literal text.
         probe.putString("text", PROBE_TEXT);
-        probe.putString("alignment", Display.TextDisplay.Align.CENTER.getSerializedName());
         applySaveData(probe);
 
         List<SynchedEntityData.DataValue<?>> values = this.getEntityData().getNonDefaultValues();
@@ -161,7 +314,7 @@ public class HologramTextDisplay extends Display.TextDisplay {
             }
         }
 
-        LOGGER.error("Could not resolve the text display text field - fixed holograms will render blank. "
+        LOGGER.error("Could not resolve the text display text field, so fixed holograms will render blank. "
                 + "This build of Elite Holograms may not match the running Minecraft version.");
         return null;
     }

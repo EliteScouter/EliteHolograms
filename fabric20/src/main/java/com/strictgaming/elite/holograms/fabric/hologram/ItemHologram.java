@@ -45,7 +45,7 @@ public class ItemHologram extends FabricHologram {
         super(id, world, position, range, false, displayType, yaw, pitch); // Don't save in parent constructor
         
         this.itemId = itemId;
-        // Don't init item stand yet - world might not be fully ready during deserialization
+        // Don't init item stand yet, as the world might not be fully ready during deserialization
         
         // Add text lines
         if (lines != null && lines.length > 0) {

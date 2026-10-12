@@ -182,7 +182,7 @@ public class HologramsCommand {
                     return executeSubCommand(ctx, "createscoreboard", args);
                 })))))) ;
 
-        // settheme command - restyle an existing scoreboard hologram
+        // settheme command: restyle an existing scoreboard hologram
         LiteralArgumentBuilder<CommandSourceStack> setThemeCommand = Commands.literal("settheme")
                 .requires(UtilPermissions::canCreate)
                 .then(Commands.argument("id", StringArgumentType.word())
@@ -249,7 +249,7 @@ public class HologramsCommand {
                     return executeSubCommand(ctx, "removeline", args);
                 })));
                 
-        // Add list command - make it work directly as a subcommand too
+        // Add list command so it works directly as a subcommand too
         LiteralArgumentBuilder<CommandSourceStack> listCommand = Commands.literal("list")
                 .requires(UtilPermissions::canList)
                 .executes(this::listHolograms);
@@ -429,7 +429,7 @@ public class HologramsCommand {
                     return executeSubCommand(ctx, "createitem", args);
                 }))));
                 
-        // Backlight command - toggles invisible minecraft:light block at hologram position
+        // Backlight command: toggles invisible minecraft:light block at hologram position
         LiteralArgumentBuilder<CommandSourceStack> backlightCommand = buildBacklightTree();
 
         // Fixed-display commands. Not renderable on 1.19.2, but present so the command surface
@@ -706,7 +706,7 @@ public class HologramsCommand {
             LOGGER.debug("Available commands: {}", String.join(", ", subCommands.keySet()));
         }
         
-        // Clean the name - standard formatting for our commands
+        // Clean the name using the standard formatting for our commands
         String cleanName = name.toLowerCase().trim();
         
         // Try to find the command with different name formats
@@ -902,7 +902,7 @@ public class HologramsCommand {
                 )
         );
 
-        // settheme alias - restyle an existing scoreboard hologram
+        // settheme alias: restyle an existing scoreboard hologram
         aliasCommand.then(
             Commands.literal("settheme")
                 .requires(UtilPermissions::canCreate)
@@ -1049,7 +1049,7 @@ public class HologramsCommand {
                     return executeSubCommand(ctx, "moveto", args);
                 })))))));
                 
-        // Near command - use the direct handler functions
+        // Near command, using the direct handler functions
         aliasCommand.then(Commands.literal("near")
                 .requires(UtilPermissions::canNear)
                 .executes(this::executeNearCommand)
@@ -1064,7 +1064,7 @@ public class HologramsCommand {
                     }
                 })));
                 
-        // Teleport command - use the direct handler
+        // Teleport command, using the direct handler
         aliasCommand.then(Commands.literal("teleport")
                 .requires(UtilPermissions::canTeleport)
                 .then(Commands.argument("id", StringArgumentType.word())

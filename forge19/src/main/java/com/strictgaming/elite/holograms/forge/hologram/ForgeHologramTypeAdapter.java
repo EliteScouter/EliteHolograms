@@ -118,7 +118,7 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
                 String[] textLines = parseLinesArray(lines);
                 hologram = new ItemHologram(id, world, new Vec3(x, y, z), range, itemId, textLines);
             } else {
-                // Standard hologram - parse lines first to check for animations
+                // Standard hologram: parse lines first to check for animations
                 String[] textLines = parseLinesArray(lines);
                 hologram = new ForgeHologram(id, world, new Vec3(x, y, z), range, false, textLines);
                 
@@ -158,7 +158,7 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
         for (int i = 0; i < lines.size(); i++) {
             JsonElement lineElement = lines.get(i);
             if (lineElement.isJsonPrimitive()) {
-                // Old format - just a string
+                // Old format: just a string
                 textLines[i] = lineElement.getAsString();
             } else if (lineElement.isJsonObject()) {
                 JsonObject lineObj = lineElement.getAsJsonObject();
@@ -166,7 +166,7 @@ public class ForgeHologramTypeAdapter implements JsonSerializer<ForgeHologram>, 
                     // Standard line with new format
                     textLines[i] = lineObj.get("text").getAsString();
                 } else if (lineObj.has("frames")) {
-                    // Animated line - use first frame as placeholder
+                    // Animated line: use the first frame as a placeholder
                     JsonArray frames = lineObj.getAsJsonArray("frames");
                     textLines[i] = frames.size() > 0 ? frames.get(0).getAsString() : "";
                 } else {

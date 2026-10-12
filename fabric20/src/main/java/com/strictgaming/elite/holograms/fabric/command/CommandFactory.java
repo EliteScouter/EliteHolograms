@@ -60,7 +60,7 @@ public class CommandFactory {
         System.out.println("Registering command: " + name + " from class " + className);
         parent.registerSubCommand(name, child);
         
-        // Don't register with the original name format - this causes confusion
+        // Don't register with the original name format, as it causes confusion
         // Just use the clean command name (create, delete, etc.)
     }
 
