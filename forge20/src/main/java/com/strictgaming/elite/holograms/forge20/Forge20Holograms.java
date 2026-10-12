@@ -26,6 +26,9 @@ import com.strictgaming.elite.holograms.forge20.command.HologramsMoveVerticalCom
 import com.strictgaming.elite.holograms.forge20.command.HologramsCreateItemCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsAnimateLineCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsBacklightCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsBackgroundCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsClickCommand;
+import com.strictgaming.elite.holograms.forge20.command.HologramsDisplayCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsSetRotationCommand;
 import com.strictgaming.elite.holograms.forge20.command.HologramsConvertCommand;
 import com.strictgaming.elite.holograms.forge20.config.HologramsConfig;
@@ -34,6 +37,7 @@ import com.strictgaming.elite.holograms.forge20.hologram.HologramManager;
 import com.strictgaming.elite.holograms.forge20.hologram.manager.ForgeHologramFactory;
 import com.strictgaming.elite.holograms.forge20.hologram.manager.ForgeHologramManager;
 import com.strictgaming.elite.holograms.forge20.util.UtilPlaceholder;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
@@ -42,6 +46,7 @@ import net.minecraftforge.fml.IExtensionPoint;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.network.NetworkConstants;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
@@ -115,7 +120,7 @@ public class Forge20Holograms implements PlatformHologramManager {
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        LOGGER.info("Server starting - initializing hologram manager");
+        LOGGER.info("Server starting, initializing hologram manager");
         
         try {
             this.config = new HologramsConfig();
@@ -136,20 +141,29 @@ public class Forge20Holograms implements PlatformHologramManager {
         try {
             Class.forName("com.envyful.papi.forge.ForgePlaceholderAPI");
             this.placeholders = true;
-            LOGGER.info("External Placeholder API found - placeholders enabled with external support");
+            LOGGER.info("External Placeholder API found, placeholders enabled with external support");
         } catch (ClassNotFoundException e) {
             this.placeholders = true; // Always enable our built-in placeholders
-            LOGGER.info("Using built-in placeholder system - placeholders enabled");
+            LOGGER.info("Using built-in placeholder system, placeholders enabled");
         }
     }
 
     @SubscribeEvent
     public void onServerStarted(ServerStartedEvent event) {
-        LOGGER.info("Server started - loading holograms");
+        LOGGER.info("Server started, loading holograms");
         
         // Initialize placeholder server start time for uptime tracking
         UtilPlaceholder.setServerStartTime();
-        
+
+        // Before anything is spawned, clear click hitboxes a previous run left behind. Guarded
+        // on its own: if it threw, the load below would never run and nothing edited this
+        // session could be saved.
+        try {
+            HologramManager.sweepOrphanedInteractions();
+        } catch (Exception e) {
+            LOGGER.error("Error clearing leftover click hitboxes", e);
+        }
+
         try {
             HologramManager.load();
             LOGGER.info("Holograms loaded successfully");
@@ -169,7 +183,7 @@ public class Forge20Holograms implements PlatformHologramManager {
 
     @SubscribeEvent
     public void onServerStopping(ServerStoppingEvent event) {
-        LOGGER.info("Server stopping - shutting down hologram manager");
+        LOGGER.info("Server stopping, shutting down hologram manager");
         
         // Stop the background thread first so it cannot mutate state during save
         HologramManager.shutdown();
@@ -191,12 +205,33 @@ public class Forge20Holograms implements PlatformHologramManager {
                 LOGGER.error("Error despawning hologram {} during shutdown: {}", hologram.getId(), e.getMessage());
             }
         }
+
+        // Everything is on disk. Refuse any save still queued from before, and let a
+        // single-player game open its next world with an empty registry.
+        HologramManager.close();
     }
 
     @SubscribeEvent
     public void onServerTick(net.minecraftforge.event.TickEvent.ServerTickEvent event) {
         if (event.phase == net.minecraftforge.event.TickEvent.Phase.END) {
             HologramManager.tick();
+        }
+    }
+
+    /**
+     * Turns a right-click on a hologram hitbox into its configured command.
+     *
+     * <p>The hitbox is a real entity, so this is an ordinary interaction event, with no packet
+     * interception or mixin needed. Anything that is not one of ours falls straight through.
+     */
+    @SubscribeEvent
+    public void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
+        if (event.getLevel().isClientSide() || !(event.getEntity() instanceof ServerPlayer player)) {
+            return;
+        }
+
+        if (HologramManager.handleInteractionClick(player, event.getTarget())) {
+            event.setCanceled(true);
         }
     }
 
@@ -227,6 +262,9 @@ public class Forge20Holograms implements PlatformHologramManager {
         HologramsCreateItemCommand createItemCommand = new HologramsCreateItemCommand();
         HologramsAnimateLineCommand animateLineCommand = new HologramsAnimateLineCommand();
         HologramsBacklightCommand backlightCommand = new HologramsBacklightCommand();
+        HologramsBackgroundCommand backgroundCommand = new HologramsBackgroundCommand();
+        HologramsDisplayCommand displayCommand = new HologramsDisplayCommand();
+        HologramsClickCommand clickCommand = new HologramsClickCommand();
         HologramsSetRotationCommand setRotationCommand = new HologramsSetRotationCommand();
         HologramsConvertCommand convertCommand = new HologramsConvertCommand();
         
@@ -252,6 +290,9 @@ public class Forge20Holograms implements PlatformHologramManager {
         command.registerSubCommand("near", nearCommand);
         command.registerSubCommand("movevertical", moveVerticalCommand);
         command.registerSubCommand("backlight", backlightCommand);
+        command.registerSubCommand("background", backgroundCommand);
+        command.registerSubCommand("display", displayCommand);
+        command.registerSubCommand("click", clickCommand);
         command.registerSubCommand("setrotation", setRotationCommand);
         command.registerSubCommand("convert", convertCommand);
         

@@ -706,7 +706,7 @@ public class HologramsCommand {
             LOGGER.debug("Available commands: {}", String.join(", ", subCommands.keySet()));
         }
         
-        // Clean the name - standard formatting for our commands
+        // Clean the name using the standard formatting for our commands
         String cleanName = name.toLowerCase().trim();
         
         // Try to find the command with different name formats

@@ -31,18 +31,18 @@ public class HologramsInsertLineCommand implements Command<CommandSourceStack> {
             return 0;
         }
         
-        ServerPlayer player = context.getSource().getPlayerOrException();
+        CommandSourceStack source = context.getSource();
         String id = args[0];
         
         int lineNumber;
         try {
             lineNumber = Integer.parseInt(args[1]);
             if (lineNumber < 0) {
-                player.sendSystemMessage(UtilChatColour.parse("&c&l(!) &cLine number must be a positive integer!"));
+                source.sendSystemMessage(UtilChatColour.parse("&c&l(!) &cLine number must be a positive integer!"));
                 return 0;
             }
         } catch (NumberFormatException e) {
-            player.sendSystemMessage(UtilChatColour.parse("&c&l(!) &cInvalid line number: &f" + args[1]));
+            source.sendSystemMessage(UtilChatColour.parse("&c&l(!) &cInvalid line number: &f" + args[1]));
             return 0;
         }
         
@@ -55,15 +55,15 @@ public class HologramsInsertLineCommand implements Command<CommandSourceStack> {
         Hologram hologram = HologramManager.getById(id);
         
         if (hologram == null) {
-            player.sendSystemMessage(UtilChatColour.parse("&c&l(!) &cHologram with ID '&f" + id + "&c' not found!"));
+            source.sendSystemMessage(UtilChatColour.parse("&c&l(!) &cHologram with ID '&f" + id + "&c' not found!"));
             return 0;
         }
         
         try {
             hologram.insertLine(lineNumber, lineText);
-            player.sendSystemMessage(UtilChatColour.parse("&a&l(!) &aInserted line at position &f" + lineNumber + "&a in hologram '&f" + id + "&a'!"));
+            source.sendSystemMessage(UtilChatColour.parse("&a&l(!) &aInserted line at position &f" + lineNumber + "&a in hologram '&f" + id + "&a'!"));
         } catch (Exception e) {
-            player.sendSystemMessage(UtilChatColour.parse("&c&l(!) &cError inserting line: &f" + e.getMessage()));
+            source.sendSystemMessage(UtilChatColour.parse("&c&l(!) &cError inserting line: &f" + e.getMessage()));
             return 0;
         }
         

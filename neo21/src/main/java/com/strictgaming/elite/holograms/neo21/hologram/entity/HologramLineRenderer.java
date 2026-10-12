@@ -1,6 +1,7 @@
 package com.strictgaming.elite.holograms.neo21.hologram.entity;
 
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Display;
 
 /**
  * A single rendered line of a hologram.
@@ -82,5 +83,48 @@ public interface HologramLineRenderer {
      */
     default boolean tickAnimation() {
         return false;
+    }
+    /**
+     * Sets the background colour of this line. No-op for backings whose background the server
+     * cannot control: an armor stand nameplate is drawn with the viewer's own chat background
+     * opacity, which is a client setting.
+     *
+     * @param argb the packed ARGB background; alpha 0 hides the background entirely
+     */
+    default void setBackgroundArgb(int argb) {
+    }
+
+    /**
+     * Pushes a settings change (such as the background) to a viewer. No-op where there are no
+     * server-controlled settings to push.
+     *
+     * @param player the viewer
+     */
+    default void sendSettingsSnapshot(ServerPlayer player) {
+    }
+    /**
+     * Resizes this line. No-op for backings that cannot be scaled, such as an armor stand
+     * nameplate is always drawn at a fixed size by the client.
+     *
+     * @param scale the uniform scale; 1.0 is the natural size
+     */
+    default void setScale(float scale) {
+    }
+
+    /**
+     * Overrides the light this line is drawn at. No-op for backings the server cannot light.
+     *
+     * @param brightness 0-15, or {@link HologramTextDisplay#BRIGHTNESS_AUTO} for world light
+     */
+    default void setBrightness(int brightness) {
+    }
+
+    /**
+     * Sets how this line turns towards the viewer. No-op for backings with no choice in
+     * the matter: a nameplate always faces the camera.
+     *
+     * @param billboard the billboard constraint to apply
+     */
+    default void setBillboard(Display.BillboardConstraints billboard) {
     }
 }

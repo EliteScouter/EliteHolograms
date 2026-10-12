@@ -1,4 +1,4 @@
-# EliteHolograms - Permission System
+# EliteHolograms Permission System
 
 EliteHolograms supports modern permission systems like **LuckPerms** and **FTB Ranks**, with automatic fallback to vanilla OP system.
 
@@ -11,15 +11,26 @@ EliteHolograms supports modern permission systems like **LuckPerms** and **FTB R
 
 | Permission Node | Description | Commands |
 |----------------|-------------|----------|
-| `eliteholograms.create` | Create new holograms | `/eh create` |
+| `eliteholograms.create` | Create new holograms | `/eh create`, `/eh createat`, `/eh createitem`, `/eh createscoreboard`, `/eh copy`, `/eh settheme` |
 | `eliteholograms.delete` | Delete holograms | `/eh delete` |
-| `eliteholograms.edit` | Edit hologram content | `/eh addline`, `/eh setline`, `/eh removeline`, `/eh insertline`, `/eh movehere`, `/eh movevertical`, `/eh convert`, `/eh setrotation` |
-| `eliteholograms.list` | List holograms | `/eh list` |
+| `eliteholograms.edit` | Edit hologram content and appearance | `/eh addline`, `/eh setline`, `/eh removeline`, `/eh insertline`, `/eh animateline`, `/eh movehere`, `/eh moveto`, `/eh movevertical`, `/eh convert`, `/eh setrotation`, `/eh background`, `/eh display`, `/eh click set`, `/eh click none` |
+| `eliteholograms.list` | List holograms, and use the base `/eh` command at all | `/eh list` |
 | `eliteholograms.info` | View hologram info | `/eh info` |
 | `eliteholograms.near` | View nearby holograms | `/eh near` |
 | `eliteholograms.teleport` | Teleport to holograms | `/eh teleport` |
 | `eliteholograms.backlight` | Toggle hologram backlights | `/eh backlight` |
-| `eliteholograms.admin` | Administrative commands | `/eh reload` |
+| `eliteholograms.admin` | Administrative commands, and running a click command as console | `/eh reload`, `/eh click <id> console <command>` |
+
+> **Two nodes to be careful with.**
+>
+> `eliteholograms.list` also gates the base `/eh` literal, so a player needs it *in addition to*
+> whichever node their subcommand uses. Granting `eliteholograms.create` on its own does nothing.
+>
+> `/eh click <id> console <command>` deliberately requires `eliteholograms.admin` rather than
+> `eliteholograms.edit`, because it runs its command with server permissions. If it used the edit
+> node, anyone trusted to write hologram text could attach `op <themselves>` to a hologram and
+> click it. `/eh click <id> set` is the safe form: it runs as the clicking player, with only
+> that player's own permissions, and stays on the edit node.
 
 ## Permission Groups (Recommended)
 
@@ -116,10 +127,10 @@ Console/Command blocks always have **full access** regardless of permission sett
 
 ## Supported Permission Systems
 
-- ✅ **LuckPerms** - Full support
-- ✅ **FTB Ranks** - Full support  
-- ✅ **Vanilla OP** - Fallback support
-- 🔄 **Other systems** - Can be added upon request
+- **LuckPerms:** full support
+- **FTB Ranks:** full support  
+- **Vanilla OP:** fallback support
+- **Other systems:** can be added on request
 
 ## Migration
 
@@ -130,4 +141,4 @@ Console/Command blocks always have **full access** regardless of permission sett
 4. Remove OP from players who should only have limited access
 
 ### Security Note
-Permission nodes provide **granular control** - much safer than giving full OP access! 
+Permission nodes provide **granular control**, which is much safer than giving full OP access. 

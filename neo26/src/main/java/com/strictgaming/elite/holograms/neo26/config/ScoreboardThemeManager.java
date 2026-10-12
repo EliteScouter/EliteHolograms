@@ -27,8 +27,8 @@ import java.util.Set;
  * <p>On first run the file is created pre-populated with a set of starter themes so server
  * owners have working examples to copy from. The file is never overwritten once it exists, so
  * any edits owners make (changing colours, adding new themes) are preserved. Missing starter
- * themes are re-added on load so deleting the whole file - or upgrading to a build with new
- * starters - restores the examples without clobbering customisations.</p>
+ * themes are re-added on load so deleting the whole file (or upgrading to a build with new
+ * starters) restores the examples without clobbering customisations.</p>
  *
  * <p>Format strings support legacy {@code &} colour codes as well as MiniMessage tags such as
  * {@code <gradient:#FF0000:#00FF00>...</gradient>} and {@code <rainbow>...</rainbow>}.</p>
@@ -60,6 +60,7 @@ public final class ScoreboardThemeManager {
             }
             themeFile = new File(configDir, "scoreboard_themes.json");
 
+            boolean existed = themeFile.exists();
             ThemeFile loaded = read();
             Map<String, ScoreboardTheme> merged = new LinkedHashMap<>();
 
@@ -79,8 +80,16 @@ public final class ScoreboardThemeManager {
                     ? loaded.defaultTheme
                     : DEFAULT_THEME_NAME;
 
-            // Write back if the file did not exist yet, so owners can see and edit the starters.
-            if (loaded == null || addedMissing) {
+            if (existed && loaded == null) {
+                // The file is there but could not be read, which is almost always a typo from a hand
+                // edit. Writing the starters here used to replace it, wiping out every custom
+                // theme over one misplaced comma. Leave it alone and run on the built-ins
+                // until it is fixed; /eh reload picks up the repaired file.
+                LOGGER.error("scoreboard_themes.json could not be read, so the built-in themes are in use."
+                        + " The file has not been changed. Fix it and run /eh reload");
+            } else if (!existed || addedMissing) {
+                // Write the starters out if there was no file, or it listed no themes, so owners
+                // can see and edit them.
                 write();
                 LOGGER.info("Created scoreboard themes config with {} starter themes", themes.size());
             } else {
@@ -193,7 +202,7 @@ public final class ScoreboardThemeManager {
         help.add("Use a theme with: /eh createscoreboard <id> <objective> [topCount] [interval] [theme]");
         help.add("Colours: legacy '&' codes (e.g. &a, &6, &l) OR MiniMessage tags like");
         help.add("  <gradient:#FF0000:#00FF00>text</gradient> and <rainbow>text</rainbow>.");
-        help.add("Tokens - header: {objective} {count}. player/timePlayer rows: {rank} {player} {score} {time}.");
+        help.add("Tokens. Header: {objective} {count}. Player/timePlayer rows: {rank} {player} {score} {time}.");
         help.add("'timePlayer' is used for time-based objectives (playtime etc.); if omitted, 'player' is used.");
         help.add("'defaultTheme' is applied when a board is created without naming a theme.");
         help.add("Edit these or add your own entries under 'themes'. Delete this file to restore the starters.");
@@ -206,7 +215,7 @@ public final class ScoreboardThemeManager {
     private static Map<String, ScoreboardTheme> defaultThemes() {
         Map<String, ScoreboardTheme> map = new LinkedHashMap<>();
 
-        // Classic look - matches the original hardcoded formatting.
+        // Classic look, matching the original hardcoded formatting.
         map.put("default", new ScoreboardTheme(
                 "&6&l{objective} &8- &7Top {count}",
                 "&e{rank}. &f{player} &7- &a{score}",
