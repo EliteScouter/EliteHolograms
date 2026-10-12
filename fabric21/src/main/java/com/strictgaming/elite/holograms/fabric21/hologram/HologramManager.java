@@ -5,6 +5,7 @@ import com.strictgaming.elite.holograms.api.manager.database.HologramSaver;
 import com.strictgaming.elite.holograms.fabric21.FabricHolograms;
 import com.strictgaming.elite.holograms.fabric21.config.ScoreboardHologramConfig;
 import com.strictgaming.elite.holograms.fabric21.hologram.database.JsonHologramSaver;
+import com.strictgaming.elite.holograms.fabric21.hologram.entity.HologramInteraction;
 import com.strictgaming.elite.holograms.fabric21.hologram.entity.HologramLineRenderer;
 import com.strictgaming.elite.holograms.fabric21.hologram.ScoreboardHologram;
 import com.strictgaming.elite.holograms.fabric21.util.UtilConcurrency;
@@ -14,6 +15,11 @@ import net.minecraft.world.level.Level;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Display;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Interaction;
 import net.minecraft.server.level.ServerPlayer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,12 +42,16 @@ public class HologramManager implements Runnable {
     private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
     
     private static final Map<String, FabricHologram> HOLOGRAMS = Maps.newConcurrentMap();
-    private static HologramSaver saver;
+    private static JsonHologramSaver saver;
     private static ScoreboardHologramConfig scoreboardConfig;
-    private static boolean shutdown = false;
+    private static volatile boolean shutdown = false;
     private static Thread managerThread;
-    private static long lastScoreboardSave = 0;
-    private static final long SCOREBOARD_SAVE_COOLDOWN = 5000; // 5 seconds cooldown
+    /**
+     * True from the end of a load until shutdown, and saves are refused outside that window.
+     * Before the load a save would overwrite holograms that have not been read yet; after
+     * shutdown it would write a registry that is being torn down.
+     */
+    private static volatile boolean acceptingSaves = false;
     /** Serializes save/load so async saves cannot overwrite the file after clear/reload. */
     private static final Object SAVE_LOAD_LOCK = new Object();
     /** When true, save()/saveSync() are no-ops so deserialize-triggered saves cannot wipe the file. */
@@ -52,7 +62,7 @@ public class HologramManager implements Runnable {
         // managerThread = new Thread(new HologramManager());
         // managerThread.start();
 
-        saver = (HologramSaver) new JsonHologramSaver(FabricHolograms.getInstance().getConfig().getStorageLocation());
+        saver = new JsonHologramSaver(FabricHolograms.getInstance().getConfig().getStorageLocation());
         // Ensure scoreboard configs are saved alongside other config files
         File storagePath = new File(FabricHolograms.getInstance().getConfig().getStorageLocation());
         File configDir = storagePath.isDirectory() ? storagePath : storagePath.getParentFile();
@@ -105,24 +115,32 @@ public class HologramManager implements Runnable {
                 // Save a snapshot of the currently loaded holograms
                 Map<String, FabricHologram> existingHolograms = new HashMap<>(HOLOGRAMS);
 
-                // Load from the saver (may construct holograms that call save() — suppressed while loading)
+                // Load from the saver (may construct holograms that call save(), which is suppressed while loading)
                 Map<String, Hologram> loadedHolograms = saver.load();
 
-                if (loadedHolograms.isEmpty() && !existingHolograms.isEmpty()) {
-                    LOGGER.info("No holograms loaded from file, but we have " + existingHolograms.size() + " in memory - preserving existing");
+                if (loadedHolograms.isEmpty() && !existingHolograms.isEmpty() && !saver.foundData()) {
+                    // The file is missing or unreadable, and a damaged one has already been copied
+                    // aside. What is in memory is the best copy left, so keep it and write it
+                    // back rather than replacing it with nothing. A file that validly lists no
+                    // holograms is not this case: that is how the store is emptied on purpose.
+                    LOGGER.warn("holograms.json could not be read, keeping the {} holograms already loaded",
+                            existingHolograms.size());
                     loading = false;
-                    // Write existing ones synchronously under the same lock
-                    if (saver != null) {
-                        saver.save(Lists.newArrayList(existingHolograms.values()));
-                        forceSaveScoreboardHolograms();
-                    }
+                    acceptingSaves = true;
+                    saver.save(Lists.newArrayList(existingHolograms.values()));
+                    forceSaveScoreboardHolograms();
                     return;
                 }
 
                 // Clear current holograms to ensure a clean state matching the file
                 // BUT we need to despawn existing ones first if the server is running
                 if (UtilServer.get() != null) {
-                    for (FabricHologram h : HOLOGRAMS.values()) {
+                    // Reading the file constructed replacements, and each one registered itself
+                    // over the live hologram with its ID. Despawning the registry here would
+                    // therefore despawn the new, never-spawned objects and strand the old ones:
+                    // still drawn for players, still holding their backlight blocks and their
+                    // click hitbox entities. Despawn what was actually on screen.
+                    for (FabricHologram h : existingHolograms.values()) {
                         h.despawn();
                     }
                 }
@@ -140,9 +158,13 @@ public class HologramManager implements Runnable {
 
                 // Spawn all loaded holograms now that they're added to the manager
                 // This ensures ItemHolograms initialize their item stands
+                // One at a time, so a single failure cannot stop the rest (or the scoreboard
+                // holograms below) from loading.
                 for (FabricHologram hologram : HOLOGRAMS.values()) {
-                    if (hologram != null) {
+                    try {
                         hologram.spawn();
+                    } catch (Exception e) {
+                        LOGGER.error("Could not spawn hologram '{}'", hologram.getId(), e);
                     }
                 }
 
@@ -150,6 +172,7 @@ public class HologramManager implements Runnable {
                 loadScoreboardHolograms();
             } finally {
                 loading = false;
+                acceptingSaves = true;
                 Thread.currentThread().setContextClassLoader(oldClassLoader);
             }
         }
@@ -163,6 +186,10 @@ public class HologramManager implements Runnable {
         synchronized (SAVE_LOAD_LOCK) {
             if (loading) {
                 LOGGER.debug("Skipping saveSync while holograms are loading");
+                return;
+            }
+            if (!acceptingSaves) {
+                LOGGER.debug("Skipping saveSync outside a loaded session");
                 return;
             }
             if (saver == null) {
@@ -181,18 +208,20 @@ public class HologramManager implements Runnable {
     }
 
     public static void save() {
-        if (loading) {
+        if (loading || !acceptingSaves) {
             return;
         }
         UtilConcurrency.runAsync(() -> {
             synchronized (SAVE_LOAD_LOCK) {
-                if (loading || saver == null) {
+                // Re-checked under the lock: shutdown may have closed the session while
+                // this was queued.
+                if (loading || !acceptingSaves || saver == null) {
                     return;
                 }
                 try {
                     // Snapshot under lock so we never write a mid-clear empty map
                     saver.save(Lists.newArrayList(HOLOGRAMS.values()));
-                    saveScoreboardHolograms();
+                    forceSaveScoreboardHolograms();
                 } catch (Exception e) {
                     LOGGER.error("Failed to save holograms", e);
                 }
@@ -251,21 +280,17 @@ public class HologramManager implements Runnable {
     }
 
     /**
-     * Save scoreboard holograms to separate config file (rate-limited). Caller must hold SAVE_LOAD_LOCK.
-     */
-    private static void saveScoreboardHolograms() {
-        long currentTime = System.currentTimeMillis();
-        if (currentTime - lastScoreboardSave < SCOREBOARD_SAVE_COOLDOWN) {
-            return;
-        }
-        forceSaveScoreboardHolograms();
-    }
-
-    /**
-     * Force-save scoreboard holograms (no cooldown). Caller must hold SAVE_LOAD_LOCK.
+     * Saves every scoreboard hologram. Caller must hold SAVE_LOAD_LOCK.
+     *
+     * <p>There used to be a five second cooldown here, which silently dropped a second edit to
+     * a board made within five seconds of the first. It only reached the disk at shutdown, so
+     * a crash lost it. The cooldown existed to absorb board refreshes, which no longer save.
+     *
+     * <p>Writes even when no boards are left, which is how deleting the last one reaches the
+     * disk. That is only safe because the file is never written before it has been read.
      */
     public static void forceSaveScoreboardHolograms() {
-        if (scoreboardConfig == null) {
+        if (scoreboardConfig == null || !scoreboardConfig.isLoaded()) {
             return;
         }
         List<ScoreboardHologram> scoreboardHolograms = Lists.newArrayList();
@@ -274,15 +299,12 @@ public class HologramManager implements Runnable {
                 scoreboardHolograms.add((ScoreboardHologram) hologram);
             }
         }
-        if (!scoreboardHolograms.isEmpty()) {
-            scoreboardConfig.save(scoreboardHolograms);
-            lastScoreboardSave = System.currentTimeMillis();
-            LOGGER.debug("Saved {} scoreboard holograms", scoreboardHolograms.size());
-        }
+        scoreboardConfig.save(scoreboardHolograms);
+        LOGGER.debug("Saved {} scoreboard holograms", scoreboardHolograms.size());
     }
     
     /**
-     * Save scoreboard holograms to separate config file (synchronous - for shutdown)
+     * Save scoreboard holograms to separate config file (synchronous, for shutdown)
      */
     public static void saveScoreboardHologramsSync() {
         synchronized (SAVE_LOAD_LOCK) {
@@ -290,10 +312,75 @@ public class HologramManager implements Runnable {
             LOGGER.info("Saved scoreboard holograms during shutdown");
         }
     }
+
+    /**
+     * Ends the session. Call after the final shutdown save.
+     *
+     * <p>Saves are refused from here on, so an async save queued before shutdown cannot run
+     * afterwards. The registry is emptied because a single-player game keeps this class
+     * loaded between worlds, and the next world must not inherit holograms bound to this
+     * one's levels.
+     */
+    public static void close() {
+        synchronized (SAVE_LOAD_LOCK) {
+            acceptingSaves = false;
+            HOLOGRAMS.clear();
+            INTERACTION_OWNERS.clear();
+            LAST_CLICK.clear();
+        }
+    }
+
+    /**
+     * Whether either store was edited by hand since the mod last read or wrote it.
+     *
+     * <p>{@code /eh reload} uses this to decide whether to write memory to disk first. It
+     * used to do so unconditionally, which meant a hand edit was overwritten by the very
+     * command meant to load it.
+     *
+     * @return true if either file differs from the one the mod last saw
+     */
+    public static boolean storesChangedOnDisk() {
+        synchronized (SAVE_LOAD_LOCK) {
+            return (saver != null && saver.changedOnDisk())
+                    || (scoreboardConfig != null && scoreboardConfig.changedOnDisk());
+        }
+    }
     
     /**
      * Load scoreboard holograms from separate config file
      */
+    /**
+     * Reads a "#RRGGBB" colour from the scoreboard config.
+     *
+     * @param value        the stored value, null on configs written before backgrounds existed
+     * @param defaultValue the colour to use when it is missing or malformed
+     * @return the RGB colour
+     */
+    private static int parseColour(String value, int defaultValue) {
+        if (value == null || value.isEmpty()) {
+            return defaultValue;
+        }
+
+        try {
+            return Integer.parseInt(value.replace("#", "").trim(), 16);
+        } catch (NumberFormatException e) {
+            LOGGER.warn("Invalid backgroundColour '{}' for a scoreboard hologram, using the default", value);
+            return defaultValue;
+        }
+    }
+
+    /**
+     * Reads a billboard name from the scoreboard config.
+     *
+     * @param value the stored name, may be null on older configs
+     * @return the matching constraint, or fixed when missing or unrecognised
+     */
+    private static Display.BillboardConstraints parseBillboard(String value) {
+        Display.BillboardConstraints parsed =
+                com.strictgaming.elite.holograms.fabric21.command.HologramsDisplayCommand.parseBillboard(value);
+        return parsed == null ? Display.BillboardConstraints.FIXED : parsed;
+    }
+
     private static void loadScoreboardHolograms() {
         // Refresh themes from disk first so reload picks up edits without a reboot.
         com.strictgaming.elite.holograms.fabric21.config.ScoreboardThemeManager.reload();
@@ -304,13 +391,18 @@ public class HologramManager implements Runnable {
                 // Find the world
                 Level world = findWorldByName(data.worldName);
                 if (world == null) {
-                    LOGGER.warn("Could not find world '{}' for scoreboard hologram '{}'", data.worldName, data.id);
+                    // Skipping it outright would erase it from disk on the next save.
+                    scoreboardConfig.keepUnresolved(data, "its world '" + data.worldName
+                            + "' is not loaded. It will load again once that world is available");
                     continue;
                 }
                 
                 // Check if hologram already exists
                 if (getById(data.id) != null) {
-                    LOGGER.debug("Scoreboard hologram '{}' already exists, skipping", data.id);
+                    if (!(getById(data.id) instanceof ScoreboardHologram)) {
+                        scoreboardConfig.keepUnresolved(data,
+                                "a regular hologram already uses the ID '" + data.id + "'");
+                    }
                     continue;
                 }
                 
@@ -332,6 +424,25 @@ public class HologramManager implements Runnable {
                     data.pitch
                 );
                 
+                // Restore presentation and click settings before the first render, which
+                // rebuilds the line entities and reads them on construction.
+                hologram.restoreBackgroundState(
+                        parseColour(data.backgroundColour, FabricHologram.DEFAULT_BACKGROUND_COLOUR),
+                        data.backgroundOpacity == null
+                                ? FabricHologram.DEFAULT_BACKGROUND_OPACITY
+                                : data.backgroundOpacity);
+
+                hologram.restorePresentationState(
+                        data.scale == null
+                                ? com.strictgaming.elite.holograms.fabric21.hologram.entity.HologramTextDisplay.DEFAULT_SCALE
+                                : data.scale,
+                        data.brightness == null
+                                ? com.strictgaming.elite.holograms.fabric21.hologram.entity.HologramTextDisplay.BRIGHTNESS_AUTO
+                                : data.brightness,
+                        parseBillboard(data.billboard));
+
+                hologram.restoreClickState(data.clickCommand, data.clickAsConsole);
+
                 // Force initial update
                 hologram.forceUpdate();
 
@@ -343,7 +454,22 @@ public class HologramManager implements Runnable {
                 LOGGER.info("Recreated scoreboard hologram '{}' for objective '{}'", data.id, data.objectiveName);
                 
             } catch (Exception e) {
-                LOGGER.error("Error recreating scoreboard hologram '{}': {}", data.id, e.getMessage());
+                LOGGER.error("Error recreating scoreboard hologram '{}'", data.id, e);
+
+                // The constructor registers the board before it is fully configured, so a
+                // failure part way leaves a half-built one behind, and saving that would
+                // overwrite the good copy on disk with default settings. Take it back out and
+                // keep the original instead.
+                Hologram partial = getById(data.id);
+                if (partial instanceof ScoreboardHologram board) {
+                    try {
+                        board.despawn();
+                    } catch (Exception ignored) {
+                        // Best effort; it is being discarded either way.
+                    }
+                    removeHologram(board);
+                }
+                scoreboardConfig.keepUnresolved(data, "it could not be rebuilt (" + e.getMessage() + ")");
             }
         }
     }
@@ -433,7 +559,7 @@ public class HologramManager implements Runnable {
         MinecraftServer server = UtilServer.get();
 
         // The player list is built after the server object exists. Fabric's SERVER_STARTING
-        // fires inside that window - earlier relative to startup than Forge's equivalent - so
+        // fires inside that window (earlier relative to startup than Forge's equivalent), so
         // this thread can get a live server whose player list is still null.
         if (server == null || server.getPlayerList() == null) {
             return;
@@ -490,6 +616,10 @@ public class HologramManager implements Runnable {
                 }
 
                 if (!hologram.getNearbyPlayers().contains(player.getUUID())) {
+                    // A player being in range means this chunk is loaded, which is the only
+                    // point at which a click hitbox can actually be added to the world.
+                    UtilConcurrency.runSync(hologram::ensureClickHitbox);
+
                     // Spawn item first if this is an ItemHologram
                     if (hologram instanceof ItemHologram) {
                         UtilConcurrency.runSync(() -> ((ItemHologram) hologram).spawnItemFor(player));
@@ -505,7 +635,7 @@ public class HologramManager implements Runnable {
 
                     hologram.getNearbyPlayers().add(player.getUUID());
                 } else {
-                    // Player is already nearby - update non-animated lines so placeholders
+                    // Player is already nearby: update non-animated lines so placeholders
                     // like %players% and %maxplayers% stay current
                     for (HologramLineRenderer line : hologram.getLines()) {
                         if (line != null && !line.isAnimated()) {
@@ -529,6 +659,8 @@ public class HologramManager implements Runnable {
         if (playerUUID == null) {
             return;
         }
+
+        LAST_CLICK.remove(playerUUID);
 
         for (FabricHologram value : HologramManager.HOLOGRAMS.values()) {
             if (value != null && value.getNearbyPlayers() != null) {
@@ -557,5 +689,122 @@ public class HologramManager implements Runnable {
         }
 
         LOGGER.debug("Refreshed hologram visibility for player: {}", player.getName().getString());
+    }
+    // Maps a clickable hitbox to the hologram that owns it. Interactions are real entities,
+    // so a click arrives as a normal interaction event carrying the entity. This is how that
+    // entity is turned back into a hologram without scanning every one of them.
+    private static final Map<UUID, String> INTERACTION_OWNERS = Maps.newConcurrentMap();
+
+    /** Stops a single player triggering a command every tick by holding right-click. */
+    private static final long CLICK_COOLDOWN_MS = 500L;
+    private static final Map<UUID, Long> LAST_CLICK = Maps.newConcurrentMap();
+
+    /**
+     * Records that a clickable hitbox belongs to a hologram.
+     *
+     * @param entityUUID the hitbox entity
+     * @param hologramId the owning hologram
+     */
+    public static void registerInteraction(UUID entityUUID, String hologramId) {
+        INTERACTION_OWNERS.put(entityUUID, hologramId);
+    }
+
+    /**
+     * Forgets a clickable hitbox, called when it is removed from the world.
+     *
+     * @param entityUUID the hitbox entity
+     */
+    public static void unregisterInteraction(UUID entityUUID) {
+        INTERACTION_OWNERS.remove(entityUUID);
+    }
+
+    /**
+     * Runs the click command of whichever hologram owns the given hitbox.
+     *
+     * <p>Called from each loader's interaction event. Does nothing, and reports nothing, when
+     * the entity is not one of ours, so unrelated interactions are untouched.
+     *
+     * @param player     the player who clicked
+     * @param entity     the entity they clicked
+     * @return true when this was one of our hitboxes and the click was consumed
+     */
+    public static boolean handleInteractionClick(ServerPlayer player, Entity entity) {
+        if (player == null || !(entity instanceof Interaction)
+                || !entity.getTags().contains(HologramInteraction.HOLOGRAM_TAG)) {
+            return false;
+        }
+
+        String hologramId = INTERACTION_OWNERS.get(entity.getUUID());
+
+        if (hologramId == null) {
+            // Ours by tag but not by registry, so it is a stale copy saved into the chunk
+            // by a build before hitboxes stopped persisting. Clear it out as we meet it,
+            // which repairs an existing world without a chunk-load sweep.
+            LOGGER.debug("Discarding an orphaned hologram click hitbox at {}", entity.blockPosition());
+            entity.discard();
+            return false;
+        }
+
+        // Consume the click from here on: it was ours even if we end up running nothing.
+        long now = System.currentTimeMillis();
+        Long last = LAST_CLICK.get(player.getUUID());
+
+        if (last != null && (now - last) < CLICK_COOLDOWN_MS) {
+            return true;
+        }
+
+        LAST_CLICK.put(player.getUUID(), now);
+
+        Hologram hologram = getById(hologramId);
+
+        if (!(hologram instanceof FabricHologram fh) || fh.getClickCommand() == null) {
+            return true;
+        }
+
+        String command = fh.getClickCommand().replace("%player%", player.getName().getString());
+
+        try {
+            CommandSourceStack source = player.createCommandSourceStack();
+
+            if (fh.isClickAsConsole()) {
+                // Same source, elevated, so @s and the execution position still mean the
+                // player who clicked. Setting this mode is gated on the admin permission.
+                source = source.withPermission(4);
+            }
+
+            player.getServer().getCommands().performPrefixedCommand(source, command);
+        } catch (Exception e) {
+            LOGGER.error("Error running click command for hologram {}: {}", hologramId, e.getMessage());
+        }
+
+        return true;
+    }
+
+    /**
+     * Removes clickable hitboxes left behind by a server that did not run its shutdown path.
+     *
+     * <p>These are real entities and are saved with the chunk, so a crash would otherwise leave
+     * a duplicate behind every time the server came back up. Only entities carrying our own tag
+     * are touched.
+     */
+    public static void sweepOrphanedInteractions() {
+        if (UtilServer.get() == null) {
+            return;
+        }
+
+        int removed = 0;
+
+        for (ServerLevel level : UtilServer.get().getAllLevels()) {
+            for (Entity entity : level.getAllEntities()) {
+                if (entity instanceof Interaction && entity.getTags().contains(HologramInteraction.HOLOGRAM_TAG)) {
+                    entity.discard();
+                    removed++;
+                }
+            }
+        }
+
+        if (removed > 0) {
+            LOGGER.info("Removed {} orphaned hologram click hitboxes left by a previous run", removed);
+        }
     }
 }

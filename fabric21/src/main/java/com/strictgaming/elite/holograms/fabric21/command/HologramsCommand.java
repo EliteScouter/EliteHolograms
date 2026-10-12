@@ -9,6 +9,7 @@ import com.strictgaming.elite.holograms.fabric21.command.HologramsCreateScoreboa
 import com.strictgaming.elite.holograms.fabric21.command.HologramsCreateItemCommand;
 import com.strictgaming.elite.holograms.fabric21.command.HologramsAnimateLineCommand;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.FloatArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -36,6 +37,22 @@ public class HologramsCommand {
     private static final Logger LOGGER = LogManager.getLogger("EliteHolograms");
     private final Map<String, Object> subCommands = new HashMap<>();
     
+    // Suggestion provider for billboard names
+    private static final SuggestionProvider<CommandSourceStack> BILLBOARD_SUGGESTIONS = (context, builder) -> {
+        for (String billboard : HologramsDisplayCommand.billboardNames()) {
+            builder.suggest(billboard);
+        }
+        return builder.buildFuture();
+    };
+
+    // Suggestion provider for background colour names
+    private static final SuggestionProvider<CommandSourceStack> BACKGROUND_COLOUR_SUGGESTIONS = (context, builder) -> {
+        for (String colour : HologramsBackgroundCommand.colourNames()) {
+            builder.suggest(colour);
+        }
+        return builder.buildFuture();
+    };
+
     // Suggestion provider for hologram IDs
     private static final SuggestionProvider<CommandSourceStack> HOLOGRAM_ID_SUGGESTIONS = (context, builder) -> {
         for (Hologram hologram : HologramManager.getAllHolograms()) {
@@ -117,15 +134,25 @@ public class HologramsCommand {
             } else if (name.equals("near")) {
                 subCommand.requires(UtilPermissions::canNear);
             } else if (name.equals("addline") || name.equals("setline") || name.equals("insertline") || 
-                       name.equals("removeline") || name.equals("movehere") || name.equals("moveto") || name.equals("animateline")) {
+                       name.equals("removeline") || name.equals("movehere") || name.equals("moveto") || 
+                       name.equals("movevertical") || name.equals("animateline")) {
                 subCommand.requires(UtilPermissions::canEdit);
             } else if (name.equals("copy")) {
                 subCommand.requires(UtilPermissions::canCreate); // Copy requires create permission
             } else if (name.equals("backlight")) {
                 subCommand.requires(src -> UtilPermissions.hasPermission(src, UtilPermissions.BACKLIGHT));
-            } else if (name.equals("setrotation") || name.equals("convert")) {
+            } else if (name.equals("setrotation") || name.equals("convert") || name.equals("background")
+                    || name.equals("display") || name.equals("click")) {
                 subCommand.requires(UtilPermissions::canEdit);
             } else if (name.equals("reload")) {
+                subCommand.requires(UtilPermissions::canAdmin);
+            } else {
+                // Every subcommand above names its own node, so anything reaching here was
+                // added without one. Defaulting to admin fails closed: a new command is
+                // locked down until it is listed, rather than silently inheriting only the
+                // base /eh check and becoming usable by anyone who can run the mod at all.
+                // That is how movevertical went unguarded: it was registered and given
+                // arguments, but never added to this chain.
                 subCommand.requires(UtilPermissions::canAdmin);
             }
             
@@ -500,6 +527,87 @@ public class HologramsCommand {
                     })));
             } else if (name.equals("reload")) {
                 subCommand.executes(ctx -> executeSubCommand(ctx, name, new String[0]));
+            } else if (name.equals("click")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.literal("set")
+                        .then(Commands.argument("command", StringArgumentType.greedyString())
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "set",
+                            StringArgumentType.getString(ctx, "command")
+                        }))))
+                    .then(Commands.literal("console")
+                        .then(Commands.argument("command", StringArgumentType.greedyString())
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "console",
+                            StringArgumentType.getString(ctx, "command")
+                        }))))
+                    .then(Commands.literal("none")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "none"
+                        })))
+                );
+            } else if (name.equals("display")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.literal("scale")
+                        .then(Commands.argument("value", FloatArgumentType.floatArg(0.1F, 10.0F))
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "scale",
+                            String.valueOf(FloatArgumentType.getFloat(ctx, "value"))
+                        }))))
+                    .then(Commands.literal("brightness")
+                        .then(Commands.literal("auto")
+                            .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                                StringArgumentType.getString(ctx, "id"), "brightness", "auto"
+                            })))
+                        .then(Commands.argument("level", IntegerArgumentType.integer(0, 15))
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "brightness",
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "level"))
+                        }))))
+                    .then(Commands.literal("billboard")
+                        .then(Commands.argument("mode", StringArgumentType.word())
+                        .suggests(BILLBOARD_SUGGESTIONS)
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "billboard",
+                            StringArgumentType.getString(ctx, "mode")
+                        }))))
+                    .then(Commands.literal("reset")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "reset"
+                        })))
+                );
+            } else if (name.equals("background")) {
+                subCommand
+                    .then(Commands.argument("id", StringArgumentType.word())
+                    .suggests(HOLOGRAM_ID_SUGGESTIONS)
+                    .then(Commands.literal("colour")
+                        // Greedy so a hex value keeps its leading "#": brigadier's word()
+                        // only accepts [a-zA-Z0-9_.+-] and would reject "#1E90FF" outright.
+                        .then(Commands.argument("colour", StringArgumentType.greedyString())
+                        .suggests(BACKGROUND_COLOUR_SUGGESTIONS)
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "colour",
+                            StringArgumentType.getString(ctx, "colour")
+                        }))))
+                    .then(Commands.literal("opacity")
+                        .then(Commands.argument("percent", IntegerArgumentType.integer(0, 100))
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "opacity",
+                            String.valueOf(IntegerArgumentType.getInteger(ctx, "percent"))
+                        }))))
+                    .then(Commands.literal("none")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "none"
+                        })))
+                    .then(Commands.literal("reset")
+                        .executes(ctx -> executeSubCommand(ctx, name, new String[] {
+                            StringArgumentType.getString(ctx, "id"), "reset"
+                        })))
+                );
             } else if (name.equals("backlight")) {
                 subCommand
                     .then(Commands.argument("id", StringArgumentType.word())
@@ -560,6 +668,9 @@ public class HologramsCommand {
         source.sendSystemMessage(Component.literal("§3│ §b/eh animateline <id> <line> <sec> <frames>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh info <id>"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh backlight <id> <on|off|toggle> [level 0-15]"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh background <id> colour|opacity|none|reset"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh display <id> scale|brightness|billboard"));
+        source.sendSystemMessage(Component.literal("§3│ §b/eh click <id> set|console <command>|none"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh setrotation <id> <yaw> [pitch]"));
         source.sendSystemMessage(Component.literal("§3│ §b/eh convert <id> fixed|face"));
         source.sendSystemMessage(Component.literal("§3│ §7fixed|facing works on every create command"));
@@ -616,7 +727,7 @@ public class HologramsCommand {
             LOGGER.debug("Available commands: {}", String.join(", ", subCommands.keySet()));
         }
         
-        // Clean the name - standard formatting for our commands
+        // Clean the name using the standard formatting for our commands
         String cleanName = name.toLowerCase().trim();
         
         // Try to find the command with different name formats
@@ -683,6 +794,12 @@ public class HologramsCommand {
                 return ((HologramsNearCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsBacklightCommand) {
                 return ((HologramsBacklightCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsBackgroundCommand) {
+                return ((HologramsBackgroundCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsDisplayCommand) {
+                return ((HologramsDisplayCommand) subCommand).executeCommand(context, args);
+            } else if (subCommand instanceof HologramsClickCommand) {
+                return ((HologramsClickCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsSetRotationCommand) {
                 return ((HologramsSetRotationCommand) subCommand).executeCommand(context, args);
             } else if (subCommand instanceof HologramsConvertCommand) {

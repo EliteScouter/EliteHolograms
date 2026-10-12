@@ -4,6 +4,7 @@
 
 ### Added
 
+* **New Fabric 1.21.1 edition** (`fabric21`), contributed by [b0hle](https://github.com/b0hle) in #15. It is the Fabric 1.20.1 edition ported to Minecraft 1.21.1 on Java 21, with every feature and fix in this release. It requires Fabric API. Its bundled Adventure library is relocated under the mod's own package, so it cannot clash with another mod that ships a different version of it
 * **Clickable holograms.** `/eh click <id> set <command...>` makes a hologram run a command when a player right-clicks it, `console <command...>` runs it elevated, and `none` turns it off. `%player%` in the command is replaced with the clicking player's name. Use it for warp signs, shop buttons, quest turn-ins, or anything that was previously a sign and a pressure plate. Clicking is backed by a real, invisible `minecraft:interaction` hitbox placed over the text, which is why it works on every loader without a client mod
 * **`/eh display <id> scale <0.1-10>`** resizes a fixed hologram's text. Line spacing widens with the scale, so a scaled-up hologram does not overlap its own lines, and the top line stays anchored where the hologram is
 * **`/eh display <id> brightness <0-15|auto>`** lights the text regardless of the surrounding light level. `15` makes a hologram readable at night **without placing a single block in the world**, which for most people is what `/eh backlight` was being used for. `auto` restores world lighting
