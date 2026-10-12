@@ -8,6 +8,10 @@ The Fabric builds require **Fabric API**. The Forge and NeoForge builds need not
 
 For full details, see the [Wiki](https://github.com/EliteScouter/EliteHolograms/wiki).
 
+## New in 1.3.1 (Fabric 1.20.1)
+
+*   **Fixed a crash in other mods:** the bundled Adventure library is now relocated, so it can no longer replace another mod's copy and crash it. Only the Fabric 1.20.1 build changes.
+
 ## New in 1.3.0
 
 *   **Fabric 1.21.1 edition:** Elite Holograms now runs on Fabric for Minecraft 1.21.1 too, with every feature and command of the other editions. It requires Fabric API. Thanks to b0hle for the port.
