@@ -34,7 +34,7 @@ Full documentation is available in the [Wiki](https://github.com/EliteScouter/El
 | ------ | --------- | ------ | -------------------- | ---- | ----------- |
 | `forge19` | 1.19.2 | Forge | 43 | 17 | `1.19.2-1.3.0` |
 | `forge20` | 1.20.1 | Forge | 47 | 17 | `1.20.1-1.3.0` |
-| `fabric20` | 1.20.1 | Fabric | Loader 0.15.0 | 17 | `1.20.1-1.3.0` |
+| `fabric20` | 1.20.1 | Fabric | Loader 0.15.0 | 17 | `1.20.1-1.3.1` |
 | `fabric21` | 1.21.1 | Fabric | Loader 0.16.0 | 21 | `1.21.1-1.3.0` |
 | `neo21` | 1.21.1 | NeoForge | 21.1.0 | 21 | `1.21.1-1.3.0` |
 | `neo26` | 26.1.2 | NeoForge | 26.1.2.30-beta | 25 | `26.1.2-1.3.0` |
